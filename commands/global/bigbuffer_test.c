@@ -251,9 +251,9 @@ static bool _test_longlived_allocations_iterations(bool reversed_free_order) {
     }
     
     if (success) {
-        X_SUCCESS("ll-alloc-1(%s)", reversed_free_order ? "true" : "false");
+        X_SUCCESS("LL_Alloc1(%s)   <----", reversed_free_order ? "true" : "false");
     } else {
-        X_FAILURE("ll-alloc-1(%s)", reversed_free_order ? "true" : "false");
+        X_FAILURE("LL_Alloc1(%s)   <----", reversed_free_order ? "true" : "false");
     }
 
     X_FN_EXIT("(%s) --> %s", reversed_free_order ? "true" : "false", success ? "true" : "false");
@@ -271,11 +271,18 @@ static bool _test_allocation_iterations(const allocation_iteration_t * iteration
         success = false;
     } else if ((iterations == NULL) && (iter_count != 0u)) {
         X_FAILURE("non-zero count %zd with NULL iterations", iter_count);
+        success = false;
+    }
+    if (success) {
+        success = _verify_no_allocations();
+        if (!success) {
+            X_FAILURE("ERROR: _verify_no_allocations() failed at function entry\n");
+        }
     }
 
-    for (size_t i = 0; success && (i < iter_count); ++i) {
+    for (size_t row = 0; success && (row < iter_count); ++row) {
 
-        const allocation_iteration_t * iter = &iterations[i];
+        const allocation_iteration_t * iter = &iterations[row];
         alloc_fn_t xalloc = iter->from_long_lived ? BigBuffer_AllocateLongLived : BigBuffer_AllocateTemporary;
         for (size_t x = 0; success && (x < iter->count); ++x) {
             if ((!iter->expect_failure) && (used_allocations >= X_MAXIMUM_ALLOCATION_COUNT)) {
@@ -285,12 +292,12 @@ static bool _test_allocation_iterations(const allocation_iteration_t * iteration
             }
             void * tmp = xalloc(iter->alloc, iter->align, BP_BIG_BUFFER_OWNER_SELFTEST);
             if ((iter->expect_failure) && (tmp != NULL)) {
-                X_FAILURE("Alloc Iter Row %zd, alloc %zd/%zd: Success when expected failure", i, x, iter->count);
+                X_FAILURE("Alloc Iter Row %zd, alloc %zd/%zd: Success when expected failure", row, x, iter->count);
                 BigBuffer_Free(tmp, BP_BIG_BUFFER_OWNER_SELFTEST); // have to free it, else would leak memory b/c not guaranteed to have space to store it
                 success = false;
                 break; // out of 'x' for loop ...
             } else if ((!iter->expect_failure) && (tmp == NULL)) {
-                X_FAILURE("Alloc Iter Row %zd, alloc %zd/%zd: Failed when expected success", i, x, iter->count);
+                X_FAILURE("Alloc Iter Row %zd, alloc %zd/%zd: Failed when expected success", row, x, iter->count);
                 success = false;
                 break; // out of 'x' for loop ...
             } else if (!iter->expect_failure) {
@@ -307,12 +314,78 @@ static bool _test_allocation_iterations(const allocation_iteration_t * iteration
         BigBuffer_Free(allocations[idx], BP_BIG_BUFFER_OWNER_SELFTEST);
     }
 
+    if (success) {
+        success = _verify_no_allocations();
+        if (!success) {
+            X_FAILURE("ERROR: _verify_no_allocations() failed at function exit\n");
+        }
+    }
     X_FN_EXIT("(%p, %zd, %s) --> %s", iterations, iter_count, reversed_free_order ? "true" : "false", success ? "true" : "false");
     return success;
 }
 
+/// @brief Test alternating allocations from long-lived and temporary memory pools
+/// @details Allocates total of 132k as temporary memory (128k + 4k into long-lived space)
+///          and 4k as long-lived memory.  Allocations alternate between temporary pool
+///          and long-lived pools.  Verifies that all memory has been fully allocated.
+static const allocation_iteration_t iterations_1[] = {
+    { .alloc = 1024u * 126u, .align = 1024u * 32u, .count = 1, .from_long_lived = false, .expect_failure = false }, //   0..125
+    { .alloc = 1024u *   3u, .align =          1u, .count = 1, .from_long_lived = true,  .expect_failure = false }, // 133..135
+    { .alloc = 1024u *   1u, .align =          1u, .count = 1, .from_long_lived = false, .expect_failure = false }, // 126..126
+    { .alloc = 1024u *   1u, .align =          1u, .count = 1, .from_long_lived = true,  .expect_failure = false }, // 132..132
+    { .alloc = 1024u *   5u, .align =          1u, .count = 1, .from_long_lived = false, .expect_failure = false }, // 127..131
+    { .alloc =           1u, .align =          1u, .count = 1, .from_long_lived = true,  .expect_failure = true  }, // all memory already allocated
+    { .alloc =           1u, .align =          1u, .count = 1, .from_long_lived = false, .expect_failure = true  }, // all memory already allocated
+};
 
-static bool _test_mixed_allocations_1(bool reversed_free_order) {
+/// @brief Allocates all temporary memory, then all long-lived memory.
+/// @details Verifies test framework can allocate multiple times per row.
+///          Allocates 4x 32k buffers from temporary memory (similar to how scope might allocate).
+///          Then allocates 8x 1k buffers from long-lived memory, before verifying all memory is allocated.
+static const allocation_iteration_t iterations_2[] = {
+    { .alloc = 1024u *  32u, .align = 1024u * 32u, .count = 4, .from_long_lived = false, .expect_failure = false }, //   0..127
+    { .alloc = 1024u *   1u, .align = 1024u *  1u, .count = 8, .from_long_lived = true,  .expect_failure = false }, // 128..135
+    { .alloc =           1u, .align =          1u, .count = 1, .from_long_lived = true,  .expect_failure = true  }, // all memory already allocated
+    { .alloc =           1u, .align =          1u, .count = 1, .from_long_lived = false, .expect_failure = true  }, // all memory already allocated
+};
+/// @brief Allocates irregular (prime number) bytes of memory with various alignments.
+/// @details This test verifies three properties:
+///          1. allocations remain properly aligned, even when gaps are necessary
+///          2. allocation of last bytes of memory (unaligned) can be from TEMPORARY memory
+///          3. allocations of small amounts of memory (which would fit into the gaps) fail
+///             when the two watermarks meet ... i.e. this is a specialized allocator, not
+///             a fully featured heap.
+static const allocation_iteration_t iterations_3[] = {
+    { .alloc =         257u, .align =        256u, .count = 2, .from_long_lived = false, .expect_failure = false }, //   0..  0
+    { .alloc = 1024u *   1u, .align = 1024u *  1u, .count = 4, .from_long_lived = true,  .expect_failure = false }, // 132..135
+    { .alloc =        2039u, .align = 1024u * 32u, .count = 1, .from_long_lived = false, .expect_failure = false }, //  32.. 33
+    { .alloc =        8181u, .align = 1024u *  2u, .count = 1, .from_long_lived = false, .expect_failure = false }, //  34.. 41
+    { .alloc =       44497u, .align = 1024u *  4u, .count = 1, .from_long_lived = false, .expect_failure = false }, //  44.. 87
+    { .alloc =       44497u, .align = 1024u *  4u, .count = 1, .from_long_lived = false, .expect_failure = false }, //  88..131
+    { .alloc =         559u, .align =          1u, .count = 1, .from_long_lived = false, .expect_failure = false }, //      131 (leftovers above the 44497u ... )
+    { .alloc =           1u, .align =          1u, .count = 1, .from_long_lived = true,  .expect_failure = true  }, // watermarks met, so all memory already allocated even though gaps exist
+    { .alloc =           1u, .align =          1u, .count = 1, .from_long_lived = false, .expect_failure = true  }, // watermarks met, so all memory already allocated even though gaps exist
+};
+/// @brief Allocates irregular (prime number) bytes of memory with various alignments.
+/// @details This test verifies three properties:
+///          1. allocations remain properly aligned, even when gaps are necessary
+///          2. allocation of last bytes of memory (unaligned) can be from LONG-LIVED memory
+///          3. allocations of small amounts of memory (which would fit into the gaps) fail
+///             when the two watermarks meet ... i.e. this is a specialized allocator, not
+///             a fully featured heap.
+static const allocation_iteration_t iterations_4[] = { // Same as above, except leftovers allocated as long-lived
+    { .alloc =         257u, .align =        256u, .count = 2, .from_long_lived = false, .expect_failure = false }, //   0..  0
+    { .alloc = 1024u *   1u, .align = 1024u *  1u, .count = 4, .from_long_lived = true,  .expect_failure = false }, // 132..135
+    { .alloc =        2039u, .align = 1024u * 32u, .count = 1, .from_long_lived = false, .expect_failure = false }, //  32.. 33
+    { .alloc =        8181u, .align = 1024u *  2u, .count = 1, .from_long_lived = false, .expect_failure = false }, //  34.. 41
+    { .alloc =       44497u, .align = 1024u *  4u, .count = 1, .from_long_lived = false, .expect_failure = false }, //  44.. 87
+    { .alloc =       44497u, .align = 1024u *  4u, .count = 1, .from_long_lived = false, .expect_failure = false }, //  88..131
+    { .alloc =         559u, .align =          1u, .count = 1, .from_long_lived = true,  .expect_failure = false }, //      131 (leftovers above the 44497u ... )
+    { .alloc =           1u, .align =          1u, .count = 1, .from_long_lived = true,  .expect_failure = true  }, // watermarks met, so all memory already allocated even though gaps exist
+    { .alloc =           1u, .align =          1u, .count = 1, .from_long_lived = false, .expect_failure = true  }, // watermarks met, so all memory already allocated even though gaps exist
+};
+
+static bool _test_mixed_allocations_1a(bool reversed_free_order) {
     X_FN_ENTRY("(%s)", reversed_free_order ? "true" : "false");
 
     bool success = true;
@@ -323,20 +396,11 @@ static bool _test_mixed_allocations_1(bool reversed_free_order) {
         }
     }
 
-    // What is the interesting use case here?  128k + 8k total
-    allocation_iteration_t iterations[] = {
-        { .alloc = 1024u * 126u, .align = 1024u * 32u, .count = 1, .from_long_lived = false, .expect_failure = false }, //   0..125
-        { .alloc = 1024u *   3u, .align =          1u, .count = 1, .from_long_lived = true,  .expect_failure = false }, // 133..135
-        { .alloc = 1024u *   1u, .align =          1u, .count = 1, .from_long_lived = false, .expect_failure = false }, // 126..126
-        { .alloc = 1024u *   1u, .align =          1u, .count = 1, .from_long_lived = true,  .expect_failure = false }, // 132..132
-        { .alloc = 1024u *   5u, .align =          1u, .count = 1, .from_long_lived = false, .expect_failure = false }, // 127..131
-        { .alloc =           1u, .align =          1u, .count = 1, .from_long_lived = true,  .expect_failure = true  }, // all memory already allocated
-        { .alloc =           1u, .align =          1u, .count = 1, .from_long_lived = false, .expect_failure = true  }, // all memory already allocated
-    };
-    void * p[count_of(iterations)] = {NULL};
+    // N.B. - this function presumes .count == 1 for each index
+    void * p[count_of(iterations_1)] = {NULL};
 
-    for (size_t i = 0; success && (i < count_of(iterations)); ++i) {
-        allocation_iteration_t * iter = &iterations[i];
+    for (size_t i = 0; success && (i < count_of(iterations_1)); ++i) {
+        const allocation_iteration_t * iter = &iterations_1[i];
         if (iter->from_long_lived) {
             p[i] = BigBuffer_AllocateLongLived(iter->alloc, iter->align, BP_BIG_BUFFER_OWNER_SELFTEST);
         } else {
@@ -358,8 +422,8 @@ static bool _test_mixed_allocations_1(bool reversed_free_order) {
     }
 
     // reset state by free'ing all the allocations 
-    for (size_t i = 0; i < count_of(iterations); ++i) {
-        size_t idx = reversed_free_order ? (count_of(iterations) - 1u - i) : i;
+    for (size_t i = 0; i < count_of(iterations_1); ++i) {
+        size_t idx = reversed_free_order ? (count_of(iterations_1) - 1u - i) : i;
         BigBuffer_Free(p[idx], BP_BIG_BUFFER_OWNER_SELFTEST);
         p[idx] = NULL;
     }
@@ -367,42 +431,47 @@ static bool _test_mixed_allocations_1(bool reversed_free_order) {
     X_FN_EXIT("(%s) --> %s", reversed_free_order ? "true" : "false", success ? "true" : "false");
     return success;
 }
+static bool _test_mixed_allocations_1b(bool reversed_free_order) {
+    X_FN_ENTRY("(%s)", reversed_free_order ? "true" : "false");
 
+    bool success = _test_allocation_iterations(iterations_1, count_of(iterations_1), reversed_free_order);
+
+    X_FN_EXIT("(%s) --> %s", reversed_free_order ? "true" : "false", success ? "true" : "false");
+    return success;
+}
 static bool _test_mixed_allocations_2(bool reversed_free_order) {
     X_FN_ENTRY("(%s)", reversed_free_order ? "true" : "false");
 
-    bool success = true;
-    if (success) {
-        success = _verify_no_allocations();
-        if (!success) {
-            X_FAILURE("ERROR: _verify_no_allocations() failed at function entry\n");
-        }
-    }
+    bool success = _test_allocation_iterations(iterations_2, count_of(iterations_2), reversed_free_order);
 
-    // What is the interesting use case here?  128k + 8k total
-    allocation_iteration_t iterations[] = {
-        { .alloc = 1024u * 126u, .align = 1024u * 32u, .count = 1, .from_long_lived = false, .expect_failure = false }, //   0..125
-        { .alloc = 1024u *   3u, .align =          1u, .count = 1, .from_long_lived = true,  .expect_failure = false }, // 133..135
-        { .alloc = 1024u *   1u, .align =          1u, .count = 1, .from_long_lived = false, .expect_failure = false }, // 126..126
-        { .alloc = 1024u *   1u, .align =          1u, .count = 1, .from_long_lived = true,  .expect_failure = false }, // 132..132
-        { .alloc = 1024u *   5u, .align =          1u, .count = 1, .from_long_lived = false, .expect_failure = false }, // 127..131
-        { .alloc =           1u, .align =          1u, .count = 1, .from_long_lived = true,  .expect_failure = true  }, // all memory already allocated
-        { .alloc =           1u, .align =          1u, .count = 1, .from_long_lived = false, .expect_failure = true  }, // all memory already allocated
-    };
+    X_FN_EXIT("(%s) --> %s", reversed_free_order ? "true" : "false", success ? "true" : "false");
+    return success;
+}
+static bool _test_mixed_allocations_3(bool reversed_free_order) {
+    X_FN_ENTRY("(%s)", reversed_free_order ? "true" : "false");
 
-    success = _test_allocation_iterations(iterations, count_of(iterations), reversed_free_order);
+    bool success = _test_allocation_iterations(iterations_3, count_of(iterations_3), reversed_free_order);
+
+    X_FN_EXIT("(%s) --> %s", reversed_free_order ? "true" : "false", success ? "true" : "false");
+    return success;
+}
+static bool _test_mixed_allocations_4(bool reversed_free_order) {
+    X_FN_ENTRY("(%s)", reversed_free_order ? "true" : "false");
+
+    bool success = _test_allocation_iterations(iterations_4, count_of(iterations_4), reversed_free_order);
 
     X_FN_EXIT("(%s) --> %s", reversed_free_order ? "true" : "false", success ? "true" : "false");
     return success;
 }
 
-
-
 static const bool_test_t bool_tests[] = {
     X_BOOL_TEST(_test_temporary_allocations_1),
     X_BOOL_TEST(_test_longlived_allocations_iterations),
-    X_BOOL_TEST(_test_mixed_allocations_1),
-    // X_BOOL_TEST(_test_mixed_allocations_2),
+    X_BOOL_TEST(_test_mixed_allocations_1a),
+    X_BOOL_TEST(_test_mixed_allocations_1b),
+    X_BOOL_TEST(_test_mixed_allocations_2),
+    X_BOOL_TEST(_test_mixed_allocations_3),
+    X_BOOL_TEST(_test_mixed_allocations_4),
 };
 
 static bool _dispatch(void)
