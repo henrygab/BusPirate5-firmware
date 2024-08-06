@@ -130,7 +130,7 @@ uint8_t storage_format(void) {
     }
 
     fr = f_mkfs("", 0, work_buffer, FF_MAX_SS);
-    BigBuffer_FreeTemporary(work_buffer, BP_BIG_BUFFER_OWNER_DISKFORMAT);
+    BigBuffer_Free(work_buffer, BP_BIG_BUFFER_OWNER_DISKFORMAT);
 
     if (fr == FR_OK) {
         fr = f_setlabel("Bus_Pirate5");

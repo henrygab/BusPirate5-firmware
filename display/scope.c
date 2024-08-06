@@ -198,7 +198,7 @@ void scope_cleanup(void)
 		scope_shutdown(1);
 	}
 	scope_subsystem_stopped = 1;
-	BigBuffer_FreeTemporary(fb, BP_BIG_BUFFER_OWNER_SCOPE);
+	BigBuffer_Free(fb, BP_BIG_BUFFER_OWNER_SCOPE);
 	fb = NULL;
 	capture_buffer = 0;
 	display_buffer = 0;
@@ -238,7 +238,7 @@ uint32_t scope_setup(void)
 		printf("couldn't allocate %d bytes, scope mode broken\r\n", MALLOC_SIZE);
 		return 0;
 	}
-	BigBuffer_FreeTemporary(x, BP_BIG_BUFFER_OWNER_SCOPE);
+	BigBuffer_Free(x, BP_BIG_BUFFER_OWNER_SCOPE);
 	display = 1;
 	return 1;
 }

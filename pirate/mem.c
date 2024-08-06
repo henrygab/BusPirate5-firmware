@@ -528,44 +528,24 @@ static big_buffer_allocation_instance_t* BigBuffer_FreeCommon(uintptr_t p, big_b
     // all checks passed.  do NOT modify tracking data here, as it depends on type of allocation
     return allocated;
 }
-void BigBuffer_FreeTemporary(const void * ptr, big_buffer_owner_t owner) {
+void BigBuffer_Free(const void * ptr, big_buffer_owner_t owner) {
     X_API_ENTRY("(%p, %d)", ptr, owner);
     X_CHECK_INVARIANTS();
 
     big_buffer_allocation_instance_t* allocation = BigBuffer_FreeCommon((uintptr_t)ptr, owner);
     if (allocation == NULL) {
         // already asserted in BigBuffer_FreeCommon(), or was free'ing NULL
-    } else if (allocation->was_long_lived_allocation) {
-        X_FATAL("BB_FreeTemp: pointer %#010zx was allocated as long-lived allocation.\n");
-        assert(false); // ptr was not a temporary allocation
     } else {
-        // zero this one's tracking data, which free's the memory and prevents it from affecting calculation of new watermarks.
-        // Then, scan all the allocations to find a new low water mark.
-        memset(allocation, 0, sizeof(big_buffer_allocation_instance_t));
-        --s_State.temp_allocations_count;
-        s_State.low_watermark = BigBuffer_DetermineNewLowWaterMark();
-    }
-
-    X_CHECK_INVARIANTS();
-    X_API_EXIT("(%p, %d)", ptr, owner);
-    return;
-}
-void BigBuffer_FreeLongLived(const void * ptr, big_buffer_owner_t owner) {
-    X_API_ENTRY("(%p, %d)", ptr, owner);
-    X_CHECK_INVARIANTS();
-
-    big_buffer_allocation_instance_t* allocation = BigBuffer_FreeCommon((uintptr_t)ptr, owner);
-    if (allocation == NULL) {
-        // already asserted in BigBuffer_FreeCommon(), or was free'ing NULL
-    } else if (!allocation->was_long_lived_allocation) {
-        X_FATAL("BB_FreeLongLived: pointer %#010zx was allocated as temporary allocation.\n");
-        assert(false); // ptr was not a long-lived allocation
-    } else {
+        if (allocation->was_long_lived_allocation) {
+            --s_State.long_lived_allocations_count;
+        } else {
+            --s_State.temp_allocations_count;
+        }
         // zero this one's tracking data, which free's the memory and prevents it from affecting calculation of new watermarks.
         // Then, scan all the allocations to find a new high water mark.
         memset(allocation, 0, sizeof(big_buffer_allocation_instance_t));
-        --s_State.long_lived_allocations_count;
         s_State.high_watermark = BigBuffer_DetermineNewHighWaterMark();
+        s_State.low_watermark = BigBuffer_DetermineNewLowWaterMark();
     }
 
     X_CHECK_INVARIANTS();
@@ -715,7 +695,7 @@ void mem_free(uint8_t const * ptr)
 {
     X_API_ENTRY("(%p)", ptr);
 
-    BigBuffer_FreeTemporary(ptr, legacy_owner);
+    BigBuffer_Free(ptr, legacy_owner);
     BigBuffer_VerifyNoTemporaryAllocations();
 
     X_API_EXIT("(%p)", ptr);

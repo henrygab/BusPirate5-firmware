@@ -62,6 +62,8 @@
 
 // define function pointer that matches the signature of _test_temporary_allocations_1
 typedef bool (*bool_parameter_test_fn_t)(bool reversed_free_order);
+// define function pointer that matches the signature of BigBuffer_AllocateTemporary / BigBuffer_AllocateLongLived
+typedef void * (*alloc_fn_t)(size_t, size_t, big_buffer_owner_t);
 
 typedef struct _allocation_iteration_t {
     size_t alloc; // how many bytes to allocate
@@ -136,12 +138,12 @@ static bool _test_temporary_allocations_1(bool reversed_free_order) {
             break; // out of for loop ...
         }
 
-        BigBuffer_FreeTemporary(spacer, BP_BIG_BUFFER_OWNER_SELFTEST);
+        BigBuffer_Free(spacer, BP_BIG_BUFFER_OWNER_SELFTEST);
     }
 
     for (int j = 0; j < 32; ++j) {
         int idx = reversed_free_order ? (31 - j) : j;
-        BigBuffer_FreeTemporary(allocations[idx], BP_BIG_BUFFER_OWNER_SELFTEST);
+        BigBuffer_Free(allocations[idx], BP_BIG_BUFFER_OWNER_SELFTEST);
     }
 
     if (success) {
@@ -151,8 +153,6 @@ static bool _test_temporary_allocations_1(bool reversed_free_order) {
     X_FN_EXIT("(%s) --> %s", reversed_free_order ? "true" : "false", success ? "true" : "false");
     return success;
 }
-
-
 static bool _test_longlived_allocations_iterations_impl(bool reversed_free_order, allocation_iteration_t iter) {
 
     bool success = true;
@@ -194,7 +194,7 @@ static bool _test_longlived_allocations_iterations_impl(bool reversed_free_order
     // Free all allocations
     for (size_t i = 0; i < count_of(allocations); ++i) {
         size_t idx = reversed_free_order ? (count_of(allocations) - 1u - i) : i;
-        BigBuffer_FreeLongLived(allocations[idx], BP_BIG_BUFFER_OWNER_SELFTEST);
+        BigBuffer_Free(allocations[idx], BP_BIG_BUFFER_OWNER_SELFTEST);
     }
 
     if (success) {
@@ -205,7 +205,6 @@ static bool _test_longlived_allocations_iterations_impl(bool reversed_free_order
     }
     return success;
 }
-
 static bool _test_longlived_allocations_iterations(bool reversed_free_order) {
     X_FN_ENTRY("(%s)", reversed_free_order ? "true" : "false");
 
@@ -260,6 +259,59 @@ static bool _test_longlived_allocations_iterations(bool reversed_free_order) {
     X_FN_EXIT("(%s) --> %s", reversed_free_order ? "true" : "false", success ? "true" : "false");
     return success;
 }
+static bool _test_allocation_iterations(const allocation_iteration_t * iterations, size_t iter_count, bool reversed_free_order) {
+    X_FN_ENTRY("(%p, %zd, %s)", iterations, iter_count, reversed_free_order ? "true" : "false");
+
+    void * allocations[X_MAXIMUM_ALLOCATION_COUNT] = {NULL}; // could be a VLA, but reduces portability
+    size_t used_allocations = 0u;
+
+    bool success = true;
+    if (iter_count > X_MAXIMUM_ALLOCATION_COUNT) {
+        X_FAILURE("count %zd exceeds maximum of %d", iter_count, X_MAXIMUM_ALLOCATION_COUNT);
+        success = false;
+    } else if ((iterations == NULL) && (iter_count != 0u)) {
+        X_FAILURE("non-zero count %zd with NULL iterations", iter_count);
+    }
+
+    for (size_t i = 0; success && (i < iter_count); ++i) {
+
+        const allocation_iteration_t * iter = &iterations[i];
+        alloc_fn_t xalloc = iter->from_long_lived ? BigBuffer_AllocateLongLived : BigBuffer_AllocateTemporary;
+        for (size_t x = 0; success && (x < iter->count); ++x) {
+            if ((!iter->expect_failure) && (used_allocations >= X_MAXIMUM_ALLOCATION_COUNT)) {
+                X_FAILURE("Exceeded maximum of %zd tracked allocations", X_MAXIMUM_ALLOCATION_COUNT);
+                success = false;
+                break; // out of 'x' for loop ...
+            }
+            void * tmp = xalloc(iter->alloc, iter->align, BP_BIG_BUFFER_OWNER_SELFTEST);
+            if ((iter->expect_failure) && (tmp != NULL)) {
+                X_FAILURE("Alloc Iter Row %zd, alloc %zd/%zd: Success when expected failure", i, x, iter->count);
+                BigBuffer_Free(tmp, BP_BIG_BUFFER_OWNER_SELFTEST); // have to free it, else would leak memory b/c not guaranteed to have space to store it
+                success = false;
+                break; // out of 'x' for loop ...
+            } else if ((!iter->expect_failure) && (tmp == NULL)) {
+                X_FAILURE("Alloc Iter Row %zd, alloc %zd/%zd: Failed when expected success", i, x, iter->count);
+                success = false;
+                break; // out of 'x' for loop ...
+            } else if (!iter->expect_failure) {
+                allocations[used_allocations] = tmp;
+                ++used_allocations;
+            }
+        }
+
+    }
+
+    // free all allocations
+    for (size_t j = 0; j < X_MAXIMUM_ALLOCATION_COUNT; ++j) {
+        size_t idx = reversed_free_order ? (X_MAXIMUM_ALLOCATION_COUNT - 1u - j) : j;
+        BigBuffer_Free(allocations[idx], BP_BIG_BUFFER_OWNER_SELFTEST);
+    }
+
+    X_FN_EXIT("(%p, %zd, %s) --> %s", iterations, iter_count, reversed_free_order ? "true" : "false", success ? "true" : "false");
+    return success;
+}
+
+
 static bool _test_mixed_allocations_1(bool reversed_free_order) {
     X_FN_ENTRY("(%s)", reversed_free_order ? "true" : "false");
 
@@ -308,37 +360,49 @@ static bool _test_mixed_allocations_1(bool reversed_free_order) {
     // reset state by free'ing all the allocations 
     for (size_t i = 0; i < count_of(iterations); ++i) {
         size_t idx = reversed_free_order ? (count_of(iterations) - 1u - i) : i;
-        if (iterations[idx].from_long_lived) {
-            BigBuffer_FreeLongLived(p[idx], BP_BIG_BUFFER_OWNER_SELFTEST);
-        } else {
-            BigBuffer_FreeTemporary(p[idx], BP_BIG_BUFFER_OWNER_SELFTEST);
-        }
+        BigBuffer_Free(p[idx], BP_BIG_BUFFER_OWNER_SELFTEST);
         p[idx] = NULL;
     }
 
     X_FN_EXIT("(%s) --> %s", reversed_free_order ? "true" : "false", success ? "true" : "false");
     return success;
 }
-static bool _test_longlived_allocations_3(bool reversed_free_order) {
+
+static bool _test_mixed_allocations_2(bool reversed_free_order) {
     X_FN_ENTRY("(%s)", reversed_free_order ? "true" : "false");
 
     bool success = true;
     if (success) {
         success = _verify_no_allocations();
         if (!success) {
-            X_FAILURE("_verify_no_allocations() failed at function entry");
+            X_FAILURE("ERROR: _verify_no_allocations() failed at function entry\n");
         }
     }
+
+    // What is the interesting use case here?  128k + 8k total
+    allocation_iteration_t iterations[] = {
+        { .alloc = 1024u * 126u, .align = 1024u * 32u, .count = 1, .from_long_lived = false, .expect_failure = false }, //   0..125
+        { .alloc = 1024u *   3u, .align =          1u, .count = 1, .from_long_lived = true,  .expect_failure = false }, // 133..135
+        { .alloc = 1024u *   1u, .align =          1u, .count = 1, .from_long_lived = false, .expect_failure = false }, // 126..126
+        { .alloc = 1024u *   1u, .align =          1u, .count = 1, .from_long_lived = true,  .expect_failure = false }, // 132..132
+        { .alloc = 1024u *   5u, .align =          1u, .count = 1, .from_long_lived = false, .expect_failure = false }, // 127..131
+        { .alloc =           1u, .align =          1u, .count = 1, .from_long_lived = true,  .expect_failure = true  }, // all memory already allocated
+        { .alloc =           1u, .align =          1u, .count = 1, .from_long_lived = false, .expect_failure = true  }, // all memory already allocated
+    };
+
+    success = _test_allocation_iterations(iterations, count_of(iterations), reversed_free_order);
 
     X_FN_EXIT("(%s) --> %s", reversed_free_order ? "true" : "false", success ? "true" : "false");
     return success;
 }
 
 
+
 static const bool_test_t bool_tests[] = {
     X_BOOL_TEST(_test_temporary_allocations_1),
     X_BOOL_TEST(_test_longlived_allocations_iterations),
     X_BOOL_TEST(_test_mixed_allocations_1),
+    // X_BOOL_TEST(_test_mixed_allocations_2),
 };
 
 static bool _dispatch(void)

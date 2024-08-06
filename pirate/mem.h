@@ -85,15 +85,11 @@ void* BigBuffer_AllocateTemporary(size_t countOfBytes, size_t requiredAlignment,
 /// @note Total long-lived buffer space is currently limited to 8k.
 void* BigBuffer_AllocateLongLived(size_t countOfBytes, size_t requiredAlignment, big_buffer_owner_t owner);
 
-/// @brief Frees a buffer previously allocated by `BigBuffer_AllocateTemporary()`.
+/// @brief Frees a buffer previously allocated by `BigBuffer_AllocateTemporary()` or `BigBuffer_AllocationLongLived()`.
 /// @note The owner must match ... this helps avoid a class of bugs that are otherwise
 ///       more difficult to catch / debug / track down.
-void BigBuffer_FreeTemporary(const void * ptr, big_buffer_owner_t owner);
+void BigBuffer_Free(const void * ptr, big_buffer_owner_t owner);
 
-/// @brief Frees a buffer previously allocated by `BigBuffer_AllocateLongLived()`.
-/// @note The owner must match ... this helps avoid a class of bugs that are otherwise
-///       more difficult to catch / debug / track down.
-void BigBuffer_FreeLongLived(const void * ptr, big_buffer_owner_t owner);
 
 /// @brief How many bytes of temporary memory are available with a given alignment?
 size_t BigBuffer_GetAvailableTemporaryMemory(size_t requiredAlignment);
@@ -160,7 +156,7 @@ void BigBuffer_DebugDumpCurrentState(bool verbose);
 uint8_t* mem_alloc(size_t size, big_buffer_owner_t owner) __attribute__((deprecated("use BigBuffer_AllocateTemporary() instead")));
 /// @brief Frees the allocated nand page buffer
 /// @param ptr pointer to the nand page buffer
-void     mem_free(const uint8_t * ptr)                    __attribute__((deprecated("use BigBuffer_FreeTemporary() instead")));
+void     mem_free(const uint8_t * ptr)                    __attribute__((deprecated("use BigBuffer_Free() instead")));
 
 // End of legacy memory allocation APIs
 ////////////////////////////////////////////////////////////////////////////////

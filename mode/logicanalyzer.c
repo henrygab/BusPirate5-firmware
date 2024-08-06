@@ -509,7 +509,7 @@ bool logic_analyzer_cleanup(void)
         pio_program_active=0;
     }
 
-    BigBuffer_FreeTemporary(la_buf, BP_BIG_BUFFER_OWNER_LA);
+    BigBuffer_Free(la_buf, BP_BIG_BUFFER_OWNER_LA);
 
     logicanalyzer_reset_led();
 
