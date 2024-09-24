@@ -166,13 +166,14 @@ uint8_t const desc_fs_configuration[] =
   // 2nd CDC: Interface number, string index, EP notification address and size, EP data address (out, in) and size.
   TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_1, 6, EPNUM_CDC_1_NOTIF, 8, EPNUM_CDC_1_OUT, EPNUM_CDC_1_IN, CFG_TUD_CDC_EP_BUFSIZE),
 
+#if defined(ENABLE_THIRD_CDC_PORT)
+  // 3rd CDC: Interface number, string index, EP notification address and size, EP data address (out, in) and size.
+  TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_2, 7, EPNUM_CDC_2_NOTIF, 8, EPNUM_CDC_2_OUT, EPNUM_CDC_2_IN, CFG_TUD_CDC_EP_BUFSIZE),
+#endif
+
   // Interface number, string index, EP Out & EP In address, EP size
   TUD_MSC_DESCRIPTOR(ITF_NUM_MSC,   5, EPNUM_MSC_OUT, EPNUM_MSC_IN, CFG_TUD_MSC_EP_BUFSIZE),
 
-#if defined(ENABLE_THIRD_CDC_PORT)
-  // 3rd CDC: Interface number, string index, EP notification address and size, EP data address (out, in) and size.
-  TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_1, 7, EPNUM_CDC_2_NOTIF, 8, EPNUM_CDC_2_OUT, EPNUM_CDC_2_IN, CFG_TUD_CDC_EP_BUFSIZE),
-#endif
 };
 
 #if TUD_OPT_HIGH_SPEED
@@ -190,13 +191,14 @@ uint8_t const desc_hs_configuration[] =
   // 2nd CDC: Interface number, string index, EP notification address and size, EP data address (out, in) and size.
   TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_1, 6, EPNUM_CDC_1_NOTIF, 8, EPNUM_CDC_1_OUT, EPNUM_CDC_1_IN, CFG_TUD_CDC_EP_BUFSIZE),
 
+#if defined(ENABLE_THIRD_CDC_PORT)
+  // 3rd CDC: Interface number, string index, EP notification address and size, EP data address (out, in) and size.
+  TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_2, 7, EPNUM_CDC_2_NOTIF, 8, EPNUM_CDC_2_OUT, EPNUM_CDC_2_IN, CFG_TUD_CDC_EP_BUFSIZE),
+#endif
+
   // Interface number, string index, EP Out & EP In address, EP size
   TUD_MSC_DESCRIPTOR(ITF_NUM_MSC,   5, EPNUM_MSC_OUT, EPNUM_MSC_IN, CFG_TUD_MSC_EP_BUFSIZE),
 
-#if defined(ENABLE_THIRD_CDC_PORT)
-  // 3rd CDC: Interface number, string index, EP notification address and size, EP data address (out, in) and size.
-  TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_1, 7, EPNUM_CDC_2_NOTIF, 8, EPNUM_CDC_2_OUT, EPNUM_CDC_2_IN, CFG_TUD_CDC_EP_BUFSIZE),
-#endif
 };
 
 // other speed configuration

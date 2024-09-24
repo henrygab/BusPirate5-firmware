@@ -71,20 +71,20 @@ void tud_cdc_rx_cb(uint8_t itf) {
     char buf[64]; // BUGBUG -- Magic number 64 should be replaced with a constant
 
     if(itf==0 && tud_cdc_n_available(0)) {           // BUGBUG -- Magic Number should be CDC_ITF_IDX_TERMINAL
-        uint32_t count = tud_cdc_n_read(0, buf, 64); // BUGBUG -- Magic Numbers 0 and 64 should be replaced
+        uint32_t count = tud_cdc_n_read(0, buf, 64); // BUGBUG -- Magic Number 64 should be replaced
 
         // while bytes available shove them in the buffer
         for(uint8_t i=0; i<count; i++) {
-            queue2_add_blocking(&rx_fifo, &buf[i]);
+            queue2_add_blocking(&rx_fifo, &buf[i]); // BUGBUG -- calling blocking function from ISR
         }
     }
 
     if(system_config.binmode_usb_rx_queue_enable && itf==1 && tud_cdc_n_available(1)) { // BUGBUG -- Magic Number should be replaced
-        uint32_t count = tud_cdc_n_read(1, buf, 64); // BUGBUG -- Magic Numbers 1 and 64 should be replaced
+        uint32_t count = tud_cdc_n_read(1, buf, 64); // BUGBUG -- Magic Number 64 should be replaced
 
         // while bytes available shove them in the buffer
         for(uint8_t i=0; i<count; i++) {
-            queue2_add_blocking(&bin_rx_fifo, &buf[i]);           
+            queue2_add_blocking(&bin_rx_fifo, &buf[i]); // BUGBUG -- calling blocking function from ISR
         }
     }
 
@@ -92,7 +92,7 @@ void tud_cdc_rx_cb(uint8_t itf) {
     // BUGBUG -- can we ignore received data from the third CDC port, or do we have
     //           to handle it even if throwing the values away?
     if(itf==2 && tud_cdc_n_available(2)) {           // BUGBUG -- Magic Number should be replaced
-        uint32_t count = tud_cdc_n_read(2, buf, 64); // BUGBUG -- Magic Numbers 0 and 64 should be replaced
+        uint32_t count = tud_cdc_n_read(2, buf, 64); // BUGBUG -- Magic Number 64 should be replaced
         // throw the data away ... debug port is send-only
     }
 #endif
@@ -146,3 +146,7 @@ bool bin_rx_fifo_try_get(char *c){
     //if(result) printf("%.2x ", (*c));
     return result;
 }
+
+// 
+
+
