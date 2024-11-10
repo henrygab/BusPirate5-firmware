@@ -1,11 +1,14 @@
 Set-StrictMode -Version Latest
 
-# execute as follows:
-# First, load the script from a Windows Powershell prompt:
+# From a windows command prompt:
+#     powershell.exe -NoLogo -NoProfile -ExecutionPolicy RemoteSigned -Command ". .\show_port_info.ps1; Get-BusPirateDetails"
+#
+# From a Windows Powershell prompt:
+#     # Load the script's function
 #     . .\show_port_info.ps1
-# If necessary, permit the loading of the script (only after reviewing what the script does below):
+#     # If necessary, permit the loading of the script (only after reviewing what the script does below):
 #     Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
-# Then, run the function that was defined by the script:
+#     # Then, run the function that was defined by the script:
 #     Get-BusPirateDetails
 #
 # If something goes awry, you can execute the script with more verbose output:
@@ -103,7 +106,7 @@ function Get-BusPirateDetails {
 
     Write-Verbose "Processing root device $($rootDevice.InstanceId)"
 
-    $resultObj = New-Object PSObject -Property @{ InstanceId = $device.InstanceId };
+    $resultObj = New-Object PSObject -Property @{ InstanceId = $rootDevice.InstanceId };
 
     # Hack ... the serial number is the tail end of the instance ID
     $serialNumber = ($rootDevice.InstanceId -split '\\')[-1];
