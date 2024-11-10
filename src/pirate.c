@@ -176,8 +176,8 @@ static void main_system_initialization(void) {
         // update LED
         rgb_set_effect(system_config.led_effect);
     } else {
-        // party mode/demo mode if no config file found
-        rgb_set_effect(LED_EFFECT_PARTY_MODE);
+        // Test the github action build!
+        rgb_set_effect(LED_EFFECT_GENTLE_GLOW);
     }
     spi_set_baudrate(BP_SPI_PORT, BP_SPI_HIGH_SPEED);
 #endif
