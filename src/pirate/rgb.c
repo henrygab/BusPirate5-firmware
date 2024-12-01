@@ -733,9 +733,11 @@ static bool pixel_timer_callback(struct repeating_timer* t) {
 void rgb_irq_enable(bool enable) {
     static bool enabled = false;
     if (enable && !enabled) {
+        BP_DEBUG_PRINT("RGB: Enabling timer IRQ\n");
         add_repeating_timer_ms(-10, pixel_timer_callback, NULL, &rgb_timer);
         enabled = true;
     } else if (!enable && enabled) {
+        BP_DEBUG_PRINT("RGB: Disabling timer IRQ\n");
         cancel_repeating_timer(&rgb_timer);
         enabled = false;
     }

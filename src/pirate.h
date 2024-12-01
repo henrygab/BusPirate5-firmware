@@ -83,6 +83,7 @@
 // clang-format on
 
 #include "translation/base.h"
+#include "lib/rtt/RTT/SEGGER_RTT.h"
 #include "printf-4.0.0/printf.h"
 #include <stdint.h>
 #include <stdbool.h>
@@ -141,3 +142,6 @@ void spi_busy_wait(bool enable);
 #define M_LED_SCL BIO1 // only used on APA102
 
 #endif
+
+
+#define BP_DEBUG_PRINT(...) SEGGER_RTT_printf(0, __VA_ARGS__) // unconditionally output to RTT terminal (channel 0)
