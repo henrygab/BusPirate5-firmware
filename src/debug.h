@@ -24,7 +24,7 @@
     typedef enum _bp_debug_category_enum_t {
         E_DEBUG_CAT_CATCHALL         =  0u, // (((uint32_t)1u) <<  0u), // for messages that are not (yet) categorized
         E_DEBUG_CAT_EARLY            =  1u, // (((uint32_t)1u) <<  1u), // early-in-boot (initialization)
-        E_DEBUG_CAT_PIXELS           =  2u, // (((uint32_t)1u) <<  2u), // onboard RGB pixels
+        E_DEBUG_CAT_ONBOARD_PIXELS   =  2u, // (((uint32_t)1u) <<  2u), // onboard RGB pixels
         E_DEBUG_CAT_USB_HID          =  3u, // (((uint32_t)1u) <<  3u), // USB based HID interactions
         E_DEBUG_CAT_USB_CDC          =  4u, // (((uint32_t)1u) <<  4u), // USB based serial port
         E_DEBUG_CAT_USB_MSC          =  5u, // (((uint32_t)1u) <<  5u), // USB based mass storage commands
@@ -77,7 +77,7 @@
 
 #define BP_DEBUG_CAT_CATCHALL         ((bp_debug_category_t){ E_DEBUG_CAT_CATCHALL         }) // for messages that are not (yet) categorized
 #define BP_DEBUG_CAT_EARLY            ((bp_debug_category_t){ E_DEBUG_CAT_EARLY            }) // early-in-boot (initialization)
-#define BP_DEBUG_CAT_PIXELS           ((bp_debug_category_t){ E_DEBUG_CAT_PIXELS           }) // onboard RGB pixels
+#define BP_DEBUG_CAT_ONBOARD_PIXELS   ((bp_debug_category_t){ E_DEBUG_CAT_ONBOARD_PIXELS   }) // onboard RGB pixels
 #define BP_DEBUG_CAT_USB_HID          ((bp_debug_category_t){ E_DEBUG_CAT_USB_HID          }) // USB based HID interactions
 #define BP_DEBUG_CAT_USB_CDC          ((bp_debug_category_t){ E_DEBUG_CAT_USB_CDC          }) // USB based serial port
 #define BP_DEBUG_CAT_USB_MSC          ((bp_debug_category_t){ E_DEBUG_CAT_USB_MSC          }) // USB based mass storage commands
@@ -134,9 +134,6 @@ extern bp_debug_level_t _DEBUG_LEVELS[32]; // up to 32 categories, each with a d
 
 
 
- #define _BP_STRINGIFY( L )  #L 
- #define MakeString( L ) _BP_STRINGIFY( L )
-
 // USAGE:
 // * Files can immediately use the PRINT_* macros.  This will use the `CATCHALL` category.
 // * Files can also immediately use the BP_DEBUG_PRINT() macro directly, although it is
@@ -151,13 +148,16 @@ extern bp_debug_level_t _DEBUG_LEVELS[32]; // up to 32 categories, each with a d
 //   that compilation unit (e.g., source C file).  The BP_DEBUG_PRINT() macro can still
 //   be used to specify another category, if needed.
 //
+#define _BP_STRINGIFY( L )  #L 
+#define MakeString( L ) _BP_STRINGIFY( L )
 #if defined(BP_DEBUG_OVERRIDE_DEFAULT_CATEGORY)
-    #pragma message( "Override cateory for PRINT_* macros: " MakeString(BP_DEBUG_OVERRIDE_DEFAULT_CATEGORY) )
+    // #pragma message( "Override cateory for PRINT_* macros: " MakeString(BP_DEBUG_OVERRIDE_DEFAULT_CATEGORY) )
     #define BP_DEBUG_DEFAULT_CATEGORY BP_DEBUG_OVERRIDE_DEFAULT_CATEGORY
 #else
     // #pragma message( "Using default catch-all category for PRINT_* macros: " MakeString(BP_DEBUG_CAT_CATCHALL) )
     #define BP_DEBUG_DEFAULT_CATEGORY BP_DEBUG_CAT_CATCHALL
 #endif
+
 
 #define PRINT_FATAL(...)   BP_DEBUG_PRINT(BP_DEBUG_LEVEL_FATAL,   BP_DEBUG_DEFAULT_CATEGORY, __VA_ARGS__)
 #define PRINT_ERROR(...)   BP_DEBUG_PRINT(BP_DEBUG_LEVEL_ERROR,   BP_DEBUG_DEFAULT_CATEGORY, __VA_ARGS__)
