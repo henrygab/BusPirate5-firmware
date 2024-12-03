@@ -9,10 +9,11 @@
 // a new enum value.
 #if 1
 
-    // define the enumeration here, but not as a type that would naturally be used in code
+    // define the enumerations here, but not as a type that would naturally be used in code
     // outside the debug header.
-    // NOTE: intentionally non-consecutive values.
+    
     typedef enum { 
+        // NOTE: intentionally non-consecutive values.
         E_DEBUG_LEVEL_FATAL   = 0x00u,
         E_DEBUG_LEVEL_ERROR   = 0x20u,
         E_DEBUG_LEVEL_WARNING = 0x60u,
@@ -21,7 +22,8 @@
         E_DEBUG_LEVEL_DEBUG   = 0xE0u,
         E_DEBUG_LEVEL_NEVER   = 0xFFu,
     } _bp_debug_level_enum_t;
-    typedef enum _bp_debug_category_enum_t {
+
+    typedef enum {
         E_DEBUG_CAT_CATCHALL         =  0u, // (((uint32_t)1u) <<  0u), // for messages that are not (yet) categorized
         E_DEBUG_CAT_EARLY            =  1u, // (((uint32_t)1u) <<  1u), // early-in-boot (initialization)
         E_DEBUG_CAT_ONBOARD_PIXELS   =  2u, // (((uint32_t)1u) <<  2u), // onboard RGB pixels
@@ -47,8 +49,12 @@
         E_DEBUG_CAT_MODE_LCDI2C      = 22u, // (((uint32_t)1u) << 22u), // lcdi2c mode specific
         // ... reserved for future use ...
         E_DEBUG_CAT_TEMP2            = 31u, // (((uint32_t)1u) << 31u), // use for temporary debug messages
+        // NOTE: 31u is the MAXIMUM possible value.  This is because, when debugging, the enabled categories
+        //       are stored as a uint32_t bitmask.  Each of the categories is a single bit in the bitmask,
+        //       as noted in the comment after each value.  This allows for efficient enabling and disabling
+        //       of debug messages by category, while also allowing multiple categories to be enablind at once.
     } _bp_debug_category_enum_t;
-
+    
     // next, define a structure that wraps the enumeration.
     // the structure's member will have the enum's type.
     typedef struct _bp_debug_level_t    { _bp_debug_level_enum_t    level;    } bp_debug_level_t;
@@ -64,16 +70,16 @@
 // is passed an incorrect enum type (e.g., swapping LEVEL and CATEGORY):
 // 1. the compiler will emit an error (incompatible argument type)
 // 2. the generated code will have ZERO overhead vs. a straight enum
-// While this is a small amount of overhead while coding, it seems
-// worthwhile to take whatever type safety we can wring out of C.
+// While this is a small amount of overhead while coding this header,
+// it seems worthwhile wring as much type safety as we can out of C.
 
 #define BP_DEBUG_LEVEL_FATAL          ((bp_debug_level_t)   { E_DEBUG_LEVEL_FATAL          }) // unrecoerable errors that normally crash or require reset
 #define BP_DEBUG_LEVEL_ERROR          ((bp_debug_level_t)   { E_DEBUG_LEVEL_ERROR          }) // recoverable errors. 
 #define BP_DEBUG_LEVEL_WARNING        ((bp_debug_level_t)   { E_DEBUG_LEVEL_WARNING        }) // warnings, such as improper user input, edge cases occurring, potential (unveritifer) issues
 #define BP_DEBUG_LEVEL_INFO           ((bp_debug_level_t)   { E_DEBUG_LEVEL_INFO           }) // informational messages
-#define BP_DEBUG_LEVEL_VERBOSE        ((bp_debug_level_t)   { E_DEBUG_LEVEL_VERBOSE        }) 
-#define BP_DEBUG_LEVEL_DEBUG          ((bp_debug_level_t)   { E_DEBUG_LEVEL_DEBUG          }) // 
-#define BP_DEBUG_LEVEL_NEVER          ((bp_debug_level_t)   { E_DEBUG_LEVEL_NEVER          })
+#define BP_DEBUG_LEVEL_VERBOSE        ((bp_debug_level_t)   { E_DEBUG_LEVEL_VERBOSE        }) // Successful operations, API entry/exit, ...
+#define BP_DEBUG_LEVEL_DEBUG          ((bp_debug_level_t)   { E_DEBUG_LEVEL_DEBUG          }) // Print it all, lets you sort it out later.  Typically only of interest to developers working on the code.
+#define BP_DEBUG_LEVEL_NEVER          ((bp_debug_level_t)   { E_DEBUG_LEVEL_NEVER          }) // Want to leave the debug print in the code, but not have it print?  Use this.
 
 #define BP_DEBUG_CAT_CATCHALL         ((bp_debug_category_t){ E_DEBUG_CAT_CATCHALL         }) // for messages that are not (yet) categorized
 #define BP_DEBUG_CAT_EARLY            ((bp_debug_category_t){ E_DEBUG_CAT_EARLY            }) // early-in-boot (initialization)
@@ -98,7 +104,7 @@
 #define BP_DEBUG_CAT_MODE_BINLOOPBACK ((bp_debug_category_t){ E_DEBUG_CAT_MODE_BINLOOPBACK }) // binloopback mode specific
 #define BP_DEBUG_CAT_MODE_LCDSPI      ((bp_debug_category_t){ E_DEBUG_CAT_MODE_LCDSPI      }) // lcdspi mode specific
 #define BP_DEBUG_CAT_MODE_LCDI2C      ((bp_debug_category_t){ E_DEBUG_CAT_MODE_LCDI2C      }) // lcdi2c mode specific
-// ... reserved for future use ...
+// ... after adding a category in the above enum, add
 #define BP_DEBUG_CAT_TEMP2            ((bp_debug_category_t){ E_DEBUG_CAT_TEMP2            }) // use for temporary debug messages
 
 
@@ -112,6 +118,10 @@ extern bp_debug_level_t _DEBUG_LEVELS[32]; // up to 32 categories, each with a d
 
 
 // This is the underlying debug macro logic, also used by the other debug macros.
+// * When a debug print is disabled, this avoids formatting the string (which is
+//   expensive) and optimizes down to just a few operations.
+// * Using a macro normally loses type safety, but the use of the structures above
+//   restores type safety for the level and category arguments.
 #define BP_DEBUG_PRINT(_LEVEL, _CATEGORY, ...) \
     do {                                                                                    \
         bp_debug_level_t    level    = (_LEVEL);                                            \
@@ -165,3 +175,4 @@ extern bp_debug_level_t _DEBUG_LEVELS[32]; // up to 32 categories, each with a d
 #define PRINT_INFO(...)    BP_DEBUG_PRINT(BP_DEBUG_LEVEL_INFO,    BP_DEBUG_DEFAULT_CATEGORY, __VA_ARGS__)
 #define PRINT_VERBOSE(...) BP_DEBUG_PRINT(BP_DEBUG_LEVEL_VERBOSE, BP_DEBUG_DEFAULT_CATEGORY, __VA_ARGS__)
 #define PRINT_DEBUG(...)   BP_DEBUG_PRINT(BP_DEBUG_LEVEL_DEBUG,   BP_DEBUG_DEFAULT_CATEGORY, __VA_ARGS__)
+#define PRINT_NEVER(...)   BP_DEBUG_PRINT(BP_DEBUG_LEVEL_NEVER,   BP_DEBUG_DEFAULT_CATEGORY, __VA_ARGS__)
