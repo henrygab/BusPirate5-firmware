@@ -83,10 +83,10 @@
 // clang-format on
 
 #include "translation/base.h"
-#include "lib/rtt/RTT/SEGGER_RTT.h"
 #include "printf-4.0.0/printf.h"
 #include <stdint.h>
 #include <stdbool.h>
+#include "debug.h"
 
 void lcd_irq_enable(int16_t repeat_interval);
 void lcd_irq_disable(void);
@@ -143,5 +143,3 @@ void spi_busy_wait(bool enable);
 
 #endif
 
-
-#define BP_DEBUG_PRINT(...) SEGGER_RTT_printf(0, __VA_ARGS__) // unconditionally output to RTT terminal (channel 0)

@@ -292,7 +292,7 @@ static void core0_infinite_loop(void) {
 
         if (tud_cdc_n_connected(0)) {
             if (!has_been_connected) {
-                BP_DEBUG_PRINT("New terminal connection detected ... making USB storage read-only.\n");
+                PRINT_INFO("New terminal connection detected ... making USB storage read-only.\n");
                 has_been_connected = true;
                 prepare_usbmsdrive_readonly();
                 // sync with the host
@@ -301,7 +301,7 @@ static void core0_infinite_loop(void) {
             }
         } else {
             if (has_been_connected) {
-                BP_DEBUG_PRINT("Terminal disconnected ... ensuring USB storage is writable.\n");
+                PRINT_INFO("Terminal disconnected ... ensuring USB storage is writable.\n");
                 has_been_connected = false;
             }
             make_usbmsdrive_writable();
@@ -324,7 +324,7 @@ static void core0_infinite_loop(void) {
                         result.success = true;
                     }
                 } else {
-                    BP_DEBUG_PRINT("Prompting to allow VT100 mode.\n");
+                    PRINT_VERBOSE("Prompting to allow VT100 mode.\n");
                     ui_prompt_vt100_mode(&result, &value);
                 }
 
@@ -361,7 +361,7 @@ static void core0_infinite_loop(void) {
 
                     bp_state = BP_SM_COMMAND_PROMPT;
                 } else if (result.error) { // user hit enter but not a valid option
-                    BP_DEBUG_PRINT("Repeating prompt to allow VT100 mode.\n");
+                    PRINT_VERBOSE("Repeating prompt to allow VT100 mode.\n");
                     printf("\r\n\r\nVT100 compatible color mode? (Y/n)> ");
                 }
                 // printf("\r\n\r\nVT100 compatible color mode? (Y/n)> ");
