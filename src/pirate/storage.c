@@ -1,3 +1,5 @@
+#define BP_DEBUG_OVERRIDE_DEFAULT_CATEGORY BP_DEBUG_CAT_ONBOARD_STORAGE
+
 #include <stdio.h>
 #include <string.h>
 #include "pico/stdlib.h"
@@ -55,6 +57,7 @@ const char* fresult_msg[] = {
 
 void storage_file_error(uint8_t res) {
     if (res > 0) {
+        PRINT_WARNING("%sError:%s %s%s", ui_term_color_error(), ui_term_color_info(), fresult_msg[res], ui_term_color_reset());
         printf("%sError:%s %s%s", ui_term_color_error(), ui_term_color_info(), fresult_msg[res], ui_term_color_reset());
     }
 }
@@ -67,15 +70,36 @@ void storage_init(void) {
 }
 
 uint8_t storage_mount(void) {
+
+    BP_ASSERT_CORE0();
+
     FRESULT fr; /* FatFs return code */
     fr = f_mount(&fs, "", 1);
     if (fr != FR_OK) {
+
+        PRINT_WARNING("storage_mount(): mount error %d (%s)", fr, fresult_msg[fr]);
         system_config.storage_available = 0;
         system_config.storage_mount_error = fr;
+
     } else {
-        system_config.storage_available = 1;
+
+        if (system_config.storage_available != 0) {
+            PRINT_ERROR("storage_mount(): Storage was already mounted?!\n");
+        }
         system_config.storage_fat_type = fs.fs_type;
+
+        // This sets a "storage size" based on the number of entries in the FAT ... 
+        // That's a fine hack for discovering approximate space available for files.
+        // BUGBUG -- Not actual storage size, and storing as a float requires much
+        //           larger string formatting library.  Convert to relevant units
+        //           (e.g., megabytes, if typically printing in gigabytes)?
+        _Static_assert(((BP_FLASH_DISK_BLOCK_SIZE % 512) == 0), "BP_FLASH_DISK_BLOCK_SIZE must be a multiple of 512 for FAT support");
         system_config.storage_size = fs.csize * fs.n_fatent * BP_FLASH_DISK_BLOCK_SIZE * 1E-9; // 2048E-9; //512E-9;
+        PRINT_INFO("storage_mount(): succeeded fs_type %d, cluster size %d, fatentries %d\n",
+                   system_config.storage_fat_type,
+                   fs.csize,
+                   fs.n_fatent);
+        system_config.storage_available = 1;
     }
     return fr;
 }
