@@ -124,6 +124,18 @@
 extern uint32_t         _DEBUG_ENABLED_CATEGORIES; // mask of enabled categories
 extern bp_debug_level_t _DEBUG_LEVELS[32]; // up to 32 categories, each with a debug level
 
+
+// TODO: Add an intermediate, per-core buffer for debug output.
+//       Redirect all debug print statements to format into that buffer.
+//       This will allow the expensive portion of the call (e.g., formatting of strings with paramaters)
+//       to occur once, after which the buffer can then be used in various ways:
+//       1. Call into `SEGGER_RTT_TerminalOut()` ... which includes specifying an RTT terminal (e.g., category)
+//          but isn't used today because the output string must be pre-formatted.
+//       2. If configured, send the formatted output to the serial port
+//       3. If configured, send the formatted output to the USB CDC terminal
+//       Note that the benefit of this approach is that, even if sent to all three
+//       locations, the formatting overhead is only incurred once per debug print.
+
 // Both attribute *AND* `static inline` are required to ensure inlining,
 // which is necessary to minimize overhead when a debug print is disabled.
 __attribute__((always_inline))
