@@ -126,7 +126,7 @@ extern bp_debug_level_t _DEBUG_LEVELS[32]; // up to 32 categories, each with a d
 // Both attribute *AND* `static inline` are required to ensure inlining,
 // which is necessary to minimize overhead when a debug print is disabled.
 __attribute__((always_inline))
-static inline bool bp_debug_should_print(bp_debug_level_t level, bp_debug_category_t category) {
+static inline bool _bp_debug_should_print(bp_debug_level_t level, bp_debug_category_t category) {
     // ALWAYS print fatal messages, regardless of category or variable settings.
     if (level.level == (BP_DEBUG_LEVEL_FATAL).level) {
         return true;
@@ -148,7 +148,7 @@ static inline bool bp_debug_should_print(bp_debug_level_t level, bp_debug_catego
 // This is the underlying debug macro logic, also used by the other debug macros.
 #define BP_DEBUG_PRINT(_LEVEL, _CATEGORY, ...) \
     do {                                                \
-        if (bp_debug_should_print(_LEVEL, _CATEGORY)) { \
+        if (_bp_debug_should_print(_LEVEL, _CATEGORY)) { \
             SEGGER_RTT_printf(0, __VA_ARGS__);          \
         }                                               \
     } while (0);
@@ -191,5 +191,9 @@ static inline bool bp_debug_should_print(bp_debug_level_t level, bp_debug_catego
 #define PRINT_INFO(...)    BP_DEBUG_PRINT(BP_DEBUG_LEVEL_INFO,    BP_DEBUG_DEFAULT_CATEGORY, __VA_ARGS__)
 #define PRINT_VERBOSE(...) BP_DEBUG_PRINT(BP_DEBUG_LEVEL_VERBOSE, BP_DEBUG_DEFAULT_CATEGORY, __VA_ARGS__)
 #define PRINT_DEBUG(...)   BP_DEBUG_PRINT(BP_DEBUG_LEVEL_DEBUG,   BP_DEBUG_DEFAULT_CATEGORY, __VA_ARGS__)
+
+#define ASSERT_IS_CORE0() assert(get_core_num() == 0)
+#define ASSERT_IS_CORE1() assert(get_core_num() == 1)
+
 
 #endif
