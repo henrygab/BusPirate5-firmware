@@ -10,31 +10,10 @@
 #include "system_config.h"
 #include "pirate/rgb.h"
 #include "pio_config.h"
-
-//        REV10                     REV8
-//
-//    11 10  9  8  7            10  9  8  7  6
-// 12    +-------+    6     11    +-------+     5
-// 13    |       |    5     12    |       |     4
-// USB   | OLED  |   []     USB   | OLED  |    []
-// 14    |       |    4     13    |       |     3
-// 15    +-------+    3     14    +-------+     2
-//    16 17  0  1  2            15  x  x  0  1
-//
-#define COUNT_OF_PIXELS RGB_LEN // 18 for Rev10, 16 for Rev8
-
 // static PIO pio;
 // static int sm;
 // static uint offset;
-
 static struct _pio_config pio_config;
-
-#pragma region // 8-bit scaled pixel coordinates and angle256
-/// @brief Scaled coordinates in range [0..255]
-typedef struct _coordin8 {
-    uint8_t x;
-    uint8_t y;
-} coordin8_t;
 
 /// @brief Each pixel's coordinate in a 256x256 grid, as
 ///        extracted from the PCB layout and Pick'n'Place data.
@@ -51,10 +30,10 @@ typedef struct _coordin8 {
 ///            V
 ///           +y
 ///
-static const coordin8_t pixel_coordin8[] = {
+const coordin8_t pixel_coordin8[COUNT_OF_PIXELS] = {
 //                        // SIDE      POSITION    FACING
 // clang-format off
-        #if BP_REV >= 10
+        #if ((BP_VER != 5) || (BP_REV >= 10))
         { .x = 127, .y = 255,  }, // bottom    center      out
         #endif
         { .x = 165, .y = 255,  }, // bottom    right       side
@@ -73,7 +52,7 @@ static const coordin8_t pixel_coordin8[] = {
         { .x =   0, .y = 171,  }, // left      bottom      side    (by USB port)
         { .x =   0, .y = 202,  }, // left      bottom      out
         { .x =  52, .y = 255,  }, // bottom    left        out
-        #if BP_REV >= 10
+        #if ((BP_VER != 5) || (BP_REV >= 10))
         { .x =  90, .y = 255,  }, // bottom    left        side
         #endif
     // clang-format on
@@ -84,10 +63,10 @@ static const coordin8_t pixel_coordin8[] = {
 ///        From the center of the PCB, the zero angle is
 ///        directly towards the center of the plank connector,
 ///        with angles increasing in the anti-clockwise direction.
-static const uint8_t pixel_angle256[] = {
+const uint8_t pixel_angle256[COUNT_OF_PIXELS] = {
 //                  // SIDE      POSITION    FACING
 // clang-format off
-        #if BP_REV >= 10
+        #if ((BP_VER != 5) || (BP_REV >= 10))
         192,                // bottom    center      out
         #endif
         204,                // bottom    right       side
@@ -106,14 +85,12 @@ static const uint8_t pixel_angle256[] = {
         141,                // left      bottom      side    (by USB port)
         150,                // left      bottom      out
         170,                // bottom    left        out
-        #if BP_REV >= 10
+        #if ((BP_VER != 5) || (BP_REV >= 10))
         180,                // bottom    left        side
         #endif
     // clang-format on
 };
 
-static_assert(count_of(pixel_coordin8) == COUNT_OF_PIXELS);
-static_assert(count_of(pixel_angle256) == COUNT_OF_PIXELS);
 
 // Sadly, C still refuses to allow the following format in static_assert(), saying it's not constant.
 // static const uint32_t PIXEL_MASK_UPPER = 0b0....1;
@@ -128,7 +105,7 @@ static_assert(count_of(pixel_angle256) == COUNT_OF_PIXELS);
     #else
         // Pixels that shine in direction  of OLED: idx 0,  2,3,    6,7,  9,   11,12,      15,16
         #define PIXEL_MASK_UPPER (0b011001101011001101)
-        // Pixels that shine    orthogonal to OLED: idx   1,    4,5,    8,  10,      13,14,     17
+        // Pixels that shine    orthogonal of OLED: idx   1,    4,5,    8,  10,      13,14,     17
         #define PIXEL_MASK_SIDE  (0b100110010100110010)
     #endif
 // clang-format on
@@ -137,7 +114,6 @@ static const uint32_t groups_top_down[] = {
     PIXEL_MASK_UPPER,
     PIXEL_MASK_SIDE,
 }; // MSb is last led in string...
-#define PIXEL_MASK_ALL ((1u << COUNT_OF_PIXELS) - 1)
 static_assert(COUNT_OF_PIXELS < (sizeof(uint32_t) * 8) - 1, "Too many pixels for pixel mask definition to be valid");
 static_assert((PIXEL_MASK_UPPER & PIXEL_MASK_SIDE) == 0, "Pixel cannot be both upper and side");
 static_assert((PIXEL_MASK_UPPER | PIXEL_MASK_SIDE) == PIXEL_MASK_ALL, "Pixel must be either upper or side");
@@ -780,10 +756,45 @@ void rgb_init(void) {
 };
 
 void rgb_set_all(uint8_t r, uint8_t g, uint8_t b) {
-    PRINT_INFO("RGB: rgb_set_all() - Set all pixels to RGB 0x%02x 0x%02x 0x%02x", r, g, b);
+    PRINT_INFO("RGB: rgb_set_all() --> RGB 0x%02x 0x%02x 0x%02x", r, g, b);
     CPIXEL_COLOR color = { .r = r, .g = g, .b = b };
     assign_pixel_color(PIXEL_MASK_ALL, color);
     update_pixels();
+}
+
+void rgb_set_pixels_by_mask(uint32_t mask_of_pixels, uint32_t color) {
+    if (mask_of_pixels == 0) {
+        PRINT_WARNING("RGB: rgb_set_pixels_by_mask() - No pixels selected");
+    } else if (mask_of_pixels = 0xFFFFFFFF) {
+        // permitted pattern for simplicity when setting all pixels
+    } else if ((mask_of_pixels & PIXEL_MASK_ALL) != 0) {
+        PRINT_WARNING("RGB: rgb_set_pixels_by_mask() - Invalid mask 0x%08x", mask_of_pixels);
+    }
+    CPIXEL_COLOR rgb = color_from_uint32(color);
+    assign_pixel_color(mask_of_pixels, rgb);
+    update_pixels();
+}
+
+void rgb_set_single_pixel(uint8_t index, uint32_t color) {
+    if (index < COUNT_OF_PIXELS) {
+        CPIXEL_COLOR rgb = color_from_uint32(color);
+        assign_pixel_color(1u << index, rgb);
+        update_pixels();
+    } else {
+        PRINT_WARNING("RGB: rgb_set_pixel_by_index() - Invalid index %d", index);
+    }
+}
+
+void rgb_set_all_pixels(all_pixel_uint32_colors_t* colors) {
+    if (colors == NULL) {
+        PRINT_WARNING("RGB: rgb_set_all_pixels() - NULL pointer");
+    } else {
+        for (int i = 0; i < COUNT_OF_PIXELS; i++) {
+            CPIXEL_COLOR rgb = color_from_uint32(colors->color[i]);
+            pixels[i] = rgb;
+        }
+        update_pixels();
+    }
 }
 
 // function to control LED from led mode onboard demo
