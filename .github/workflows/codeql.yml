@@ -1,15 +1,6 @@
-# For most projects, this workflow file will not need changing; you simply need
-# to commit it to your repository.
-#
-# You may wish to alter this file to override the set of languages analyzed,
-# or to provide custom queries or build logic.
-#
-# ******** NOTE ********
-# We have attempted to detect the languages in your repository. Please check
-# the `language` matrix defined below to confirm you have the correct set of
-# supported CodeQL languages.
-#
-name: "CodeQL Advanced"
+# NOTE: This CodeQL builds both RP2040 and RP2350 builds.
+#       Analysis is limited to C/CPP language.
+name: "CodeQL"
 
 on:
   push:
@@ -31,7 +22,7 @@ jobs:
     #   - https://gh.io/supported-runners-and-hardware-resources
     #   - https://gh.io/using-larger-runners (GitHub.com only)
     # Consider using larger runners or machines with greater resources for possible analysis time improvements.
-    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     permissions:
       # required for all workflows
       security-events: write
@@ -39,20 +30,8 @@ jobs:
       # required to fetch internal or private CodeQL packs
       packages: read
 
-      # only required for workflows in private repositories
-      actions: read
-      contents: read
-
     strategy:
       fail-fast: false
-      # NOTE: This builds both RP2040 and RP2350 builds, but
-      #       * only under ubuntu
-      #       * only considers c / cpp sources
-      matrix:
-        include:
-        - language: c-cpp
-          build-mode: manual
-          os: ubuntu-latest
 
     steps:
     - name: Checkout repository
@@ -81,8 +60,8 @@ jobs:
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v3
       with:
-        languages: ${{ matrix.language }}
-        build-mode: ${{ matrix.build-mode }}
+        languages: c-cpp
+        build-mode: manual
         # If you wish to specify custom queries, you can do so here or in a config file.
         # By default, queries listed here will override any specified in a config file.
         # Prefix the list here with "+" to use these queries and those in the config file.
