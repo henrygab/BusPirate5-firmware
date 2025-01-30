@@ -25,6 +25,7 @@
 #include "pico/bootrom.h"
 #include "hardware/structs/otp.h"
 #include "ui/ui_term.h"
+#include "otpdump.h"
 
 // This array of strings is used to display help USAGE examples for the dummy command
 static const char* const usage[] = {
@@ -35,6 +36,8 @@ static const char* const usage[] = {
     "",
     "By default, this command will show only non-blank rows.",
 };
+
+XOTP_DIRENTRY_TYPE test = XOTP_DIRTYPE_BLANK_ENTRY;
 
 // This is a struct of help strings for each option/flag/variable the command accepts
 // Record type 1 is a section header
