@@ -601,6 +601,13 @@ bool xotp_get_directory_item_data(
         PRINT_WARNING("xotp_get_directory_item_data: API Usage Error: invalid start_row (%04x) or row_count (%04x)", direntry->StartRow, direntry->RowCount);
         return false;
     }
+    if (direntry->EntryType.ecc_type != OTP_ECC_TYPE_STANDARD) {
+        // BUGBUG -- This is currently presuming all data is using ECC, thus read at 16-bits per row.
+        //           Need to implement check of direntry->EntryType, and if it needs raw read,
+        PRINT_ERROR("NYI -- xotp_get_directory_item_data: currently only supporting read of ECC stored data");
+        return false;
+    }
+    // BUGBUG -- update this when supporting raw reads  (also needs helper function to fill buffer with raw data)
     size_t required_data_length = direntry->RowCount * sizeof(uint16_t);
     if (buffer_len != required_data_length) {
         PRINT_ERROR("xotp_get_directory_item_data: API Usage Error: buffer_len (0x%zx) must be 0x%zx to read %04x rows", buffer_len, required_data_length, direntry->RowCount);
