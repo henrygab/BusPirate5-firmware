@@ -1,10 +1,5 @@
-// TODO: BIO use, pullups, psu
-/*
-    Welcome to dummy.c, a growing demonstration of how to add commands to the Bus Pirate firmware.
-    You can also use this file as the basis for your own commands.
-    Type "dummy" at the Bus Pirate prompt to see the output of this command
-    Temporary info available at https://forum.buspirate.com/t/command-line-parser-for-developers/235
-*/
+#define BP_DEBUG_OVERRIDE_DEFAULT_CATEGORY BP_DEBUG_CAT_OTP
+
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
@@ -12,16 +7,11 @@
 #include "pico/stdlib.h"
 #include "pirate.h"
 #include "command_struct.h"       // File system related
-//#include "fatfs/ff.h"       // File system related
-//#include "pirate/storage.h" // File system related
 #include "ui/ui_cmdln.h"    // This file is needed for the command line parsing functions
 // #include "ui/ui_prompt.h" // User prompts and menu system
 // #include "ui/ui_const.h"  // Constants and strings
 #include "ui/ui_help.h"    // Functions to display help in a standardized way
 #include "system_config.h" // Stores current Bus Pirate system configuration
-//#include "pirate/amux.h"   // Analog voltage measurement functions
-//#include "pirate/button.h" // Button press functions
-//#include "msc_disk.h"
 #include "pico/bootrom.h"
 #include "hardware/structs/otp.h"
 #include "ui/ui_term.h"
@@ -37,7 +27,6 @@ static const char* const usage[] = {
     "By default, this command will show only non-blank rows.",
 };
 
-XOTP_DIRENTRY_TYPE test = XOTP_DIRTYPE_BLANK_ENTRY;
 
 // This is a struct of help strings for each option/flag/variable the command accepts
 // Record type 1 is a section header
@@ -163,6 +152,78 @@ static void print_otp_read_result(const OTP_READ_RESULT * data, uint16_t row) {
     printf("\r\n");
 }
 
+static bool _is_start_and_count_within_range(uint16_t start_row, uint16_t row_count, uint16_t first_valid_row, uint16_t last_valid_row) {
+    if (first_valid_row < last_valid_row) {
+        // API usage error
+        PRINT_ERROR("API usage error: first_valid_row < last_valid_row");
+        return false;
+    }
+    if (row_count == 0) {
+        PRINT_INFO("Range Validation: row_count == 0 ... any start address permitted");
+        return true; // always true when row_count is zero
+    }
+    if (first_valid_row == 0 && last_valid_row == UINT16_MAX) {
+        // all values are within range ... cannot overflow
+        // but... probably should still print a warning, as loops may be infinite unless careful
+        PRINT_WARNING("Range Validation: first_valid_row === 0 and last_valid_row === UINT16_MAX ... caution advised in indexed loops!");
+        return true;
+    }
+    // no overflow due to above check
+    const uint16_t max_row_count = last_valid_row - first_valid_row + 1;
+    if (row_count > max_row_count) {
+        PRINT_WARNING("Range Validation: row_count (%04x) > max_row_count (%04x)", row_count, max_row_count);
+        return false;
+    }
+    if (start_row < first_valid_row) {
+        PRINT_WARNING("Range Validation: start_row (%04x) < first_valid_row (%04x)", start_row, first_valid_row);
+        return false;
+    }
+    if (start_row > last_valid_row) {
+        PRINT_WARNING("Range Validation: start_row (%04x) > last_valid_row (%04x)", start_row, last_valid_row);
+        return false;
+    }
+    if (row_count == 1) {
+        return true;
+    }
+    // start and count individually may be OK ... now verify range
+    //     start + (count - 1) <= last_valid_row
+    //     start <= last_valid_row - (count - 1)
+    //     start <= last_valid_row - count + 1
+    uint16_t tmp = last_valid_row;
+    tmp -= row_count;
+    tmp += 1;
+    if (start_row > tmp) {
+        PRINT_WARNING("Range Validation: start_row (%04x) + row_count (%04x) > last_valid_row (%04x) [calc: %04x]", start_row, row_count, last_valid_row, tmp);
+        return false;
+    }
+    return true;
+}
+static bool _xotp_is_valid_start_row_and_count_impl1(uint16_t start_row, uint16_t row_count) {
+    if (start_row > LAST_OTP_ROW) {
+        PRINT_WARNING("OTP Range Validation: start_row (%04x) > LAST_OTP_ROW (%04x)", start_row, LAST_OTP_ROW);
+        return false;
+    }
+    if (row_count > OTP_ROW_COUNT) {
+        PRINT_WARNING("OTP Range Validation: row_count (%04x) > OTP_ROW_COUNT (%04x)", row_count, OTP_ROW_COUNT);
+        return false;
+    }
+    uint16_t maximum_start_row = OTP_ROW_COUNT - row_count;
+    if (start_row > maximum_start_row) {
+        PRINT_WARNING("OTP Range Validation: start_row (%04x) + row_count (%04x) > OTP_ROW_COUNT (%04x) [calc: %04x]", start_row, row_count, OTP_ROW_COUNT, maximum_start_row);
+        return false;
+    }
+    return true;
+}
+static bool _xotp_is_valid_start_row_and_count(uint16_t start_row, uint16_t row_count) {
+    bool r1 = _is_start_and_count_within_range(start_row, row_count, 0, LAST_OTP_ROW);
+    bool r2 = _xotp_is_valid_start_row_and_count_impl1(start_row, row_count);
+    if (r1 != r2) {
+        PRINT_ERROR("Range Validation Discrepancy: r1=%d, r2=%d for start_row=0x%04x, row_count=0x%04x", r1, r2, start_row, row_count);
+        assert(false);
+    }
+    return r1;
+}
+
 // check res->error after calling this function to see if error occurred
 static void parse_otp_command_line(PARSED_OTP_COMMAND_OPTIONS* options, struct command_result* res) {
     res->error = false;
@@ -237,6 +298,14 @@ static void parse_otp_command_line(PARSED_OTP_COMMAND_OPTIONS* options, struct c
     }
 
     options->ShowAllRows = cmdln_args_find_flag('a');
+
+    if (res->error) {
+        PRINT_WARNING("Detected error parsing OTPDump parameters\n");
+    } else {
+        PRINT_VERBOSE("Parsed OTPDump parameters: StartRow=0x%04x, MaximumRows=0x%04x, ShowAllRows=%d",
+            options->StartRow, options->MaximumRows, options->ShowAllRows
+            );
+    }
     return;
 }
 
@@ -311,6 +380,10 @@ void dump_otp(uint16_t start_row, uint16_t row_count, bool show_all_rows) {
 
 void otpdump_handler(struct command_result* res) {
 
+    // HACKHACK -- enable RTT manually here
+    _DEBUG_ENABLED_CATEGORIES |= (1u << E_DEBUG_CAT_OTP);
+    _DEBUG_LEVELS[E_DEBUG_CAT_OTP] = BP_DEBUG_LEVEL_VERBOSE;
+
     // the help -h flag can be serviced by the command line parser automatically, or from within the command
     // the action taken is set by the help_text variable of the command struct entry for this command
     // 1. a single T_ constant help entry assigned in the commands[] struct in commands.c will be shown automatically
@@ -330,3 +403,225 @@ void otpdump_handler(struct command_result* res) {
     dump_otp(options.StartRow, options.MaximumRows, options.ShowAllRows);
     return;
 }
+
+
+
+// Directory entries in OTP start at the END of the user-programmable area.
+// Row address 0x0C0 appears to be first unused entry at the start.
+// Row address 0xF40 appears to be the first used entry at the end.
+// Thus, start iterator at 0xF3C and work backwards.
+// Each core has its own iterator.
+static const uint16_t C_XOTP_ROWS_PER_DIRECTORY_ENTRY = sizeof(XOTP_DIRECTORY_ITEM) / sizeof(uint16_t);
+static const uint16_t C_XOTP_DIRECTORY_START = 0xF40u - C_XOTP_ROWS_PER_DIRECTORY_ENTRY;
+typedef struct _DIRENTRY_ITERATOR_STATE {
+    uint16_t current_row; // invalid by default, starts at C_XOTP_DIRECTORY_START
+    uint8_t revision;     // Always zero for now....
+    bool is_valid;        // false by default, must reset before any use of iterator
+} DIRENTRY_ITERATOR_STATE;
+
+static bool _xotp_read_ecc_buffer(void* out_buffer, size_t buffer_len, uint16_t start_address) {
+    if (out_buffer == NULL || buffer_len == 0) {
+        return false;
+    }
+    memset(out_buffer, 0, buffer_len);
+    if (buffer_len % 2u != 0u) {
+        PRINT_ERROR("_xotp_read_ecc_buffer: API Usage Error: Buffer length must be even, was 0x%zx", buffer_len);
+        // restricted to buffers of even length
+        // buffer_len zero excluded above
+        // buffer_len one excluded here
+        // thus, buffer_len must be >= 2 when this if statement is false
+        return false;
+    }
+    size_t row_count = buffer_len / 2u;
+    // validate bounds
+    if (!_xotp_is_valid_start_row_and_count(start_address, row_count)) {
+        return false;
+    }
+
+    // perform the ECC read using bootrom
+    otp_cmd_t cmd = {0};
+    cmd.flags = (start_address & 0xFFFFu) | 0x00020000; // IS_ECC | Row number
+    int ret = rom_func_otp_access(out_buffer, buffer_len, cmd);
+    if (ret != BOOTROM_OK) {
+        PRINT_WARNING("_xotp_read_ecc_buffer: Bootrom error %d reading OTP data with CMD %08x, length 0x%zx", ret, cmd.flags, buffer_len);
+        return false;
+    }
+    return true;
+}
+// fails only on invalid parameters, or exceeding valid read range for directory entries
+// check entry type for ECC read errors.
+static bool _xotp_read_directory_entry(XOTP_DIRECTORY_ITEM* out_direntry, uint16_t start_address) {
+    if (out_direntry == NULL) {
+        PRINT_ERROR("_xotp_read_directory_entry: API Usage Error: out_direntry is NULL");
+        return false;
+    }
+    memset(out_direntry, 0, sizeof(XOTP_DIRECTORY_ITEM));
+
+    // addressing is more restrictive than _xotp_read_ecc_buffer()
+    if (start_address > C_XOTP_DIRECTORY_START) {
+        // Corruption detected?  invalidate iterator
+        PRINT_ERROR("_xotp_read_directory_entry: iter start_address (%04x) > C_XOTP_DIRECTORY_START (%04x)", start_address, C_XOTP_DIRECTORY_START);
+        return false;
+    }
+    if (start_address <= 0x0C0) {
+        // can't store entries in the predefined OTP areas
+        PRINT_WARNING("_xotp_read_directory_entry: iter start_address (%04x) <= 0x0C0 ... ending search", start_address);
+        return false;
+    }
+
+    bool read_ok = _xotp_read_ecc_buffer(out_direntry, sizeof(XOTP_DIRECTORY_ITEM), start_address);
+    if (!read_ok) {
+        PRINT_WARNING("_xotp_read_directory_entry: ECC read error at start_address %04x", start_address);
+        // special hack to report ECC error as permissible-to-continue error
+        // report this as an entry encoded with "ECC_ERROR" as the type
+        memset(out_direntry, 0, sizeof(XOTP_DIRECTORY_ITEM));
+        out_direntry->EntryType = XOTP_DIRTYPE_ECC_ERROR;
+        // TODO: set valid CRC16 value?
+    }
+    return true;
+}
+static bool _xotp_validate_directory_entry(const XOTP_DIRECTORY_ITEM* direntry) {
+    if (direntry == NULL) {
+        PRINT_ERROR("_xotp_validate_directory_entry: API Usage Error: direntry is NULL");
+        return false;
+    }
+    // BUGBUG / TODO: Validate the CRC16 of the directory entry
+    PRINT_WARNING("_xotp_validate_directory_entry: CRC16 validation not yet implemented");
+    if (direntry->RowCount != 0) {
+        // allow any start address when RowCount is zero
+        if (!_xotp_is_valid_start_row_and_count(direntry->StartRow, direntry->RowCount)) {
+            PRINT_WARNING("_xotp_validate_directory_entry: detected invalid start_row (%04x) or row_count (%04x)", direntry->StartRow, direntry->RowCount);
+            return false;
+        }
+    }
+    return true;
+}
+
+// NOTE: there is a distinct iterator for each core.
+static DIRENTRY_ITERATOR_STATE _xotp_iter[2] = {0};
+
+void xotp_reset_directory_iterator() {
+    PRINT_VERBOSE("Resetting OTP directory iterator for core %d", get_core_num());
+    DIRENTRY_ITERATOR_STATE* iter = &_xotp_iter[get_core_num()];
+    memset(iter, 0, sizeof(DIRENTRY_ITERATOR_STATE));
+    iter->current_row = C_XOTP_DIRECTORY_START;
+    iter->revision = 0;
+    iter->is_valid = true;
+}
+bool xotp_get_next_directory_entry(XOTP_DIRECTORY_ITEM* out_direntry) {
+    // zero the output buffer
+    if (!out_direntry) {
+        // API usage error
+        PRINT_ERROR("xotp_get_next_directory_entry: API Usage Error: out_direntry is NULL");
+        return false;
+    }
+    memset(out_direntry, 0, sizeof(XOTP_DIRECTORY_ITEM));
+
+    DIRENTRY_ITERATOR_STATE* iter = &_xotp_iter[get_core_num()];
+    while (iter->is_valid) {
+        // Read the directory entry at iter->current_row
+        XOTP_DIRECTORY_ITEM result = {0};
+        // read the directory entry
+        if (!_xotp_read_directory_entry(&result, iter->current_row)) {
+            // does not fail except on invalid parameters
+            // (read errors result in XOTP_DIRTYPE_ECC_ERROR)
+            // so invalidate the iterator
+            PRINT_ERROR("xotp_get_next_directory_entry: Invalid current row %04x ?", iter->current_row);
+            iter->is_valid = false;
+            continue;
+        }
+        if (XOTP_DIRTYPE_ECC_ERROR.as_uint16 == result.EntryType.as_uint16) {
+            // Skip entries that have ECC errors ...
+            PRINT_WARNING("xotp_get_next_directory_entry: skipping row %04x due to ECC errors", iter->current_row);
+            iter->current_row -= C_XOTP_ROWS_PER_DIRECTORY_ENTRY;
+            continue;
+        }
+        if (XOTP_DIRTYPE_BLANK.as_uint16 == result.EntryType.as_uint16) {
+            // end of directory entries
+            PRINT_WARNING("xotp_get_next_directory_entry: blank entry found at row %04x", iter->current_row);
+            iter->is_valid = false;
+            continue;
+        }
+        if (!_xotp_validate_directory_entry(&result)) {
+            // Internally inconsistent ... end of entries
+            // Want to invalidate the entry?  use raw write to force an ECC error by flipping two bits
+            PRINT_WARNING("xotp_get_next_directory_entry: invalid directory entry found at row %04x", iter->current_row);
+            iter->is_valid = false;
+            continue;
+        }
+        // SUCCESS!
+        memcpy(out_direntry, &result, sizeof(XOTP_DIRECTORY_ITEM));
+        iter->current_row -= C_XOTP_ROWS_PER_DIRECTORY_ENTRY;
+        return true;
+    }
+
+    PRINT_WARNING("xotp_get_next_directory_entry: No more directory entries found");
+    return false;
+}
+bool xotp_find_directory_item(XOTP_DIRENTRY_TYPE type, XOTP_DIRECTORY_ITEM* out_direntry) {
+    if (!out_direntry) {
+        return false;
+    }
+    while (xotp_get_next_directory_entry(out_direntry)) {
+        if (type.as_uint16 == out_direntry->EntryType.as_uint16) {
+            return true;
+        }
+    }
+    return false;
+}
+bool xotp_get_directory_item_data(
+    const XOTP_DIRECTORY_ITEM* direntry, void* out_buffer, size_t buffer_len
+    ) {
+    #pragma region    // Parameter validation
+    if (direntry == NULL) {
+        PRINT_ERROR("xotp_get_directory_item_data: API Usage Error: direntry is NULL");
+        return false;
+    }
+    if (direntry->RowCount == 0) {
+        // no data to copy ... but maybe this is *NOT* an error?
+        // and if zero rows to copy, maybe OK to allow
+        // out_buffer to be null and buffer_len to be zero
+        return true;
+    }
+    if (out_buffer == NULL) {
+        PRINT_ERROR("xotp_get_directory_item_data: API Usage Error: out_buffer is NULL");
+        return false;
+    }
+    if (buffer_len == 0) {
+        PRINT_ERROR("xonp_get_directory_item_data: API Usage Error: buffer_len is zero");
+        return false;
+    }
+    if (buffer_len % 2 != 0) {
+        // cannot read an odd number of bytes
+        PRINT_ERROR("xotp_get_directory_item_data: API Usage Error: buffer_len must be even, was 0x%zx", buffer_len);
+        return false;
+    }
+    memset(out_buffer, 0, buffer_len);
+    if (!_xotp_is_valid_start_row_and_count(direntry->StartRow, direntry->RowCount)) {
+        PRINT_WARNING("xotp_get_directory_item_data: API Usage Error: invalid start_row (%04x) or row_count (%04x)", direntry->StartRow, direntry->RowCount);
+        return false;
+    }
+    size_t required_data_length = direntry->RowCount * sizeof(uint16_t);
+    if (buffer_len != required_data_length) {
+        PRINT_ERROR("xotp_get_directory_item_data: API Usage Error: buffer_len (0x%zx) must be 0x%zx to read %04x rows", buffer_len, required_data_length, direntry->RowCount);
+        return false;
+    }
+    #pragma endregion // Parameter validation
+
+    // Should we allow reading partial data?
+    size_t bytes_to_read = MIN(buffer_len, direntry->RowCount * sizeof(uint16_t));
+    // Can we just read all the data using the bootrom?
+    if (_xotp_read_ecc_buffer(out_buffer, bytes_to_read, direntry->StartRow)) {
+        // Great!  No need for the edge cases below.
+        // buffer already filled in with data, so just set valid byte count
+        return true;
+    }
+    // Edge case: at least one of those OTP rows could not be read.
+    PRINT_WARNING("xotp_get_directory_item_data: Error reading OTP data, start 0x%04x count 0x%04x.", direntry->StartRow, direntry->RowCount);
+    return false; // partial results not supported yet
+}
+
+
+
+
+
