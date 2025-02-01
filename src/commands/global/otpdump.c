@@ -1,5 +1,6 @@
 #define BP_DEBUG_OVERRIDE_DEFAULT_CATEGORY BP_DEBUG_CAT_OTP
 
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
@@ -16,6 +17,56 @@
 #include "hardware/structs/otp.h"
 #include "ui/ui_term.h"
 #include "otpdump.h"
+
+#define FIELD_OFFSET(type, field) ((size_t)&(((type*)0)->field))
+
+
+#pragma region    // Basic CRC16
+static uint16_t crc16_table_a001[] = {
+	0x0000, 0xC0C1, 0xC181, 0x0140, 0xC301, 0x03C0, 0x0280, 0xC241,
+	0xC601, 0x06C0, 0x0780, 0xC741, 0x0500, 0xC5C1, 0xC481, 0x0440,
+	0xCC01, 0x0CC0, 0x0D80, 0xCD41, 0x0F00, 0xCFC1, 0xCE81, 0x0E40,
+	0x0A00, 0xCAC1, 0xCB81, 0x0B40, 0xC901, 0x09C0, 0x0880, 0xC841,
+	0xD801, 0x18C0, 0x1980, 0xD941, 0x1B00, 0xDBC1, 0xDA81, 0x1A40,
+	0x1E00, 0xDEC1, 0xDF81, 0x1F40, 0xDD01, 0x1DC0, 0x1C80, 0xDC41,
+	0x1400, 0xD4C1, 0xD581, 0x1540, 0xD701, 0x17C0, 0x1680, 0xD641,
+	0xD201, 0x12C0, 0x1380, 0xD341, 0x1100, 0xD1C1, 0xD081, 0x1040,
+	0xF001, 0x30C0, 0x3180, 0xF141, 0x3300, 0xF3C1, 0xF281, 0x3240,
+	0x3600, 0xF6C1, 0xF781, 0x3740, 0xF501, 0x35C0, 0x3480, 0xF441,
+	0x3C00, 0xFCC1, 0xFD81, 0x3D40, 0xFF01, 0x3FC0, 0x3E80, 0xFE41,
+	0xFA01, 0x3AC0, 0x3B80, 0xFB41, 0x3900, 0xF9C1, 0xF881, 0x3840,
+	0x2800, 0xE8C1, 0xE981, 0x2940, 0xEB01, 0x2BC0, 0x2A80, 0xEA41,
+	0xEE01, 0x2EC0, 0x2F80, 0xEF41, 0x2D00, 0xEDC1, 0xEC81, 0x2C40,
+	0xE401, 0x24C0, 0x2580, 0xE541, 0x2700, 0xE7C1, 0xE681, 0x2640,
+	0x2200, 0xE2C1, 0xE381, 0x2340, 0xE101, 0x21C0, 0x2080, 0xE041,
+	0xA001, 0x60C0, 0x6180, 0xA141, 0x6300, 0xA3C1, 0xA281, 0x6240,
+	0x6600, 0xA6C1, 0xA781, 0x6740, 0xA501, 0x65C0, 0x6480, 0xA441,
+	0x6C00, 0xACC1, 0xAD81, 0x6D40, 0xAF01, 0x6FC0, 0x6E80, 0xAE41,
+	0xAA01, 0x6AC0, 0x6B80, 0xAB41, 0x6900, 0xA9C1, 0xA881, 0x6840,
+	0x7800, 0xB8C1, 0xB981, 0x7940, 0xBB01, 0x7BC0, 0x7A80, 0xBA41,
+	0xBE01, 0x7EC0, 0x7F80, 0xBF41, 0x7D00, 0xBDC1, 0xBC81, 0x7C40,
+	0xB401, 0x74C0, 0x7580, 0xB541, 0x7700, 0xB7C1, 0xB681, 0x7640,
+	0x7200, 0xB2C1, 0xB381, 0x7340, 0xB101, 0x71C0, 0x7080, 0xB041,
+	0x5000, 0x90C1, 0x9181, 0x5140, 0x9301, 0x53C0, 0x5280, 0x9241,
+	0x9601, 0x56C0, 0x5780, 0x9741, 0x5500, 0x95C1, 0x9481, 0x5440,
+	0x9C01, 0x5CC0, 0x5D80, 0x9D41, 0x5F00, 0x9FC1, 0x9E81, 0x5E40,
+	0x5A00, 0x9AC1, 0x9B81, 0x5B40, 0x9901, 0x59C0, 0x5880, 0x9841,
+	0x8801, 0x48C0, 0x4980, 0x8941, 0x4B00, 0x8BC1, 0x8A81, 0x4A40,
+	0x4E00, 0x8EC1, 0x8F81, 0x4F40, 0x8D01, 0x4DC0, 0x4C80, 0x8C41,
+	0x4400, 0x84C1, 0x8581, 0x4540, 0x8701, 0x47C0, 0x4680, 0x8641,
+	0x8201, 0x42C0, 0x4380, 0x8341, 0x4100, 0x81C1, 0x8081, 0x4040,
+};
+static inline uint16_t crc16_calculate(const void* buffer, size_t buffer_len) {
+    const uint8_t * data = (const uint8_t*)buffer;
+    uint16_t crc = 0x0000u;
+    for (size_t i = 0; i < buffer_len; ++i) {
+        uint8_t idx = crc ^ *data;
+        ++data;
+        crc = (crc >> 8) ^ crc16_table_a001[idx];
+    }
+    return crc;
+}
+#pragma endregion // Basic CRC16
 
 // This array of strings is used to display help USAGE examples for the dummy command
 static const char* const usage[] = {
@@ -420,7 +471,12 @@ typedef struct _DIRENTRY_ITERATOR_STATE {
 } DIRENTRY_ITERATOR_STATE;
 
 static bool _xotp_read_ecc_buffer(void* out_buffer, size_t buffer_len, uint16_t start_address) {
-    if (out_buffer == NULL || buffer_len == 0) {
+    if (out_buffer == NULL) {
+        PRINT_ERROR("_xotp_read_ecc_buffer: API Usage Error: Buffer cannot be NULL");
+        return false;
+    }
+    if (buffer_len == 0) {
+        PRINT_ERROR("_xotp_read_ecc_buffer: API Usage Error: Buffer length cannot be zero");
         return false;
     }
     memset(out_buffer, 0, buffer_len);
@@ -448,6 +504,42 @@ static bool _xotp_read_ecc_buffer(void* out_buffer, size_t buffer_len, uint16_t 
     }
     return true;
 }
+static bool _xotp_read_raw_buffer(void* out_buffer, size_t buffer_len, uint16_t start_address) {
+    if (out_buffer == NULL) {
+        PRINT_ERROR("_xotp_read_raw_buffer: API Usage Error: Buffer cannot be NULL");
+        return false;
+    }
+    if (buffer_len == 0) {
+        PRINT_ERROR("_xotp_read_raw_buffer: API Usage Error: Buffer length cannot be zero");
+        return false;
+    }
+    memset(out_buffer, 0, buffer_len);
+    if (buffer_len % 4u != 0u) {
+        PRINT_ERROR("_xotp_read_raw_buffer: API Usage Error: Buffer length must be even, was 0x%zx", buffer_len);
+        // restricted to buffers of even length
+        // buffer_len zero excluded above
+        // buffer_len one excluded here
+        // thus, buffer_len must be >= 2 when this if statement is false
+        return false;
+    }
+    size_t row_count = buffer_len / 4u;
+    // validate bounds
+    if (!_xotp_is_valid_start_row_and_count(start_address, row_count)) {
+        return false;
+    }
+
+    // perform the ECC read using bootrom
+    otp_cmd_t cmd = {0};
+    cmd.flags = (start_address & 0xFFFFu); // just the row number ... no ECC flag
+    int ret = rom_func_otp_access(out_buffer, buffer_len, cmd);
+    if (ret != BOOTROM_OK) {
+        PRINT_WARNING("_xotp_read_raw_buffer: Bootrom error %d reading OTP data with CMD %08x, length 0x%zx", ret, cmd.flags, buffer_len);
+        return false;
+    }
+    return true;
+}
+
+
 // fails only on invalid parameters, or exceeding valid read range for directory entries
 // check entry type for ECC read errors.
 static bool _xotp_read_directory_entry(XOTP_DIRECTORY_ITEM* out_direntry, uint16_t start_address) {
@@ -485,10 +577,14 @@ static bool _xotp_validate_directory_entry(const XOTP_DIRECTORY_ITEM* direntry) 
         PRINT_ERROR("_xotp_validate_directory_entry: API Usage Error: direntry is NULL");
         return false;
     }
-    // BUGBUG / TODO: Validate the CRC16 of the directory entry
-    PRINT_WARNING("_xotp_validate_directory_entry: CRC16 validation not yet implemented");
+    uint16_t expected_crc = crc16_calculate(direntry, FIELD_OFFSET(XOTP_DIRECTORY_ITEM, CRC16));
+    if (expected_crc != direntry->CRC16) {
+        PRINT_WARNING("_xotp_validate_directory_entry: CRC16 mismatch: expected %04x, found %04x", expected_crc, direntry->CRC16);
+        return false;
+    }
+    // if RowCount is zero, StartAddress may be any value
+    // thus, only validate when non-zero row count
     if (direntry->RowCount != 0) {
-        // allow any start address when RowCount is zero
         if (!_xotp_is_valid_start_row_and_count(direntry->StartRow, direntry->RowCount)) {
             PRINT_WARNING("_xotp_validate_directory_entry: detected invalid start_row (%04x) or row_count (%04x)", direntry->StartRow, direntry->RowCount);
             return false;
@@ -573,16 +669,6 @@ bool xotp_get_directory_item_data(
     const XOTP_DIRECTORY_ITEM* direntry, void* out_buffer, size_t buffer_len
     ) {
     #pragma region    // Parameter validation
-    if (direntry == NULL) {
-        PRINT_ERROR("xotp_get_directory_item_data: API Usage Error: direntry is NULL");
-        return false;
-    }
-    if (direntry->RowCount == 0) {
-        // no data to copy ... but maybe this is *NOT* an error?
-        // and if zero rows to copy, maybe OK to allow
-        // out_buffer to be null and buffer_len to be zero
-        return true;
-    }
     if (out_buffer == NULL) {
         PRINT_ERROR("xotp_get_directory_item_data: API Usage Error: out_buffer is NULL");
         return false;
@@ -591,41 +677,43 @@ bool xotp_get_directory_item_data(
         PRINT_ERROR("xonp_get_directory_item_data: API Usage Error: buffer_len is zero");
         return false;
     }
+    memset(out_buffer, 0, buffer_len);
+    if (direntry == NULL) {
+        PRINT_ERROR("xotp_get_directory_item_data: API Usage Error: direntry is NULL");
+        return false;
+    }
+    if (direntry->RowCount == 0) {
+        // no data to copy ... but maybe this is *NOT* an error?
+        // and if zero rows to copy, maybe OK to allow
+        // out_buffer to be null and buffer_len to be zero
+        return false;
+    }
     if (buffer_len % 2 != 0) {
         // cannot read an odd number of bytes
         PRINT_ERROR("xotp_get_directory_item_data: API Usage Error: buffer_len must be even, was 0x%zx", buffer_len);
         return false;
     }
-    memset(out_buffer, 0, buffer_len);
-    if (!_xotp_is_valid_start_row_and_count(direntry->StartRow, direntry->RowCount)) {
-        PRINT_WARNING("xotp_get_directory_item_data: API Usage Error: invalid start_row (%04x) or row_count (%04x)", direntry->StartRow, direntry->RowCount);
+    if (!_xotp_validate_directory_entry(direntry)) {
+        PRINT_WARNING("xotp_get_directory_item_data: Invalid directory entry");
         return false;
     }
-    if (direntry->EntryType.ecc_type != OTP_ECC_TYPE_STANDARD) {
-        // BUGBUG -- This is currently presuming all data is using ECC, thus read at 16-bits per row.
-        //           Need to implement check of direntry->EntryType, and if it needs raw read,
-        PRINT_ERROR("NYI -- xotp_get_directory_item_data: currently only supporting read of ECC stored data");
-        return false;
-    }
-    // BUGBUG -- update this when supporting raw reads  (also needs helper function to fill buffer with raw data)
-    size_t required_data_length = direntry->RowCount * sizeof(uint16_t);
+    size_t required_data_length = direntry->RowCount;
+    required_data_length *= (direntry->EntryType.ecc_type == OTP_ECC_TYPE_STANDARD) ? sizeof(uint16_t) : sizeof(uint32_t);
     if (buffer_len != required_data_length) {
         PRINT_ERROR("xotp_get_directory_item_data: API Usage Error: buffer_len (0x%zx) must be 0x%zx to read %04x rows", buffer_len, required_data_length, direntry->RowCount);
         return false;
     }
     #pragma endregion // Parameter validation
 
-    // Should we allow reading partial data?
-    size_t bytes_to_read = MIN(buffer_len, direntry->RowCount * sizeof(uint16_t));
-    // Can we just read all the data using the bootrom?
-    if (_xotp_read_ecc_buffer(out_buffer, bytes_to_read, direntry->StartRow)) {
-        // Great!  No need for the edge cases below.
-        // buffer already filled in with data, so just set valid byte count
-        return true;
+    bool success =
+        (direntry->EntryType.ecc_type == OTP_ECC_TYPE_STANDARD) ?
+        _xotp_read_ecc_buffer(out_buffer, buffer_len, direntry->StartRow) :
+        _xotp_read_raw_buffer(out_buffer, buffer_len, direntry->StartRow) ;
+
+    if (!success) {
+        PRINT_WARNING("xotp_get_directory_item_data: Error reading OTP data, type 0x%04x start 0x%04x count 0x%04x.", direntry->EntryType.as_uint16, direntry->StartRow, direntry->RowCount);
     }
-    // Edge case: at least one of those OTP rows could not be read.
-    PRINT_WARNING("xotp_get_directory_item_data: Error reading OTP data, start 0x%04x count 0x%04x.", direntry->StartRow, direntry->RowCount);
-    return false; // partial results not supported yet
+    return success;
 }
 
 

@@ -73,7 +73,7 @@ bool xotp_get_directory_item_data(const XOTP_DIRECTORY_ITEM* direntry, void* out
 
 #pragma endregion // Helper functions for iterating through the OTP directory, reading data...
 #pragma region    // Individual XOTP_DIRENTRY_TYPE definitions
-static const XOTP_DIRENTRY_TYPE XOTP_DIRTYPE_BLANK           = { .as_uint16 = 0x0000u }; // unprogrammed page ... no data ... but may not be the end?
+static const XOTP_DIRENTRY_TYPE XOTP_DIRTYPE_BLANK           = { .as_uint16 = 0x0000u }; // unprogrammed page ... no data ... end of directory list
 static const XOTP_DIRENTRY_TYPE XOTP_DIRTYPE_USB_WHITELABEL  = { .as_uint16 = 0x0001u }; // ECC, structure used to whitelabel (branding) bootrom
 static const XOTP_DIRENTRY_TYPE XOTP_DIRTYPE_PROVENANCE_X509 = { .as_uint16 = 0x0002u }; // ECC, x509 certificate showing provenance of the device
 static const XOTP_DIRENTRY_TYPE XOTP_DIRTYPE_ECC_ERROR       = { .as_uint16 = 0xFFFFu }; // ECC, No data, ECC error occurred when reading
