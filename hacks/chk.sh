@@ -19,7 +19,8 @@ cmake --build ./build_rp2040 --parallel --target clean
 cmake --build ./build_rp2350 --parallel --target clean
 
 # optionally, update the translation files
-# TODO: Run `./src/translation/json2h.py` to generate updated translation files
+# TODO: Fix CMakefile.txt so generation of translations
+#       is properly tracked / automatically occurs
 python ./src/translation/json2h.py
 
 # build everything
