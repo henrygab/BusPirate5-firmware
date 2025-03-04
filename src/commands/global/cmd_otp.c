@@ -56,7 +56,7 @@ static const struct ui_help_options options[] = {
 // Polynomial: 0x8005 (x^16 + x^15 + x^2 + 1)
 #define POLYNOMIAL 0x8005
 
-uint16_t crc16(const unsigned char *data, size_t length) {
+static uint16_t crc16(const unsigned char *data, size_t length) {
     uint16_t crc = 0xFFFF; // Initial value
 
     for (size_t i = 0; i < length; i++) {
@@ -73,7 +73,7 @@ uint16_t crc16(const unsigned char *data, size_t length) {
     return crc;
 }
 
-bool verify_crc16(const unsigned char *data, size_t length, uint16_t expected_crc) {
+static bool verify_crc16(const unsigned char *data, size_t length, uint16_t expected_crc) {
     uint16_t calculated_crc = crc16(data, length);
     return calculated_crc == expected_crc;
 }
@@ -92,7 +92,7 @@ typedef struct _OTP_DIRECTORY_ITEM {
     uint16_t CRC16; // Validates the prior three entries.
 } OTP_DIRECTORY_ITEM;
 
-bool otp_directory_entry_read(uint16_t type, OTP_DIRECTORY_ITEM *directory_item) {
+static bool otp_directory_entry_read(uint16_t type, OTP_DIRECTORY_ITEM *directory_item) {
     uint32_t result;
     otp_cmd_t cmd;
 
@@ -138,7 +138,7 @@ bool otp_directory_entry_read(uint16_t type, OTP_DIRECTORY_ITEM *directory_item)
     return false;
 }
 
-bool otp_directory_entry_write(uint16_t type, uint16_t start_row, uint16_t row_count) {
+static bool otp_directory_entry_write(uint16_t type, uint16_t start_row, uint16_t row_count) {
     uint32_t result;
     otp_cmd_t cmd;
 
@@ -196,7 +196,10 @@ bool otp_directory_entry_write(uint16_t type, uint16_t start_row, uint16_t row_c
     return true;
 }
 
-void otp_handler(struct command_result* res) {
+
+
+
+void otp_command_handler(struct command_result* res) {
     uint32_t value; // somewhere to keep an integer value
     char file[13];  // somewhere to keep a string value (8.3 filename + 0x00 = 13 characters max)
 

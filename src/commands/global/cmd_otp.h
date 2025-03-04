@@ -1,1 +1,1 @@
-void otp_handler(struct command_result* res);
+void otp_command_handler(struct command_result* res);
