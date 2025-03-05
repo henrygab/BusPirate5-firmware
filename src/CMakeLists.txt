@@ -31,6 +31,7 @@ set(buspirate_common
         # The common OTP header can be included even on RP2040
         otp/bp_otp.h
 
+
         # pirate lib
         pirate/psu.h
         pirate/psu.c
@@ -413,6 +414,7 @@ set (rp2350_common
         # otp/bp_otp.h is included in bp5_common
         otp/otp_ecc.c
         otp/bp_otp_rw.c
+        otp/bp_otp_direntry.c
         otp/bp_whitelabel.c
         commands/global/cmd_otp.c
         commands/global/cmd_otp.h
