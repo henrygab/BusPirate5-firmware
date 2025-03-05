@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <assert.h>
+#include <stdint.h>
 #include "bp_otp.h"
 
 

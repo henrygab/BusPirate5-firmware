@@ -252,20 +252,15 @@ static void internal_triple_read_otp(OTP_READ_RESULT* out_data, uint16_t row) {
         }
     } while (0);
 
-    // Maybe the ROM function will detect ECC on a single row?
+    // Use software ECC read ... because bootrom doesn't seem to report ECC errors
     do {
-        uint16_t buffer[2] = {0xAAAAu, 0xAAAAu}; // detect if bootrom overflows reading single ECC row
-        otp_cmd_t cmd = {0};
-        cmd.flags = (row & 0xFFFFu) | 0x00020000; // IS_ECC + Row number
-        int ret = rom_func_otp_access((uint8_t*)buffer, sizeof(uint16_t), cmd);
-        if (ret != BOOTROM_OK) {
+        uint16_t tmp;
+        if (!bp_otp_read_single_row_ecc(row, &tmp)) {
             out_data->err_from_bootrom = true;
-        } else if (buffer[1] != 0xAAAAu) {
-            printf("Bootrom asked to read single uint16_t from OTP, but read two values (buffer overflow)");
-            out_data->read_via_bootrom = buffer[0];
-            out_data->err_from_bootrom = true;
+            out_data->read_via_bootrom = 0xFFFFu;
         } else {
-            out_data->read_via_bootrom = buffer[0];
+            out_data->err_from_bootrom = false;
+            out_data->read_via_bootrom = tmp;
         }
     } while (0);
 

@@ -15,7 +15,7 @@
 #define BP_SPLASH_ENABLED
 
 // uncomment to disable unique com ports for manufacturing testing
-#define BP_MANUFACTURING_TEST_MODE
+//#define BP_MANUFACTURING_TEST_MODE
 
 #define BP_FIRMWARE_VERSION "main branch"
 

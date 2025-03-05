@@ -18,8 +18,6 @@
 #include "commands/global/freq.h"
 #include "timestamp.h"
 #include "binmode/binmodes.h"
-#include "pico/unique_id.h"
-#include "pico/bootrom.h"
 /*
 static const char * const usage[]=
 {
@@ -75,11 +73,14 @@ void i_info_handler(struct command_result* res) {
            ui_term_color_reset(),
            GET_T(T_INFO_FLASH));
     printf("%s: %s",GET_T(T_INFO_SN), ui_term_color_num_float());
-    pico_unique_board_id_t id;
-    pico_get_unique_board_id(&id);    
-    for (int i = 0; i < PICO_UNIQUE_BOARD_ID_SIZE_BYTES; i++) {
-        printf("%02X%s", id.id[i], (i < PICO_UNIQUE_BOARD_ID_SIZE_BYTES-1) ? ":" : "");
-    }    
+    uint64_t id = mcu_get_unique_id();
+    for (size_t i = 0; i < 8; ++i) {
+        uint8_t tmp = (id >> (i * 8u)) & 0xFF;
+        printf("%02X", tmp);
+        if (i < 7) {
+            printf(":");
+        }
+    }
     printf("%s\r\n", ui_term_color_reset());
 
 

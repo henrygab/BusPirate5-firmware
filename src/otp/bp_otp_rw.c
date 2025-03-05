@@ -460,6 +460,26 @@ bool bp_otp_read_single_row_ecc(uint16_t row, uint16_t* out_data) {
     *out_data = result & 0xFFFFu;
     return true;
 }
+bool bp_otp_write_ecc_data(uint16_t start_row, const void* data, size_t count_of_bytes) {
+    // write / verify one OTP row at a time
+    bool require_buffering_last_row = (count_of_bytes & 1u);
+    size_t loop_count = count_of_bytes / 2u;
+
+    for (size_t i = 0; i < loop_count; ++i) {
+        uint16_t tmp = ((const uint16_t*)data)[i];
+        if (!bp_otp_write_single_row_ecc(start_row + i, tmp)) {
+            return false;
+        }
+    }
+    if (require_buffering_last_row) {
+        uint16_t tmp = ((const uint8_t*)data)[count_of_bytes-1];
+        if (!bp_otp_write_single_row_ecc(start_row + loop_count, tmp)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool bp_otp_read_ecc_data(uint16_t start_row, void* out_data, size_t count_of_bytes) {
     if (count_of_bytes >= (0x1000*2)) { // OTP rows from 0x000u to 0xFFFu, so max 0x1000*2 bytes
         return false;

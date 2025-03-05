@@ -31,6 +31,8 @@
 #include "pico/unique_id.h"
 #include "otp/bp_otp.h"
 #include "pubkey/pubkey.h"
+#include <boot/bootrom_constants.h>
+#include <pico/bootrom.h>
 
  
 #define OTP_PAGE_SIZE 128
