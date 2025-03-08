@@ -30,7 +30,7 @@
 #define WAIT_FOR_KEY()
 // #define WAIT_FOR_KEY() MyWaitForAnyKey_with_discards()
 
-// decide where to single-step through the whitelabel process ... controlled via RTT (no USB connection required)
+// decide where to single-step through a given process ... controlled via RTT (no USB connection required)
 static volatile bool g_WaitForKey = false;
 static void MyWaitForAnyKey_with_discards(void) {
     if (!g_WaitForKey) {
@@ -73,13 +73,6 @@ static int write_ecc_wrapper(uint16_t starting_row, const void* buffer, size_t b
     cmd.flags |= OTP_CMD_WRITE_BITS;
     return rom_func_otp_access((uint8_t*)buffer, buffer_size, cmd);
 }
-static int read_ecc_wrapper(uint16_t starting_row, void* buffer, size_t buffer_size) {
-    // TODO: use own ECC decoding functions ...
-    otp_cmd_t cmd;
-    cmd.flags = starting_row;
-    cmd.flags |= OTP_CMD_ECC_BITS;
-    return rom_func_otp_access((uint8_t*)buffer, buffer_size, cmd);
-}
 
 // RP2350 OTP storage is strongly recommended to use some form of
 // error correction.  Most rows will use ECC, but three other forms exist:
@@ -93,60 +86,136 @@ static int read_ecc_wrapper(uint16_t starting_row, void* buffer, size_t buffer_s
 // rows have that bit set.  Thus, it's not a simple majority vote, instead
 // tending to favor considering bits as set.
 // 
-static bool write_single_otp_ecc_row(uint16_t row, uint16_t data) {
-    uint16_t existing_data;
-    int r;
-    r = read_ecc_wrapper(row, &existing_data, sizeof(existing_data));
+static bool read_single_otp_ecc_row(uint16_t row, uint16_t * data_out) {
+    uint32_t existing_raw_data;
+    *data_out = 0xFFFFu;
+    int r = read_raw_wrapper(row, &existing_raw_data, sizeof(existing_raw_data));
     if (BOOTROM_OK != r) {
-        PRINT_ERROR("Whitelabel Error: Failed to read OTP ecc row %03x: %d (0x%x)\n", row, r, r);
+        PRINT_ERROR("OTP_RW Error: Failed to read OTP raw row %03x: %d (0x%x)\n", row, r, r);
         return false;
     }
-    if (existing_data == data) {
+    uint32_t decode_result = bp_otp_decode_raw(existing_raw_data);
+    if ((decode_result & 0xFF000000u) != 0u) {
+        PRINT_ERROR("OTP_RW Error: Failed to decode OTP row %03x value 0x%06x: Result 0x%08x\n", row, existing_raw_data, decode_result);
+        return false;
+    }
+    *data_out = (uint16_t)decode_result;
+    return true;   
+}
+static bool write_single_otp_ecc_row(uint16_t row, uint16_t data) {
+
+    // Allow writes to valid ECC encoded data, so long as it's possible to do so.
+    // This means adjusting for BRBP bits that may are already be set to 1,
+    // and then checking if there's a single-bit error that can be ignored.
+    // If so, try to write the data, even if some bits are already set!
+
+    // 1. Read the existing raw data
+    BP_OTP_RAW_READ_RESULT existing_raw_data;
+    int r;
+    r = read_raw_wrapper(row, &existing_raw_data, sizeof(existing_raw_data));
+    if (BOOTROM_OK != r) {
+        PRINT_ERROR("OTP_RW Error: Failed to read OTP raw row %03x: %d (0x%x)\n", row, r, r);
+        return false;
+    }
+
+    // 2. SUCCESS if existing raw data already encodes the value; Do not update the OTP row.
+    //    TODO: Consider if existing data has a single bit flipped from one to zero ... could write
+    //          the extra bit to try to reduce errors?
+    uint32_t decode_result = bp_otp_decode_raw(existing_raw_data.as_uint32);
+    if (((decode_result & 0xFF000000u) == 0u) && ((uint16_t)decode_result == data)) {
         // already written, nothing more to do for this row
+        PRINT_VERBOSE("OTP_RW: Row %03x already has data 0x%04x .. not writing\n", row, data);
         return true;
     }
-    r = write_ecc_wrapper(row, &data, sizeof(data));
+
+    // 3. Do we have to adjust the encoded data due to existing BRBP bits?  Determine data to write (or fail if not possible)
+    uint32_t data_to_write;
+    do {
+        BP_OTP_RAW_READ_RESULT encoded_new_data      = { .as_uint32 = bp_otp_calculate_ecc(data) };
+        BP_OTP_RAW_READ_RESULT encoded_new_data_brbp = { .as_uint32 = encoded_new_data.as_uint32 ^ 0x00FFFFFFu };
+        
+        // count how many bits would be flipped vs. the new data
+        uint_fast8_t bits_to_flip      = __builtin_popcount(existing_raw_data.as_uint32 ^ encoded_new_data.as_uint32);
+        uint_fast8_t bits_to_flip_brbp = __builtin_popcount(existing_raw_data.as_uint32 ^ encoded_new_data_brbp.as_uint32);
+
+        if (bits_to_flip == 0u) {
+            // Great!  Can write without adjusting for existing data.
+            data_to_write = encoded_new_data.as_uint32;
+        } else if (bits_to_flip_brbp == 0u) {
+            // Great!  Can write without error by using BRBP bits.
+            data_to_write = encoded_new_data_brbp.as_uint32;
+        } else if (bits_to_flip == 1u) {
+            // Can write, but will have an existing single-bit error in the data...
+            data_to_write = encoded_new_data.as_uint32 | existing_raw_data.as_uint32;
+        } else if (bits_to_flip_brbp == 1u) {
+            // Can write, but will ahve to use BRBP bits, and there will still be a single-bit error in the data...
+            data_to_write = encoded_new_data_brbp.as_uint32 | existing_raw_data.as_uint32;
+        } else {
+            // No way to write the data without multiple bit errors
+            PRINT_ERROR("OTP_RW Error: Cannot write ECC OTP row %03x with data 0x%04x: Encoded 0x%06x / 0x%06x vs. Existing 0x%06x prevents writing\n",
+                row, data, encoded_new_data.as_uint32, encoded_new_data_brbp.as_uint32, existing_raw_data.as_uint32
+            );
+            return false;
+        }
+    } while (0);
+
+    // 4. write the encoded raw data
+    r = write_raw_wrapper(row, &data_to_write, sizeof(data_to_write));
     if (BOOTROM_OK != r) {
-        PRINT_ERROR("Whitelabel Error: Failed to write OTP ecc row %03x: %d (0x%x)\n", row, r, r);
+        PRINT_ERROR("OTP_RW Error: Failed to write ECC OTP row %03x with data 0x%06x (ECC encoding of 0x%04x), error %d (0x%x)\n",
+            row, data, data_to_write, data_to_write, r, r
+        );
         return false;
     }
-    // and verify the data is now there
-    r = read_ecc_wrapper(row, &existing_data, sizeof(existing_data));
-    if (BOOTROM_OK != r) {
-        PRINT_ERROR("Whitelabel Error: Failed to read OTP ecc row %03x: %d (0x%x)\n", row, r, r);
+
+    // 5. And finally, verify the expected data is now readable from that OTP row
+    uint16_t verify_data;
+    if (!read_single_otp_ecc_row(row, &verify_data)) {
+        PRINT_ERROR("OTP_RW Error: Failed to verify ECC OTP row %03x has data 0x%04x\n", row, data);
         return false;
     }
-    if (existing_data != data) {
-        PRINT_ERROR("Whitelabel Error: Failed to verify OTP ecc row %03x: %d (0x%x) has data 0x%04x\n", row, r, r, data);
-        return false;
-    }
+
+    // 6. New data was written and verified.  Success!
     return true;
 }
 static bool write_single_otp_raw_row(uint16_t row, uint32_t data) {
     uint32_t existing_data;
     int r;
-    r = write_raw_wrapper(row, &existing_data, sizeof(existing_data));
+    r = read_raw_wrapper(row, &existing_data, sizeof(existing_data));
     if (BOOTROM_OK != r) {
-        PRINT_ERROR("Whitelabel Warn: Failed to read OTP raw row %03x: %d (0x%x)\n", row, r, r);
+        PRINT_ERROR("OTP_RW Warn: Failed to read OTP raw row %03x: %d (0x%x)\n", row, r, r);
         return false;
     }
     if (existing_data == data) {
         // already written, nothing more to do for this row
         return true;
     }
-    r = write_raw_wrapper(row, &data, sizeof(data));
-    if (BOOTROM_OK != r) {
-        PRINT_ERROR("Whitelabel Warn: Failed to write OTP raw row %03x: %d (0x%x)\n", row, r, r);
+
+    // Write will fail if any bit set to zero is actually set to one in the existing data
+    // Detect this so can provide a clearer error message.
+    uint32_t incompatible_bits = existing_data & ~data;
+    if (incompatible_bits != 0u) {
+        PRINT_ERROR("OTP_RW Warn: OTP row %03x cannot be written to %06x (existing data 0x%06x has incompatible bits at 0x%06x)\n",
+            row, data, existing_data, incompatible_bits
+        );
         return false;
     }
-    // and verify the data is now there
+
+    // use the bootrom function to write the new raw data
+    r = write_raw_wrapper(row, &data, sizeof(data));
+    if (BOOTROM_OK != r) {
+        PRINT_ERROR("OTP_RW Warn: Failed to write OTP raw row %03x: %d (0x%x)\n", row, r, r);
+        return false;
+    }
+
+    // Verify the data was recorded ...
     r = read_raw_wrapper(row, &existing_data, sizeof(existing_data));
     if (BOOTROM_OK != r) {
-        PRINT_ERROR("Whitelabel Warn: Failed to read OTP raw row %03x: %d (0x%x)\n", row, r, r);
+        PRINT_ERROR("OTP_RW Warn: Failed to read OTP raw row %03x: %d (0x%x)\n", row, r, r);
         return false;
     }
     if (existing_data != data) {
-        PRINT_ERROR("Whitelabel Warn: Failed to verify OTP raw row %03x: %d (0x%x) has data 0x%06x\n", row, r, r, data);
+        PRINT_ERROR("OTP_RW Warn: Failed to verify OTP raw row %03x: %d (0x%x) has data 0x%06x\n", row, r, r, data);
         return false;
     }
     return true;
@@ -154,16 +223,16 @@ static bool write_single_otp_raw_row(uint16_t row, uint32_t data) {
 static bool read_otp_2_of_3(uint16_t start_row, uint32_t* out_data) {
     *out_data = 0xFFFFFFFFu;
 
-    // 1. read the base address
+    // 1. read the base address, base+1, base+2
     uint32_t v[3];
     int r[3];
     r[0] = read_raw_wrapper(start_row+0, &(v[0]), sizeof(uint32_t)); // DO NOT DIE ON FAILURE OF ANY ONE ROW
     r[1] = read_raw_wrapper(start_row+1, &(v[1]), sizeof(uint32_t)); // DO NOT DIE ON FAILURE OF ANY ONE ROW
     r[2] = read_raw_wrapper(start_row+2, &(v[2]), sizeof(uint32_t)); // DO NOT DIE ON FAILURE OF ANY ONE ROW
-    
+
+    // 2. Where all three reads succeeded, use bitwise majority voting and return result
     if ((r[0] == BOOTROM_OK) && (r[1] == BOOTROM_OK) && (r[2] == BOOTROM_OK)) {
-        // All three value read successfully ... so use bitwise majority voting
-        PRINT_VERBOSE("Whitelabel Read OTP 2-of-3: rows 0x%03x, 0x%03x, and 0x%03x all read successfully (0x%06x, 0x%06x, 0x%06x)\n",
+        PRINT_VERBOSE("OTP_RW Read OTP 2-of-3: rows 0x%03x, 0x%03x, and 0x%03x all read successfully (0x%06x, 0x%06x, 0x%06x)\n",
             start_row+0, start_row+1, start_row+2,
             v[0], v[1], v[2]
         );
@@ -177,98 +246,97 @@ static bool read_otp_2_of_3(uint16_t start_row, uint32_t* out_data) {
                 result |= mask;
             }
         }
-        PRINT_VERBOSE("Whitelabel Read OTP 2-of-3: Bit-by-bit voting result: 0x%06x\n", result);
+        PRINT_VERBOSE("OTP_RW Read OTP 2-of-3: Bit-by-bit voting result: 0x%06x\n", result);
         *out_data = result;
         return true;
     }
 
-    // else at most two reads succeeded.  Can only accept a perfect match of the data.
+    // 3. Else at most two reads succeeded.  If the two successful reads had identical data, accept that data as valid.
     if ((r[0] == BOOTROM_OK) && (r[1] == BOOTROM_OK) && (v[0] == v[1]) && ((v[0] & 0xFF000000u) == 0)) {
-        PRINT_VERBOSE("Whitelabel Read OTP 2-of-3: rows 0x%03x and 0x%03x agree on data 0x%06x\n", start_row+0, start_row+1, v[0]);
+        PRINT_VERBOSE("OTP_RW Read OTP 2-of-3: rows 0x%03x and 0x%03x agree on data 0x%06x\n", start_row+0, start_row+1, v[0]);
         *out_data = v[0];
         return true;
     } else
     if ((r[0] == BOOTROM_OK) && (r[2] == BOOTROM_OK) && (v[0] == v[2]) && ((v[0] & 0xFF000000u) == 0)) {
-        PRINT_VERBOSE("Whitelabel Read OTP 2-of-3: rows 0x%03x and 0x%03x agree on data 0x%06x\n", start_row+0, start_row+2, v[0]);
+        PRINT_VERBOSE("OTP_RW Read OTP 2-of-3: rows 0x%03x and 0x%03x agree on data 0x%06x\n", start_row+0, start_row+2, v[0]);
         *out_data = v[0];
         return true;
     } else
     if ((r[1] == BOOTROM_OK) && (r[2] == BOOTROM_OK) && (v[1] == v[2]) && ((v[1] & 0xFF000000u) == 0)) {
-        PRINT_VERBOSE("Whitelabel Read OTP 2-of-3: rows 0x%03x and 0x%03x agree on data 0x%06x\n", start_row+1, start_row+2, v[1]);
+        PRINT_VERBOSE("OTP_RW Read OTP 2-of-3: rows 0x%03x and 0x%03x agree on data 0x%06x\n", start_row+1, start_row+2, v[1]);
         *out_data = v[1];
         return true;
-    } else
-    {
-        PRINT_ERROR("Whitelabel Error: Read OTP 2-of-3: rows 0x%03x, 0x%03x, and 0x%03x  (%d,%d,%d) --> (0x%06x, 0x%06x, 0x%06x) --> NO AGREEMENT\n",
-            start_row+0, start_row+1, start_row+2,
-            r[0], r[1], r[2],
-            v[0], v[1], v[2]
-        );
-        return false;
     }
+    // 4. Else at most one read was successful.  There is no ability to detect validity of the data.  Return an error.
+    PRINT_ERROR("OTP_RW Error: Read OTP 2-of-3: rows 0x%03x, 0x%03x, and 0x%03x  (%d,%d,%d) --> (0x%06x, 0x%06x, 0x%06x) --> NO AGREEMENT\n",
+        start_row+0, start_row+1, start_row+2,
+        r[0], r[1], r[2],
+        v[0], v[1], v[2]
+    );
+    return false;
 }
 static bool write_otp_2_of_3(uint16_t start_row, uint32_t new_value) {
 
     // 1. read the old data
-    PRINT_DEBUG("Whitelabel Debug: Write OTP 2-of-3: row 0x%03x\n", start_row); WAIT_FOR_KEY();
+    PRINT_DEBUG("OTP_RW Debug: Write OTP 2-of-3: row 0x%03x\n", start_row); WAIT_FOR_KEY();
 
     uint32_t old_voted_bits;
     if (!read_otp_2_of_3(start_row, &old_voted_bits)) {
-        PRINT_DEBUG("Whitelabel Debug: Failed to read agreed-upon old bits for OTP 2-of-3: rows 0x%03x, 0x%03x, and 0x%03x\n", start_row+0, start_row+1, start_row+2);
+        PRINT_DEBUG("OTP_RW Debug: Failed to read agreed-upon old bits for OTP 2-of-3: rows 0x%03x, 0x%03x, and 0x%03x\n", start_row+0, start_row+1, start_row+2);
         return false;
     }
 
     // If any bits are already voted upon as set, there's no way to unset them.
-    if (old_voted_bits & (~new_value)) {
-        PRINT_ERROR("Whitelabel Error: Fail: Old voted-upon value 0x%06x has bits set that are not in the new value 0x%06x ---> 0x%06x\n",
-            old_voted_bits, new_value,
-            old_voted_bits & (~new_value)
+    uint32_t incompatible_bits = old_voted_bits & ~new_value;
+    if (incompatible_bits != 0u) {
+        PRINT_ERROR("OTP_RW Error: Fail: Old voted-upon value 0x%06x has bits set that are not in the new value 0x%06x ---> 0x%06x\n",
+            old_voted_bits, new_value, incompatible_bits
         );
         return false;
     }
 
-    // 2. Read each row individually, OR in the requested bits to be set, and write back the new value
-    //    Note that each individual row may have bits set that are not in the new value.  That's OK.
-    uint32_t old_data;
-    int r;
+    // 2. Read-Modify-Write each row individually, logically OR'ing the requested bits into the olde value.
+    //    This process allows for each individual row to have multiple bits set, even if not set in the new value.
+    //    Because the 2-of-3 voting was successful, this will not degrade the error detection.
     for (uint16_t i = 0; i < 3; ++i) {
-        r = read_raw_wrapper(start_row+i, &old_data, sizeof(old_data));
+        uint32_t old_data;
+        int r = read_raw_wrapper(start_row+i, &old_data, sizeof(old_data));
         if (BOOTROM_OK != r) {
-            PRINT_WARNING("Whitelabel Warning: unable to read old bits for OTP 2-of-3: row 0x%03x\n", start_row+i);
+            PRINT_WARNING("OTP_RW Warn: unable to read old bits for OTP 2-of-3: row 0x%03x\n", start_row+i);
             continue; // to next OTP row, if any
         }
         if ((old_data & new_value) == new_value) {
-            // no change needed
-            PRINT_WARNING("Whitelabel Warning: skipping update to row 0x%03x: old value 0x%06x already has bits 0x%06x\n", start_row+i, old_data, new_value);
+            // no change needed ... not setting any new bit for this row
+            PRINT_WARNING("OTP_RW Warn: skipping update to row 0x%03x: old value 0x%06x already has bits 0x%06x\n", start_row+i, old_data, new_value);
             continue; // to next OTP row, if any
         }
 
         uint32_t to_write = old_data | new_value;
-        PRINT_DEBUG("Whitelabel Debug: Write USB_BOOT_FLAGS: updating row 0x%03x: 0x%06x --> 0x%06x\n", start_row+i, old_data, to_write); WAIT_FOR_KEY();
+        PRINT_DEBUG("OTP_RW Debug: updating row 0x%03x: 0x%06x --> 0x%06x\n", start_row+i, old_data, to_write); WAIT_FOR_KEY();
         r = write_raw_wrapper(start_row+i, &to_write, sizeof(to_write));
         if (BOOTROM_OK != r) {
-            PRINT_ERROR("Whitelabel Error: Failed to write new bits for OTP 2-of-3: row 0x%03x: 0x%06x --> 0x%06x\n", start_row+i, old_data, to_write);
+            PRINT_ERROR("OTP_RW Error: Failed to write new bits for OTP 2-of-3: row 0x%03x: 0x%06x --> 0x%06x\n", start_row+i, old_data, to_write);
             continue; // to next OTP row, if any
         }
-        PRINT_DEBUG("Whitelabel Debug: Wrote new bits for OTP 2-of-3: row 0x%03x: 0x%06x --> 0x%06x\n", start_row+i, old_data, to_write);
+        PRINT_DEBUG("OTP_RW Debug: Wrote new bits for OTP 2-of-3: row 0x%03x: 0x%06x --> 0x%06x\n", start_row+i, old_data, to_write);
     }
 
-    // 3. Can we read the data as now voted upon?
+    // 3. Verify the data was updated to the expected value
     uint32_t new_voted_bits;
     if (!read_otp_2_of_3(start_row, &new_voted_bits)) {
-        PRINT_ERROR("Whitelabel Error: Failed to read agreed-upon new bits for OTP 2-of-3: rows 0x%03x, 0x%03x, and 0x%03x\n", start_row+0, start_row+1, start_row+2);
+        PRINT_ERROR("OTP_RW Error: Failed to read agreed-upon new bits for OTP 2-of-3: rows 0x%03x, 0x%03x, and 0x%03x\n", start_row+0, start_row+1, start_row+2);
         return false;
     }
 
     // 4. Verify the new data matches the requested value
     if (new_voted_bits != new_value) {
-        PRINT_ERROR("Whitelabel Error: OTP 2-of-3: rows 0x%03x, 0x%03x, and 0x%03x: 0x%06x -> 0x%06x, but got 0x%06x\n",
+        PRINT_ERROR("OTP_RW Error: OTP 2-of-3: rows 0x%03x, 0x%03x, and 0x%03x: 0x%06x -> 0x%06x, but got 0x%06x\n",
             start_row+0, start_row+1, start_row+2,
             old_voted_bits, new_value, new_voted_bits
         );
         return false;
     }
-    PRINT_DEBUG("Whitelabel Debug: Successfully update the RBIT3 (2-of-3 voting) rows\n");
+    PRINT_DEBUG("OTP_RW Debug: Successfully update the RBIT3 (2-of-3 voting) rows\n");
 
     return true;
 }
@@ -278,14 +346,14 @@ static bool read_otp_byte_3x(uint16_t row, uint8_t* out_data) {
     // 1. read the data
     BP_OTP_RAW_READ_RESULT v;
     int r;
-    r = read_raw_wrapper(row, &v.as_uint32, sizeof(uint32_t)); // DO NOT DIE ON FAILURE OF ANY ONE ROW
+    r = read_raw_wrapper(row, &v.as_uint32, sizeof(uint32_t));
     if (BOOTROM_OK != r) {
-        PRINT_ERROR("Whitelabel Error: Failed to read OTP byte 3x: row 0x%03x: %d (0x%x)\n", row, r, r);
+        PRINT_ERROR("OTP_RW Error: Failed to read OTP byte 3x: row 0x%03x: %d (0x%x)\n", row, r, r);
         return false;
     }
     // use bit-by-bit majority voting
-    PRINT_DEBUG("Whitelabel Debug: Read OTP byte_3x row 0x%03x: (0x%02x, 0x%02x, 0x%02x)\n", row, v.as_bytes[0], v.as_bytes[1], v.as_bytes[2]);
     uint8_t result = 0u;
+    PRINT_DEBUG("OTP_RW Debug: Read OTP byte_3x row 0x%03x: (0x%02x, 0x%02x, 0x%02x)\n", row, v.as_bytes[0], v.as_bytes[1], v.as_bytes[2]);
     for (uint8_t mask = 0x80u; mask; mask >>= 1) {
         uint_fast8_t count = 0;
         if (v.as_bytes[0] & mask) { ++count; }
@@ -295,66 +363,72 @@ static bool read_otp_byte_3x(uint16_t row, uint8_t* out_data) {
             result |= mask;
         }
     }
-    PRINT_DEBUG("Whitelabel Debug: Read OTP byte_3x row 0x%03x: Bit-by-bit voting result: 0x%02x\n", row, result);
+
+    PRINT_DEBUG("OTP_RW Debug: Read OTP byte_3x row 0x%03x: Bit-by-bit voting result: 0x%02x\n", row, result);
     *out_data = result;
     return true;
 }
 static bool write_otp_byte_3x(uint16_t row, uint8_t new_value) {
 
-    // 1. read the old data
-    PRINT_DEBUG("Whitelabel Debug: Write OTP byte_3x: row 0x%03x\n", row); WAIT_FOR_KEY();
+    PRINT_DEBUG("OTP_RW Debug: Write OTP byte_3x: row 0x%03x\n", row); WAIT_FOR_KEY();
 
-    uint8_t old_voted_bits;
-    if (!read_otp_byte_3x(row, &old_voted_bits)) {
-        PRINT_ERROR("Whitelabel Error: Failed to read agreed-upon old bits for OTP byte_3x: row 0x%03x\n", row);
-        return false;
-    }
-
-    // If any bits are already voted upon as set, there's no way to unset them.
-    if (old_voted_bits & (~new_value)) {
-        PRINT_ERROR("Whitelabel Error: Fail: Old voted-upon byte_3x value 0x%02x has bits set that are not in the new value 0x%02x ---> 0x%02x\n",
-            old_voted_bits, new_value,
-            old_voted_bits & (~new_value)
-        );
-        return false;
-    }
-
-    // 2. Read the row raw, OR in the requested bits to be set, and write back the new value.
-    //    Note that each individual byte may have bits set that are not in the new value.  That's OK.
+    // 1. read the old data as raw bits
     BP_OTP_RAW_READ_RESULT old_raw_data;
     int r;
     r = read_raw_wrapper(row, &old_raw_data, sizeof(old_raw_data));
     if (BOOTROM_OK != r) {
-        PRINT_ERROR("Whitelabel Error: Warning: unable to read old bits for OTP byte_3x: row 0x%03x\n", row);
+        PRINT_ERROR("OTP_RW Error: unable to read old bits for OTP byte_3x: row 0x%03x\n", row);
         return false;
     }
-    BP_OTP_RAW_READ_RESULT new_value_3x = { .as_bytes = { new_value, new_value, new_value } };
-    BP_OTP_RAW_READ_RESULT to_write = { .as_uint32 = old_raw_data.as_uint32 | new_value_3x.as_uint32 };
-    if (old_raw_data.as_uint32 == to_write.as_uint32) {
-        // no change needed
-        PRINT_WARNING("Whitelabel Warning: skipping update to row 0x%03x: old value 0x%06x already has bits 0x%06x\n", row, old_raw_data.as_uint32, new_value_3x.as_uint32);
+
+    // 2. Does the existing data have bits set that are zero in the new value? (fail ... can never unset those bits)
+    uint8_t check_if_voted_set = ~new_value;
+    for (uint_fast8_t i = 0; i < 8u; ++i) {
+        uint8_t mask = (1u << i);
+        if (check_if_voted_set & mask) {
+            uint_fast8_t count = 0;
+            if (old_raw_data.as_bytes[0] & mask) { ++count; }
+            if (old_raw_data.as_bytes[1] & mask) { ++count; }
+            if (old_raw_data.as_bytes[2] & mask) { ++count; }
+            if (count >= 2) {
+                // found a bit that is voted to be set, and thus cannot be unset
+                PRINT_ERROR("OTP_RW Error: Attempt to byte_3x write row %03x to 0x%02x; Existing data 0x%06x bit %d votes as set, but is not set in new value\n",
+                    row, new_value, old_raw_data.as_uint32, i
+                );
+                return false;
+            }
+        }
+    }
+
+    // 3. Does the existing data need any bits set that new_value has set?  If so, SUCCESS w/o writing.
+    if (((old_raw_data.as_bytes[0] & new_value) == new_value) &&
+        ((old_raw_data.as_bytes[1] & new_value) == new_value) &&
+        ((old_raw_data.as_bytes[2] & new_value) == new_value) ) {
+        // no write required, as the row already has all the bits set that we'd be trying to write
+        PRINT_VERBOSE("OTP_RW: Write OTP byte_3x: Row %03x data 0x%06x already has all required bits set for 0x%02x ... not writing\n", row, old_raw_data.as_uint32, new_value);
         return true;
     }
 
-    PRINT_DEBUG("Whitelabel Debug: Write OTP byte_3x: updating row 0x%03x: 0x%06x --> 0x%06x\n", row, old_raw_data.as_uint32, to_write.as_uint32); WAIT_FOR_KEY();
-
+    // 4. Logically OR the new_value bits into the existing data, and write the updated raw data.
+    BP_OTP_RAW_READ_RESULT to_write = { .as_uint32 = old_raw_data.as_uint32 };
+    to_write.as_bytes[0] |= new_value;
+    to_write.as_bytes[1] |= new_value;
+    to_write.as_bytes[2] |= new_value;
+    PRINT_DEBUG("OTP_RW Debug: Write OTP byte_3x: updating row 0x%03x: 0x%06x --> 0x%06x\n", row, old_raw_data.as_uint32, to_write.as_uint32); WAIT_FOR_KEY();
     r = write_raw_wrapper(row, &to_write, sizeof(to_write));
     if (BOOTROM_OK != r) {
-        PRINT_ERROR("Whitelabel Error: Failed to write new bits for byte_3x: row 0x%03x: 0x%06x --> 0x%06x\n", row, old_raw_data.as_uint32, to_write.as_uint32);
+        PRINT_ERROR("OTP_RW Error: Failed to write new bits for byte_3x: row 0x%03x: 0x%06x --> 0x%06x\n", row, old_raw_data.as_uint32, to_write.as_uint32);
         return false;
     }
 
-    // 3. Can we read the data as now voted upon?
+    // 5. Verify the newly written OTP row now contains a value that votes to the new value.
     uint8_t new_voted_bits;
     if (!read_otp_byte_3x(row, &new_voted_bits)) {
-        PRINT_ERROR("Whitelabel Error: Failed to read agreed-upon new bits for OTP byte_3x: row 0x%03x\n", row);
+        PRINT_ERROR("OTP_RW Error: Failed to read agreed-upon new bits for OTP byte_3x: row 0x%03x\n", row);
         return false;
-    }
-
-    // 4. Verify the new data matches the requested value
-    if (new_voted_bits != new_value) {
-        PRINT_ERROR("Whitelabel Error: OTP byte_3x: row 0x%03x: 0x%02x -> 0x%02x, but got 0x%02x\n",
-            row, old_voted_bits, new_value, new_voted_bits
+    } else if (new_voted_bits != new_value) {
+        PRINT_ERROR("OTP_RW Error: OTP byte_3x: row 0x%03x: 0x%02x (0x%06x -> 0x%06x), but got 0x%02x\n",
+            row, new_value, old_raw_data.as_uint32, to_write.as_uint32, new_voted_bits
         );
         return false;
     }
@@ -437,17 +511,22 @@ bool bp_otp_read_ecc_data(uint16_t start_row, void* out_data, size_t count_of_by
 #else // !defined(BP_USE_VIRTUALIZED_OTP)
 
 
+// Writing RAW data to OTP can use the bootrom functions.
 bool bp_otp_write_single_row_raw(uint16_t row, uint32_t new_value) {
     return write_single_otp_raw_row(row, new_value);
 }
+
+// Reading RAW data from OTP can use the bootrom functions.
 bool bp_otp_read_single_row_raw(uint16_t row, uint32_t* out_data) {
     return read_raw_wrapper(row, out_data, sizeof(uint32_t)) == BOOTROM_OK;
 }
+
+// Writing ECC formatted data to OTP can use the bootrom functions.
 bool bp_otp_write_single_row_ecc(uint16_t row, uint16_t new_value) {
-    // Use ROM function for ECC writing ... due to BRBP selection logic not yet implemented
-    // May eventually do this in future ourselves... (not difficult)
     return write_single_otp_ecc_row(row, new_value);
 }
+
+// Reading ECC formatted data ... do NOT use bootrom function!
 bool bp_otp_read_single_row_ecc(uint16_t row, uint16_t* out_data) {
     uint32_t raw_data = 0xFFFFFFFFu;
     if (read_raw_wrapper(row, &raw_data, sizeof(raw_data)) != BOOTROM_OK) {
