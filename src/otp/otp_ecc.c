@@ -216,19 +216,23 @@ uint32_t bp_otp_calculate_ecc(uint16_t x) {
 
 uint32_t bp_otp_decode_raw(uint32_t raw_data) {
     const BP_OTP_RAW_READ_RESULT data = { .as_uint32 = raw_data };
-    // This function DISABLES raw data that the bootrom MIGHT accept as
-    // being validly encoded ECC data.  This can occur when the count
+    // This function detects as erroneous raw data that the bootrom accepts
+    // as being validly encoded ECC data.  This can occur when the count
     // of bitflips is 3, 5 (also 19, 21 for BRBP variants) vs. the correct encoding.
+    // It seems bootrom hides ECC errors in many cases ... Thus it appears
+    // to be a best practice to ONLY read OTP in raw form, and then detect
+    // and correct the ECC via software.
     uint32_t result = decode_raw_data_with_correction_impl(data);
 
     // if use of syndrome calculates matching low 16 bits,
     // then final check that original data has <2 bit flips vs.
     // the ECC encoded value.
-    // This excludes erroneous acceptance of encodings with 3 or 5 bit flips.
-    // (also excludes erroneous encodings with 19 or 21 bitflips ... see BRBP)
-    // As a result, this function provides heightened reliability for the ECC decoding,
-    // vs. a function that skips this step.
-
+    //
+    // Doing so excludes erroneously accepting encodings with 3 or 5 bit flips,
+    // EVEN WHEN the low 16-bit would end up unchanged.
+    // (also excludes erroneous encodings with 19 or 21 bitflips ... see BRBP.)
+    // As a result, this function provides heightened error detection for the
+    // ECC decoding, vs. an implementation that skips this step.
     if ((result & 0xFFFF0000u) == 0) {
         // result could be encoded two ways: with or without use of BRBP
         uint32_t chk  = bp_otp_calculate_ecc(result);

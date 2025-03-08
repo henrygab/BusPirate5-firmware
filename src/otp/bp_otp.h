@@ -191,9 +191,11 @@ uint32_t bp_otp_decode_raw(uint32_t data); // [[unsequenced]]
     // Returns false if the data could not be written (e.g., if any bit is
     // already set to 1, and the new value sets that bit to zero).
     bool bp_otp_write_single_row_raw(uint16_t row, uint32_t new_value);
-    // NOT RECOMMENDED DUE TO LIKELIHOOD OF UNDETECTED ERRORS:
     // Reads a single OTP row raw, returning the 24-bits of data without interpretation.
-    // Not recommended for general use.
+    // Using raw encoding is NOT recommended for general use.  However,
+    // reading of an OTP row as RAW can help differentiate between
+    // being unable to access the OTP row (e.g., locked) vs. ECC errors
+    // making the resulting values undecodable.
     bool bp_otp_read_single_row_raw(uint16_t row, uint32_t* out_data);
 
     // Writes a single OTP row with 16-bits of data, protected by ECC.
@@ -214,7 +216,6 @@ uint32_t bp_otp_decode_raw(uint32_t data); // [[unsequenced]]
     // do extra work to ensure buffer is always an even number of bytes.
     // In this case, the extra byte written will be zero.
     bool bp_otp_write_ecc_data(uint16_t start_row, const void* data, size_t count_of_bytes);
-
     // Fills the supplied buffer with ECC data, starting at the specified
     // OTP row and continuing until the buffer is filled.
     // Allows reading an odd number of bytes, so caller does not have to

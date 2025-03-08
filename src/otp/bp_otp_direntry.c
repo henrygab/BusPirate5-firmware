@@ -200,6 +200,10 @@ typedef struct _XOTP_DIRENTRY_ITERATOR_STATE {
 static XOTP_DIRENTRY_ITERATOR_STATE x_current_directory_entry[xCORE_COUNT] = {};
 
 #pragma region    // Basic CRC16
+// It is critical that this CRC return a value of 0x0000u
+// when the data provided to it is all-zero, to account for
+// an unwritten area being considered an indication of the
+// end-of-directory (appendable).
 static uint16_t crc16_table_a001[] = {
 	0x0000, 0xC0C1, 0xC181, 0x0140, 0xC301, 0x03C0, 0x0280, 0xC241,
 	0xC601, 0x06C0, 0x0780, 0xC741, 0x0500, 0xC5C1, 0xC481, 0x0440,
@@ -246,6 +250,9 @@ static inline uint16_t crc16_calculate(const void* buffer, size_t buffer_len) {
 }
 #pragma endregion // Basic CRC16
 
+// This function will read the entry at the given OTP row.
+// If the entry is not readable in RAW form, then it will
+// skip the current entry and read the next one.
 static void x_otp_read_and_validate_direntry(uint16_t direntry_otp_row, XOTP_DIRENTRY_ITERATOR_STATE* out_state) {
     bool failure = false;
     bool should_try_next_row_if_not_validated = false;
