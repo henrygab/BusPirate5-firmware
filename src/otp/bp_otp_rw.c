@@ -504,78 +504,17 @@ bool bp_otp_read_ecc_data(uint16_t start_row, void* out_data, size_t count_of_by
 #else // !defined(BP_USE_VIRTUALIZED_OTP)
 
 
-// Writing RAW data to OTP can use the bootrom functions.
 bool bp_otp_write_single_row_raw(uint16_t row, uint32_t new_value) {
     return write_single_otp_raw_row(row, new_value);
 }
-
-// Reading RAW data from OTP can use the bootrom functions.
 bool bp_otp_read_single_row_raw(uint16_t row, uint32_t* out_data) {
     return read_raw_wrapper(row, out_data, sizeof(uint32_t)) == BOOTROM_OK;
 }
-
-// Writing ECC formatted data to OTP can use the bootrom functions.
 bool bp_otp_write_single_row_ecc(uint16_t row, uint16_t new_value) {
     return write_single_otp_ecc_row(row, new_value);
 }
-
-// Reading ECC formatted data ... do NOT use bootrom function!
 bool bp_otp_read_single_row_ecc(uint16_t row, uint16_t* out_data) {
-    uint32_t raw_data = 0xFFFFFFFFu;
-    if (read_raw_wrapper(row, &raw_data, sizeof(raw_data)) != BOOTROM_OK) {
-        return false;
-    }
-    uint32_t result = bp_otp_decode_raw(raw_data);
-    if (result & 0xFF000000u) {
-        return false;
-    }
-    *out_data = result & 0xFFFFu;
-    return true;
-}
-bool bp_otp_write_ecc_data(uint16_t start_row, const void* data, size_t count_of_bytes) {
-    // write / verify one OTP row at a time
-    bool require_buffering_last_row = (count_of_bytes & 1u);
-    size_t loop_count = count_of_bytes / 2u;
-
-    for (size_t i = 0; i < loop_count; ++i) {
-        uint16_t tmp = ((const uint16_t*)data)[i];
-        if (!bp_otp_write_single_row_ecc(start_row + i, tmp)) {
-            return false;
-        }
-    }
-    if (require_buffering_last_row) {
-        uint16_t tmp = ((const uint8_t*)data)[count_of_bytes-1];
-        if (!bp_otp_write_single_row_ecc(start_row + loop_count, tmp)) {
-            return false;
-        }
-    }
-    return true;
-}
-
-bool bp_otp_read_ecc_data(uint16_t start_row, void* out_data, size_t count_of_bytes) {
-    if (count_of_bytes >= (0x1000*2)) { // OTP rows from 0x000u to 0xFFFu, so max 0x1000*2 bytes
-        return false;
-    }
-
-    uint8_t * buffer = out_data;
-    for (size_t i = 0; i < (count_of_bytes/2u); i++) {
-        uint16_t row = start_row + i;
-        uint16_t tmpData;
-        if (!bp_otp_read_single_row_ecc(row, &tmpData)) {
-            return false;
-        }
-        buffer[(2*i)+0] = (tmpData >> (8u*0u)) & 0xFFu;
-        buffer[(2*i)+1] = (tmpData >> (8u*1u)) & 0xFFu;
-    }
-    if (count_of_bytes & 1u) {
-        uint16_t row = start_row + (count_of_bytes/2u);
-        uint16_t tmpData;
-        if (!bp_otp_read_single_row_ecc(row, &tmpData)) {
-            return false;
-        }
-        buffer[count_of_bytes-1] = (tmpData >> (8u*0u)) & 0xFFu;
-    }
-    return true;
+    return read_single_otp_ecc_row(row, out_data);
 }
 bool bp_otp_write_single_row_byte3x(uint16_t row, uint8_t new_value) {
     return write_otp_byte_3x(row, new_value);
@@ -588,6 +527,64 @@ bool bp_otp_write_redundant_rows_2_of_3(uint16_t start_row, uint32_t new_value) 
 }
 bool bp_otp_read_redundant_rows_2_of_3(uint16_t start_row, uint32_t* out_data) {
     return read_otp_2_of_3(start_row, out_data);
+}
+
+// Arbitrary buffer size support functions
+
+bool bp_otp_write_ecc_data(uint16_t start_row, const void* data, size_t count_of_bytes) {
+
+    // write / verify one OTP row at a time
+    size_t loop_count = count_of_bytes / 2u;
+    bool require_buffering_last_row = (count_of_bytes & 1u);
+
+    // Write full-sized rows first
+    for (size_t i = 0; i < loop_count; ++i) {
+        uint16_t tmp = ((const uint16_t*)data)[i];
+        if (!bp_otp_write_single_row_ecc(start_row + i, tmp)) {
+            return false;
+        }
+    }
+    
+    // Write any final partial-row data
+    if (require_buffering_last_row) {
+        // Read the single byte ... do NOT read as uint16_t as additional byte may not be valid readable memory
+        // and use the local stack uint16_t for the actual write operation.
+        uint16_t tmp = ((const uint8_t*)data)[count_of_bytes-1];
+        if (!bp_otp_write_single_row_ecc(start_row + loop_count, tmp)) {
+            return false;
+        }
+    }
+    return true;
+}
+bool bp_otp_read_ecc_data(uint16_t start_row, void* out_data, size_t count_of_bytes) {
+    if (count_of_bytes >= (0x1000*2)) { // OTP rows from 0x000u to 0xFFFu, so max 0x1000*2 bytes
+        return false;
+    }
+
+    // read one OTP row at a time
+    size_t loop_count = count_of_bytes / 2u;
+    bool requires_buffering_last_row = (count_of_bytes & 1u);
+
+    // Read full-sized rows first
+    for (size_t i = 0; i < loop_count; ++i) {
+        uint16_t * b = ((uint16_t*)out_data) + i; // pointer arithmetic
+        if (!bp_otp_read_single_row_ecc(start_row + i, b)) {
+            return false;
+        }
+    }
+
+    // Read any final partial-row data
+    if (requires_buffering_last_row) {
+        uint16_t tmp = 0xFFFFu;
+        if (!bp_otp_read_single_row_ecc(start_row + loop_count, &tmp)) {
+            return false;
+        }
+        // update the last single byte of the buffer
+        // ensure to use byte-based pointer, as only one buffer byte is ensured to be valid
+        uint8_t * b = ((uint8_t*)out_data) + count_of_bytes - 1u;
+        *b = (tmp & 0xFFu);
+    }
+    return true;
 }
 
 #endif // defined(BP_USE_VIRTUALIZED_OTP)
