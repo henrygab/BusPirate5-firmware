@@ -66,13 +66,6 @@ static int read_raw_wrapper(uint16_t starting_row, void* buffer, size_t buffer_s
     cmd.flags = starting_row;
     return rom_func_otp_access((uint8_t*)buffer, buffer_size, cmd);
 }
-static int write_ecc_wrapper(uint16_t starting_row, const void* buffer, size_t buffer_size) {
-    otp_cmd_t cmd;
-    cmd.flags = starting_row;
-    cmd.flags |= OTP_CMD_ECC_BITS;
-    cmd.flags |= OTP_CMD_WRITE_BITS;
-    return rom_func_otp_access((uint8_t*)buffer, buffer_size, cmd);
-}
 
 // RP2350 OTP storage is strongly recommended to use some form of
 // error correction.  Most rows will use ECC, but three other forms exist:
