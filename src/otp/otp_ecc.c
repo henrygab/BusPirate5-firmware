@@ -50,7 +50,7 @@ static uint32_t _even_parity(uint32_t input) {
     }
     return rc;
 }
-static uint32_t decode_raw_data_with_correction_impl(const OTP_RAW_READ_RESULT data) {
+static uint32_t decode_raw_data_with_correction_impl(const BP_OTP_RAW_READ_RESULT data) {
     // If this decodes correctly, only the lower 16-bits will be set.
     // Else, at least the top eight bits will be set, to indicate
     // an error condition.  (FFxxxxxx)
@@ -68,8 +68,8 @@ static uint32_t decode_raw_data_with_correction_impl(const OTP_RAW_READ_RESULT d
     if ((data.bit_repair_by_polarity == 0x1u) || (data.bit_repair_by_polarity == 0x2u)) {
         const uint16_t decoded_wo_brbp =  data.as_uint32;
         const uint16_t decoded_w__brbp = ~data.as_uint32;
-        const OTP_RAW_READ_RESULT src_wo_brbp = { .as_uint32 = bp_otp_calculate_ecc( decoded_wo_brbp )              };
-        const OTP_RAW_READ_RESULT src_w__brbp = { .as_uint32 = bp_otp_calculate_ecc( decoded_w__brbp ) ^ 0x00FFFFFF };
+        const BP_OTP_RAW_READ_RESULT src_wo_brbp = { .as_uint32 = bp_otp_calculate_ecc( decoded_wo_brbp )              };
+        const BP_OTP_RAW_READ_RESULT src_w__brbp = { .as_uint32 = bp_otp_calculate_ecc( decoded_w__brbp ) ^ 0x00FFFFFF };
 
         uint32_t diff_wo_brbp = data.as_uint32 ^ src_wo_brbp.as_uint32;
         uint32_t diff_w__brbp = data.as_uint32 ^ src_w__brbp.as_uint32;
@@ -98,7 +98,7 @@ static uint32_t decode_raw_data_with_correction_impl(const OTP_RAW_READ_RESULT d
     //     BRBP checks for two ones in bits 23:22.  When both
     //     bits 23 and 22 are set, BRBP inverts the entire row
     //     before passing it to the modified Hamming code stage.
-    const OTP_RAW_READ_RESULT src = {
+    const BP_OTP_RAW_READ_RESULT src = {
         .as_uint32 =
             (data.bit_repair_by_polarity == 0x3u) ?
             (data.as_uint32 ^ 0x00FFFFFFu) :
@@ -111,7 +111,7 @@ static uint32_t decode_raw_data_with_correction_impl(const OTP_RAW_READ_RESULT d
     //     ECC recalculates the six parity bits based on the
     //     value read from the OTP row.
     //     ...
-    OTP_RAW_READ_RESULT tmp = { .as_uint32 = bp_otp_calculate_ecc(src.as_uint32) };
+    BP_OTP_RAW_READ_RESULT tmp = { .as_uint32 = bp_otp_calculate_ecc(src.as_uint32) };
 
     // 3. Simplest case: do the values match exactly? If so, done!
     if (tmp.as_uint32 == src.as_uint32) {

@@ -142,7 +142,6 @@ typedef struct _BP_OTP_RAW_READ_RESULT {
         };
     };
 } BP_OTP_RAW_READ_RESULT;
-typedef BP_OTP_RAW_READ_RESULT OTP_RAW_READ_RESULT; // TODO -- remove this old name for the struct
 static_assert(sizeof(BP_OTP_RAW_READ_RESULT) == sizeof(uint32_t));
 
 // Given the 16-bit value to be stored using ECC encoding,

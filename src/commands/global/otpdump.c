@@ -73,7 +73,7 @@ typedef struct _OTP_DUAL_ROW_READ_RESULT {
 static_assert(sizeof(OTP_DUAL_ROW_READ_RESULT) == sizeof(uint32_t), "");
 
 typedef struct _OTP_READ_RESULT {
-    OTP_RAW_READ_RESULT as_raw;
+    BP_OTP_RAW_READ_RESULT as_raw;
     uint16_t read_with_ecc;
     uint16_t read_via_bootrom; // recommended to use this as "truth" if no errors
     bool data_ok;

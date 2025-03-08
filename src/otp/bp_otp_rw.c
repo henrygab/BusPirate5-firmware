@@ -276,7 +276,7 @@ static bool read_otp_byte_3x(uint16_t row, uint8_t* out_data) {
     *out_data = 0xFFu;
 
     // 1. read the data
-    OTP_RAW_READ_RESULT v;
+    BP_OTP_RAW_READ_RESULT v;
     int r;
     r = read_raw_wrapper(row, &v.as_uint32, sizeof(uint32_t)); // DO NOT DIE ON FAILURE OF ANY ONE ROW
     if (BOOTROM_OK != r) {
@@ -321,15 +321,15 @@ static bool write_otp_byte_3x(uint16_t row, uint8_t new_value) {
 
     // 2. Read the row raw, OR in the requested bits to be set, and write back the new value.
     //    Note that each individual byte may have bits set that are not in the new value.  That's OK.
-    OTP_RAW_READ_RESULT old_raw_data;
+    BP_OTP_RAW_READ_RESULT old_raw_data;
     int r;
     r = read_raw_wrapper(row, &old_raw_data, sizeof(old_raw_data));
     if (BOOTROM_OK != r) {
         PRINT_ERROR("Whitelabel Error: Warning: unable to read old bits for OTP byte_3x: row 0x%03x\n", row);
         return false;
     }
-    OTP_RAW_READ_RESULT new_value_3x = { .as_bytes = { new_value, new_value, new_value } };
-    OTP_RAW_READ_RESULT to_write = { .as_uint32 = old_raw_data.as_uint32 | new_value_3x.as_uint32 };
+    BP_OTP_RAW_READ_RESULT new_value_3x = { .as_bytes = { new_value, new_value, new_value } };
+    BP_OTP_RAW_READ_RESULT to_write = { .as_uint32 = old_raw_data.as_uint32 | new_value_3x.as_uint32 };
     if (old_raw_data.as_uint32 == to_write.as_uint32) {
         // no change needed
         PRINT_WARNING("Whitelabel Warning: skipping update to row 0x%03x: old value 0x%06x already has bits 0x%06x\n", row, old_raw_data.as_uint32, new_value_3x.as_uint32);
