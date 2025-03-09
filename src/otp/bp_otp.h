@@ -36,86 +36,58 @@ typedef enum _BP_OTP_ECC_ERROR {
     BP_OTP_ECC_ERROR_POTENTIALLY_READABLE_BY_BOOTROM = 0xFF990000u, // TODO: prove or disprove bootrom behavior for these cases (all have 3 or 5 flipped bits)
 } BP_OTP_ECC_ERROR;
 
-
-#pragma region    // BP_OTP_DATA_ENCODING_TYPE
-// OTP is scary enough to be worth fully hiding the details from outside code, and to make
-// it REALLY hard to accidentally use wrong values.  Here, we want to ONLY support these
-// few types of data encoding.  Access to the underlying values is an extra pointer dereference,
-// and lots of extra typing to define these values.  For OTP ... I consider it worthwhile.
-typedef struct _BP_OTP_DATA_ENCODING_TYPE BP_OTP_DATA_ENCODING_TYPE;
-
-// Single row, 24-bits of raw data, no error correction or detection
-extern const BP_OTP_DATA_ENCODING_TYPE * const BP_OTP_DATA_ENCODING_TYPE_RAW;
-// Single row, 16-bits of data, ECC detects 2-bit errors, corrects 1-bit errors
-// and BRBP allows writing even where a row has a single bit already set to 1
-// (even if stored value would normally store zero for that bit).
-extern const BP_OTP_DATA_ENCODING_TYPE * const BP_OTP_DATA_ENCODING_TYPE_ECC;
-// Single row, 8-bits of data, stored triple-redundant.
-// Majority voting (2-of-3) is applied for each bit independently.
-extern const BP_OTP_DATA_ENCODING_TYPE * const BP_OTP_DATA_ENCODING_TYPE_BYTE3X;
-// Identical data stored in three consecutive OTP rows.
-// Majority voting (2-of-3) is applied for each bit independently.
-// APIs should be provided the first (lowest) OTP row number.
-extern const BP_OTP_DATA_ENCODING_TYPE * const BP_OTP_DATA_ENCODING_TYPE_RBIT3;
-// Identical data stored in eight consecutive OTP rows.
-// Special voting is applied for each bit independently:
-// If 3 or more rows have the bit set, then that bit is considered set.
-// This is used ONLY for the critical boot rows.
-// APIs should be provided the first (lowest) OTP row number.
-extern const BP_OTP_DATA_ENCODING_TYPE * const BP_OTP_DATA_ENCODING_TYPE_RBIT8;
-// Identical to BP_OTP_DATA_ENCODING_TYPE_ECC, with the added requirement
-// that the record's length includes at least one trailing zero byte.
-// This is useful for ASCII / UTF-8 strings.
-extern const BP_OTP_DATA_ENCODING_TYPE * const BP_OTP_DATA_ENCODING_TYPE_ECC_ASCII_STRING;
-// Value is encoded directly within the directory entry as an (up to) 32-bit value.
-// The least significant 16 bits are stored within the `start_row` field.
-// The most significant 16 bits are stored within the `byte_count` field.
-extern const BP_OTP_DATA_ENCODING_TYPE * const BP_OTP_DATA_ENCODING_TYPE_EMBEDED_IN_DIRENTRY;
-#pragma endregion // BP_OTP_DATA_ENCODING_TYPE
+typedef enum _BP_OTPDIR_DATA_ENCODING_TYPE {
+    // No data is associated with this row.
+    //  Single row, 24-bits of raw data, no error correction or detection
+    BP_OTPDIR_DATA_ENCODING_TYPE_NONE                    = 0x0u,
+    // Single row, 24-bits of raw data, no error correction or detection
+    BP_OTPDIR_DATA_ENCODING_TYPE_RAW                     = 0x1u,
+    // Single row, 8-bits of data, stored triple-redundant.
+    // Majority voting (2-of-3) is applied for each bit independently.
+    BP_OTPDIR_DATA_ENCODING_TYPE_BYTE3X                  = 0x2u,
+    // Identical data stored in three consecutive OTP rows.
+    // Majority voting (2-of-3) is applied for each bit independently.
+    // APIs should be provided the first (lowest) OTP row number.
+    BP_OTPDIR_DATA_ENCODING_TYPE_RBIT3                   = 0x3u,
+    // Identical data stored in eight consecutive OTP rows.
+    // Special voting is applied for each bit independently:
+    // If 3 or more rows have the bit set, then that bit is considered set.
+    // This is used ONLY for the critical boot rows.
+    // APIs should be provided the first (lowest) OTP row number.
+    BP_OTPDIR_DATA_ENCODING_TYPE_RBIT8                   = 0x4u,
+    // Single row, 16-bits of data, ECC detects 2-bit errors, corrects 1-bit errors
+    // and BRBP allows writing even where a row has a single bit already set to 1
+    // (even if stored value would normally store zero for that bit).
+    BP_OTPDIR_DATA_ENCODING_TYPE_ECC                     = 0x5u,
+    // Identical to BP_OTP_DATA_ENCODING_TYPE_ECC, with the added requirement
+    // that the record's length includes at least one trailing zero byte.
+    // This is useful for ASCII / UTF-8 strings.
+    BP_OTPDIR_DATA_ENCODING_TYPE_ECC_ASCII_STRING        = 0x6u,
+    // Value is encoded directly within the directory entry as an (up to) 32-bit value.
+    // The least significant 16 bits are stored within the `start_row` field.
+    // The most significant 16 bits are stored within the `byte_count` field.
+    BP_OTPDIR_DATA_ENCODING_TYPE_EMBEDED_IN_DIRENTRY     = 0x7u,
+} BP_OTPDIR_DATA_ENCODING_TYPE;
 
 #pragma region    // BP_OTP_DIRENTRY_TYPE
+// TODO: REQUIRES --std:c23 or --std:gcc23 -- Fix these to be constexpr   
+// TODO: REQUIRES --std:c23 or --std:gcc23 -- Fix initialization to use above constexpr structs
 
-// For now, do the same abstraction for BP_OTP_DATA_ENCODING_TYPE
-// Yes, it's more typing.  The typesafety it provides is worth it.
-typedef struct _BP_OTP_DIRENTRY_TYPE BP_OTP_DIRENTRY_TYPE;
+typedef struct _BP_OTPDIR_ENTRY_TYPE {
+    union {
+        uint16_t as_uint16_t;
+        struct {
+            uint16_t id            : 8; // can be extended to 12-bits if ever exceed 255 types for the given encoding type
+            uint16_t must_be_zero  : 4;
+            uint16_t encoding_type : 4; // e.g., ECC, ECC_String, BYTE3X, RBIT3, RBIT8, RAW
+        };
+    };
+} BP_OTPDIR_ENTRY_TYPE;
+static_assert(sizeof(BP_OTPDIR_ENTRY_TYPE) == sizeof(uint16_t));
 
-// No data is stored in this row.  Used to allow unwritten space to later be used to appended to the directory entries.
-extern const BP_OTP_DATA_ENCODING_TYPE * const BP_OTP_DATA_ENCODING_TYPE_UNUSED;
-
-// Single row, 24-bits of raw data (returned as a 32-bit value), no error correction or detection
-// Note that multiple rows do NOT pack the data ... each row takes 4 bytes.
-extern const BP_OTP_DATA_ENCODING_TYPE * const BP_OTP_DATA_ENCODING_TYPE_RAW;
-
-// Single row, 16-bits of data, ECC detects 2-bit errors, corrects 1-bit errors
-// and BRBP allows writing even where a row has a single bit already set to 1
-// (even if stored value would normally store zero for that bit).
-extern const BP_OTP_DATA_ENCODING_TYPE * const BP_OTP_DATA_ENCODING_TYPE_ECC;
-
-// Single row, 8-bits of data, stored triple-redundant.
-// Majority voting (2-of-3) is applied for each bit independently.
-extern const BP_OTP_DATA_ENCODING_TYPE * const BP_OTP_DATA_ENCODING_TYPE_BYTE3X;
-
-// Identical data stored in three consecutive OTP rows.
-// Majority voting (2-of-3) is applied for each bit independently.
-extern const BP_OTP_DATA_ENCODING_TYPE * const BP_OTP_DATA_ENCODING_TYPE_RBIT3;
-
-// Identical data stored in eight consecutive OTP rows.
-// Special voting is applied for each bit independently:
-// If 3 or more rows have the bit set, then that bit is considered set.
-// This is used ONLY for the critical boot rows.
-extern const BP_OTP_DATA_ENCODING_TYPE * const BP_OTP_DATA_ENCODING_TYPE_RBIT8;
-
-// Identical to BP_OTP_DATA_ENCODING_TYPE_ECC, with the added requirement
-// that the record's length includes at least one trailing zero byte.
-// This is useful for ASCII / UTF-8 strings.
-extern const BP_OTP_DATA_ENCODING_TYPE * const BP_OTP_DATA_ENCODING_TYPE_ECC_ASCII_STRING;
-
-// Value is encoded directly within the directory entry as an (up to) 32-bit value.
-// The least significant 16 bits are stored within the `start_row` field.
-// The most significant 16 bits are stored within the `byte_count` field.
-extern const BP_OTP_DATA_ENCODING_TYPE * const BP_OTP_DATA_ENCODING_TYPE_EMBEDED_IN_DIRENTRY;
-
-#pragma endregion // BP_OTP_DIRENTRY_TYPE
+#define BP_OTPDIR_ENTRY_TYPE_END              ((BP_OTPDIR_ENTRY_TYPE){ .id = 0x00u, .encoding_type = BP_OTPDIR_DATA_ENCODING_TYPE_NONE                        })
+#define BP_OTPDIR_ENTRY_TYPE_USB_WHITELABEL   ((BP_OTPDIR_ENTRY_TYPE){ .id = 0x01u, .encoding_type = BP_OTPDIR_DATA_ENCODING_TYPE_ECC                         })
+#define BP_OTPDIR_ENTRY_TYPE_BP_CERTIFICATE   ((BP_OTPDIR_ENTRY_TYPE){ .id = 0x02u, .encoding_type = BP_OTPDIR_DATA_ENCODING_TYPE_ECC                         })
 
 
 // When reading ECC OTP data using RAW reads, the is an opaque 32-bit value.
@@ -161,9 +133,6 @@ uint32_t bp_otp_decode_raw(uint32_t data); // [[unsequenced]]
     // These functions actually access the hardware,
     // so code calling it on RP2040 is probably in error?
     // This is a nicer error message than a linker error....
-    __attribute__((deprecated)) inline void bp_otp_apply_whitelabel_data(void) { }
-    __attribute__((deprecated)) inline bool bp_otp_lock_whitelabel(void) { return false; }
-
     __attribute__((deprecated)) inline bool bp_otp_write_single_row_raw(uint16_t row, uint32_t new_value)                      { return false; }
     __attribute__((deprecated)) inline bool bp_otp_read_single_row_raw(uint16_t row, uint32_t* out_data)                       { return false; }
     __attribute__((deprecated)) inline bool bp_otp_write_single_row_ecc(uint16_t row, uint16_t new_value)                      { return false; }
@@ -175,9 +144,12 @@ uint32_t bp_otp_decode_raw(uint32_t data); // [[unsequenced]]
     __attribute__((deprecated)) inline bool bp_otp_write_redundant_rows_2_of_3(uint16_t start_row, uint32_t new_value)         { return false; }
     __attribute__((deprecated)) inline bool bp_otp_read_redundant_rows_2_of_3(uint16_t start_row, uint32_t* out_data)          { return false; }
 
+    __attribute__((deprecated)) inline void bp_otp_apply_whitelabel_data(void) { }
+    __attribute__((deprecated)) inline bool bp_otp_lock_whitelabel(void) { return false; }
+
 #elif RPI_PLATFORM == RP2350
-    void bp_otp_apply_whitelabel_data(void);
-    bool bp_otp_lock_whitelabel(void);
+
+    #pragma region    // OTP Read / Write functions
 
     // RP2350 OTP can encode data in multiple ways:
     // * 24 bits of raw data (no error correction / detection)
@@ -247,7 +219,13 @@ uint32_t bp_otp_decode_raw(uint32_t data); // [[unsequenced]]
     // 2-of-3 voting for each bit independently.
     // Returns the 24-bits of voted-upon data.
     bool bp_otp_read_redundant_rows_2_of_3(uint16_t start_row, uint32_t* out_data);
+    #pragma endregion // OTP Read / Write functions
 
+    void bp_otp_apply_whitelabel_data(void);
+    bool bp_otp_lock_whitelabel(void);
+
+#else
+    #error "Unsupported platform"
 #endif
 
 
