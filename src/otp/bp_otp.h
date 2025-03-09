@@ -146,7 +146,7 @@ uint32_t bp_otp_decode_raw(uint32_t data); // [[unsequenced]]
 
     __attribute__((deprecated)) void bp_otpdir_reset_iterator(void) {}
     __attribute__((deprecated)) bool bp_otpdir_find_next_entry(void) { return false; }
-    __attribute__((deprecated)) BP_OTPDIR_ENTRY_TYPE bp_otpdir_get_current_entry_type(void) { return BP_OTPDIR_DATA_ENCODING_TYPE_NONE; }
+    __attribute__((deprecated)) BP_OTPDIR_ENTRY_TYPE bp_otpdir_get_current_entry_type(void) { return BP_OTPDIR_ENTRY_TYPE_END; }
     __attribute__((deprecated)) size_t bp_otpdir_get_current_entry_buffer_size(void) { return 0u;}
     __attribute__((deprecated)) bool bp_otpdir_get_current_entry_data(void* buffer, size_t buffer_size) { return false; }
     __attribute__((deprecated)) bool bp_otpdir_add_ecc_entry(BP_OTPDIR_ENTRY_TYPE entryType, uint16_t start_row, size_t valid_byte_count) { return false; }
