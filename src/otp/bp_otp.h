@@ -144,6 +144,13 @@ uint32_t bp_otp_decode_raw(uint32_t data); // [[unsequenced]]
     __attribute__((deprecated)) inline bool bp_otp_write_redundant_rows_2_of_3(uint16_t start_row, uint32_t new_value)         { return false; }
     __attribute__((deprecated)) inline bool bp_otp_read_redundant_rows_2_of_3(uint16_t start_row, uint32_t* out_data)          { return false; }
 
+    __attribute__((deprecated)) void bp_otpdir_reset_iterator(void) {}
+    __attribute__((deprecated)) bool bp_otpdir_find_next_entry(void) { return false; }
+    __attribute__((deprecated)) BP_OTPDIR_ENTRY_TYPE bp_otpdir_get_current_entry_type(void) { return BP_OTPDIR_DATA_ENCODING_TYPE_NONE; }
+    __attribute__((deprecated)) size_t bp_otpdir_get_current_entry_buffer_size(void) { return 0u;}
+    __attribute__((deprecated)) bool bp_otpdir_get_current_entry_data(void* buffer, size_t buffer_size) { return false; }
+    __attribute__((deprecated)) bool bp_otpdir_add_ecc_entry(BP_OTPDIR_ENTRY_TYPE entryType, uint16_t start_row, size_t valid_byte_count) { return false; }
+
     __attribute__((deprecated)) inline void bp_otp_apply_whitelabel_data(void) { }
     __attribute__((deprecated)) inline bool bp_otp_lock_whitelabel(void) { return false; }
 
@@ -220,6 +227,33 @@ uint32_t bp_otp_decode_raw(uint32_t data); // [[unsequenced]]
     // Returns the 24-bits of voted-upon data.
     bool bp_otp_read_redundant_rows_2_of_3(uint16_t start_row, uint32_t* out_data);
     #pragma endregion // OTP Read / Write functions
+
+    // Resets the OTP directory iterator to the first entry.
+    // For now, iterator state is kept per-CPU.  May change later to externally-allocated state.
+    void bp_otpdir_reset_iterator(void);
+    // Moves the current iterator to the next entry.
+    // Returns FALSE when no more entries will be enumerated.
+    bool bp_otpdir_find_next_entry(void);
+    // Returns the type of the current entry.
+    // If the iterator is at the end, then the type is BP_OTPDIR_DATA_ENCODING_TYPE_NONE.
+    BP_OTPDIR_ENTRY_TYPE bp_otpdir_get_current_entry_type(void);
+    // Returns the buffer size (in bytes) required to get the data referenced by the current entry.
+    // Gives a consistent API for all the various data encoding schemes (RAW, byte3x, RBIT3, RBIT8, etc.)
+    size_t bp_otpdir_get_current_entry_buffer_size(void);
+    // Reads the data from OTP on behalf of the caller.  If the data is successfully read (and validated,
+    // for all types except RAW), the data will be in the caller-supplied buffer.
+    // Automatically handles the various data encoding schemes (RAW, byte3x, RBIT3, RBIT8, etc.)
+    bool bp_otpdir_get_current_entry_data(void* buffer, size_t buffer_size);
+
+    // Adds a new entry to the OTP directory.
+    // Verification includes:
+    // * entry type encoding is either ECC or ECC_STRING
+    // * valid_byte_count is reasonable
+    // * all rows would exist within the user data OTP rows
+    // * all rows are readable and encode valid ECC-encoded data
+    // * for ECC_ASCII_STRING, the first NULL byte corresponds to the valid_byte_count (must be NULL terminated, and valid_byte_count must include NULL character)
+    bool bp_otpdir_add_ecc_entry(BP_OTPDIR_ENTRY_TYPE entryType, uint16_t start_row, size_t valid_byte_count);
+
 
     void bp_otp_apply_whitelabel_data(void);
     bool bp_otp_lock_whitelabel(void);
