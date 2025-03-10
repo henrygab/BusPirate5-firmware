@@ -1,7 +1,4 @@
-#include <stdint.h>
-#include <assert.h>
-#include <stdint.h>
-#include "bp_otp.h"
+#include "bp_otp_ecc.h"
 
 
 static const uint32_t SUCCESS_MASK = 0x0000FFFFu;

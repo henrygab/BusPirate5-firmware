@@ -28,8 +28,9 @@ set(buspirate_common
         system_monitor.h
         system_monitor.c
 
-        # The common OTP header can be included even on RP2040
-        otp/bp_otp.h
+        # The common OTP ECC functions can be included / used even on RP2040
+        otp/bp_otp_ecc.h
+        otp/bp_otp_ecc.c
 
 
         # pirate lib
@@ -412,9 +413,9 @@ set (buspirate_rtt
 
 set (rp2350_common
         # otp/bp_otp.h is included in bp5_common
-        otp/otp_ecc.c
-        otp/bp_otp_rw.c
         otp/bp_otp_direntry.c
+        otp/bp_otp_rw.c
+        otp/bp_otp.h
         otp/bp_whitelabel.c
         commands/global/cmd_otp.c
         commands/global/cmd_otp.h

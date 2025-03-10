@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
-#include "../pirate.h"
+#include "pirate.h"
 #include "bp_otp.h"
 #include "debug_rtt.h"
 
@@ -429,16 +429,38 @@ static void x_otp_read_and_validate_direntry(uint16_t direntry_otp_row, XOTP_DIR
 }
 
 // NOTE: there is a distinct iterator tracked for each core.
-static void x_otp_direntry_reset_directory_iterator() {
-    XOTP_DIRENTRY_ITERATOR_STATE* state = &x_current_directory_entry[ get_core_num() ];
+static bool x_otp_direntry_find_next_entry(XOTP_DIRENTRY_ITERATOR_STATE* state, uint16_t starting_row) {
     memset(state, 0, sizeof(XOTP_DIRENTRY_ITERATOR_STATE));
-    uint16_t row = BP_OTPDIR_ENTRY_START_ROW;
+    uint16_t row = starting_row;
     do {
         x_otp_read_and_validate_direntry(row, state);
-        row -= xROWS_PER_DIRENTRY;
+        row -= xROWS_PER_DIRENTRY; // in case we loop to the next one...
     } while (!state->entry_validated && state->should_try_next_row_if_not_validated);
-    return;
+
+    if (!state->entry_validated) {
+        return false;
+    } else if (state->current_entry.entry_type.as_uint16_t == BP_OTPDIR_ENTRY_TYPE_END.as_uint16_t) {
+        return false;
+    } else {
+        return true;
+    }
 }
+static bool x_otp_direntry_reset_directory_iterator(void) {
+    XOTP_DIRENTRY_ITERATOR_STATE* state = &x_current_directory_entry[ get_core_num() ];
+    uint16_t starting_row = BP_OTPDIR_ENTRY_START_ROW;
+    return x_otp_direntry_find_next_entry(state, starting_row);
+}
+static bool x_otp_direntry_move_to_next_entry(void) {
+    XOTP_DIRENTRY_ITERATOR_STATE* state = &x_current_directory_entry[ get_core_num() ];
+    if (!state->entry_validated) {
+        return false; // do nothing ...
+    }
+    uint16_t starting_row = state->current_otp_row_start - xROWS_PER_DIRENTRY;
+    return x_otp_direntry_find_next_entry(state, starting_row);
+}
+
+
+
 
 // For the "current" directory entry, what operations are needed?
 // 1. Get the current type (returns pointer to one of the predefined types)
@@ -497,33 +519,43 @@ static size_t x_otp_direntry_get_current_buffer_size_required(void) {
     return result;
 }
 
-#warning "Still need to write API to fill caller-supplied buffer..."
-#warning "Stilll need an aPI to move to teh next entry..."
-
-// Returns true when the next directory entry was found.
-// Returns false when:
-// * An explicit "sealed" directory entry is found (no more entries allowed to be added)
-// * An all-zero (blank) entry is found
-// * An entry with invalid CRC16 is found
-// Entries which cannot be read due to ECC errors are silently skipped.
-// Thus, if programming fails, use RAW mode to write data that has ECC errors.
-
-
-
-
-
-
-
-
 /// All code above this point are the static helper functions / implementation details.
 /// Only the below are the public API functions.
 
-
-void bp_otpdir_reset_iterator(void) {
-    x_otp_direntry_reset_directory_iterator();
-    return;
+bool bp_otpdir_find_first_entry(void) {
+    return x_otp_direntry_reset_directory_iterator();
 }
+// Moves the current iterator to the next entry.
+// Returns FALSE when no more entries will be enumerated.
+bool bp_otpdir_find_next_entry(void) {
+    return x_otp_direntry_move_to_next_entry();
+}
+// Returns the type of the current entry.
+// If the iterator is at the end, then the type is BP_OTPDIR_DATA_ENCODING_TYPE_NONE.
+BP_OTPDIR_ENTRY_TYPE bp_otpdir_get_current_entry_type(void);
+// Returns the buffer size (in bytes) required to get the data referenced by the current entry.
+// Gives a consistent API for all the various data encoding schemes (RAW, byte3x, RBIT3, RBIT8, etc.)
+size_t bp_otpdir_get_current_entry_buffer_size(void);
+// Reads the data from OTP on behalf of the caller.  If the data is successfully read (and validated,
+// for all types except RAW), the data will be in the caller-supplied buffer.
+// Automatically handles the various data encoding schemes (RAW, byte3x, RBIT3, RBIT8, etc.)
+bool bp_otpdir_get_current_entry_data(void* buffer, size_t buffer_size);
 
+// Gets the first occurrence of the specified ECC / ECC ASCII STRING entry type, and writes the data to the caller-specified buffer.
+// This function makes it simpler to obtain strings or data that have a known maximum size.
+// However, it will fail if the caller supplied buffer is too small.  In that case, the iterator will still be pointing to
+// that first occurrence of the specified entry type ... allowing caller to retry with a larger buffer.
+bool bp_otpdir_get_first_entry_ecc(BP_OTPDIR_ENTRY_TYPE entryType, void* buffer, size_t buffer_size);
+
+
+// Adds a new entry to the OTP directory.
+// Verification includes:
+// * entry type encoding is either ECC or ECC_STRING
+// * valid_byte_count is reasonable
+// * all rows would exist within the user data OTP rows
+// * all rows are readable and encode valid ECC-encoded data
+// * for ECC_ASCII_STRING, the first NULL byte corresponds to the valid_byte_count (must be NULL terminated, and valid_byte_count must include NULL character)
+bool bp_otpdir_add_ecc_entry(BP_OTPDIR_ENTRY_TYPE entryType, uint16_t start_row, size_t valid_byte_count);
 
 
 
