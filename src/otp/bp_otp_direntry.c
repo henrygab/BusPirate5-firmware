@@ -588,8 +588,15 @@ static size_t x_otp_direntry_get_current_entry_data(void* buffer, size_t buffer_
             return required_size;
         }
         case BP_OTPDIR_DATA_ENCODING_TYPE_RBIT8: {
-            PRINT_ERROR("No support for RBIT8 data is implemented (yet)");
-            return 0u;
+            uint16_t start_row = state->current_entry.rbit8_data.start_row;
+            size_t number_of_reads_required = required_size / sizeof(uint32_t);
+            uint32_t* p = (uint32_t*)buffer; // for pointer arithmetic
+            for (size_t i = 0; i < number_of_reads_required; ++i) {
+                if (!bp_otp_read_redundant_rows_RBIT8(start_row+(i*8), p+i)) {
+                    return 0u;
+                }
+            }
+            return required_size;
         }
         case BP_OTPDIR_DATA_ENCODING_TYPE_ECC: {
             uint16_t start_row = state->current_entry.ecc_data.start_row;
