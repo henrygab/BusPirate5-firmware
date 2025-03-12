@@ -61,7 +61,6 @@ static int write_raw_wrapper(uint16_t starting_row, const void* buffer, size_t b
     return rom_func_otp_access((uint8_t*)buffer, buffer_size, cmd);
 }
 static int read_raw_wrapper(uint16_t starting_row, void* buffer, size_t buffer_size) {
-    // TODO: use own ECC decoding functions ...
     otp_cmd_t cmd;
     cmd.flags = starting_row;
     return rom_func_otp_access((uint8_t*)buffer, buffer_size, cmd);
@@ -586,6 +585,40 @@ bool bp_otp_read_ecc_data(uint16_t start_row, void* out_data, size_t count_of_by
     }
     return true;
 }
+
+bool bp_otp_read_raw_data(uint16_t start_row, void* out_data, size_t count_of_bytes) {
+    if (count_of_bytes == 0u) {
+        return false; // ?? should this return true?
+    }
+    memset(out_data, 0, count_of_bytes);
+    if (count_of_bytes >= (0x1000*4)) { // OTP rows from 0x000u to 0xFFFu, so max 0x1000*2 bytes
+        return false;
+    }
+    if ((count_of_bytes % 4u) != 0) {
+        return false;
+    }
+    return (read_raw_wrapper(start_row, out_data, count_of_bytes) == BOOTROM_OK);
+}
+bool bp_otp_write_raw_data(uint16_t start_row, const void* data, size_t count_of_bytes) {
+    if (count_of_bytes == 0u) {
+        return false; // ?? should this return true?
+    }
+    if ((count_of_bytes % 4u) != 0) {
+        return false;
+    }
+    // Verify the top byte of each uint32_t is zero ... catch coding errors early before it writes to OTP
+    size_t count_of_uint32 = count_of_bytes / 4u;
+    const uint32_t * p = data;
+    for (size_t i = 0; i < count_of_uint32; ++i) {
+        if ((p[i] & 0xFF000000u) != 0u) {
+            return false;
+        }
+    }
+    // lower level will catch other errors (range, permissions, etc.)
+    return (write_raw_wrapper(start_row, data, count_of_bytes) == BOOTROM_OK);
+}
+
+
 
 #endif // defined(BP_USE_VIRTUALIZED_OTP)
 

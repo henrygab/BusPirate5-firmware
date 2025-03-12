@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <assert.h>
-#include "bp_otp_ecc.h"
+#include "bp_otp_ecc.h" // not reliant on buspirate-specific settings!
 
 #include "pirate.h"
 
@@ -45,10 +45,13 @@ typedef enum _BP_OTPDIR_DATA_ENCODING_TYPE {
     // The least significant 16 bits are stored within the `start_row` field.
     // The most significant 16 bits are stored within the `byte_count` field.
     BP_OTPDIR_DATA_ENCODING_TYPE_EMBEDED_IN_DIRENTRY     = 0x7u,
+    /* Encoding types 0x8..0xE are reserved for future use */
+    // This is an invalid entry / cannot read data for this entry
+    BP_OTPDIR_DATA_ENCODING_TYPE_INVALID                 = 0xFu,
 } BP_OTPDIR_DATA_ENCODING_TYPE;
 
 #pragma region    // BP_OTP_DIRENTRY_TYPE
-// TODO: REQUIRES --std:c23 or --std:gcc23 -- Fix these to be constexpr   
+// TODO: REQUIRES --std:c23 or --std:gcc23 -- Fix these to be constexpr instead of macros  
 // TODO: REQUIRES --std:c23 or --std:gcc23 -- Fix initialization to use above constexpr structs
 
 typedef struct _BP_OTPDIR_ENTRY_TYPE {
@@ -63,9 +66,10 @@ typedef struct _BP_OTPDIR_ENTRY_TYPE {
 } BP_OTPDIR_ENTRY_TYPE;
 static_assert(sizeof(BP_OTPDIR_ENTRY_TYPE) == sizeof(uint16_t));
 
-#define BP_OTPDIR_ENTRY_TYPE_END              ((BP_OTPDIR_ENTRY_TYPE){ .id = 0x00u, .encoding_type = BP_OTPDIR_DATA_ENCODING_TYPE_NONE                        })
-#define BP_OTPDIR_ENTRY_TYPE_USB_WHITELABEL   ((BP_OTPDIR_ENTRY_TYPE){ .id = 0x01u, .encoding_type = BP_OTPDIR_DATA_ENCODING_TYPE_ECC                         })
-#define BP_OTPDIR_ENTRY_TYPE_BP_CERTIFICATE   ((BP_OTPDIR_ENTRY_TYPE){ .id = 0x02u, .encoding_type = BP_OTPDIR_DATA_ENCODING_TYPE_ECC                         })
+#define BP_OTPDIR_ENTRY_TYPE_END              ((BP_OTPDIR_ENTRY_TYPE){ .id = 0x00u, .encoding_type = BP_OTPDIR_DATA_ENCODING_TYPE_NONE                          })
+#define BP_OTPDIR_ENTRY_TYPE_USB_WHITELABEL   ((BP_OTPDIR_ENTRY_TYPE){ .id = 0x01u, .encoding_type = BP_OTPDIR_DATA_ENCODING_TYPE_ECC                           })
+#define BP_OTPDIR_ENTRY_TYPE_BP_CERTIFICATE   ((BP_OTPDIR_ENTRY_TYPE){ .id = 0x02u, .encoding_type = BP_OTPDIR_DATA_ENCODING_TYPE_ECC                           })
+#define BP_OTPDIR_ENTRY_TYPE_INVALID          ((BP_OTPDIR_ENTRY_TYPE){ .id = 0xFFu, .encoding_type = BP_OTPDIR_DATA_ENCODING_TYPE_INVALID, .must_be_zero = 0xFu })
 
 #if RPI_PLATFORM == RP2040
 
@@ -78,6 +82,8 @@ static_assert(sizeof(BP_OTPDIR_ENTRY_TYPE) == sizeof(uint16_t));
     __attribute__((deprecated)) inline bool bp_otp_read_single_row_ecc(uint16_t row, uint16_t* out_data)                       { return false; }
     __attribute__((deprecated)) inline bool bp_otp_read_ecc_data(uint16_t start_row, void* out_data, size_t count_of_bytes)    { return false; }
     __attribute__((deprecated)) inline bool bp_otp_write_ecc_data(uint16_t start_row, const void* data, size_t count_of_bytes) { return false; }
+    __attribute__((deprecated)) inline bool bp_otp_read_raw_data(uint16_t start_row, void* out_data, size_t count_of_bytes)    { return false; }
+    __attribute__((deprecated)) inline bool bp_otp_write_raw_data(uint16_t start_row, const void* data, size_t count_of_bytes) { return false; }
     __attribute__((deprecated)) inline bool bp_otp_write_single_row_byte3x(uint16_t row, uint8_t new_value)                    { return false; }
     __attribute__((deprecated)) inline bool bp_otp_read_single_row_byte3x(uint16_t row, uint8_t* out_data)                     { return false; }
     __attribute__((deprecated)) inline bool bp_otp_write_redundant_rows_2_of_3(uint16_t start_row, uint32_t new_value)         { return false; }
@@ -128,6 +134,20 @@ static_assert(sizeof(BP_OTPDIR_ENTRY_TYPE) == sizeof(uint16_t));
     // uncorrectable errors detected, etc.)
     bool bp_otp_read_single_row_ecc(uint16_t row, uint16_t* out_data);
 
+    // Read raw OTP row data, starting at the specified
+    // OTP row and continuing until the buffer is filled.
+    // Unlike reading of ECC data, the buffer here must be an integral multiple
+    // of four bytes.  This restriction is reasonable because the caller
+    // must already handle the 3-bytes-in-4 for the buffers.
+    bool bp_otp_read_raw_data(uint16_t start_row, void* out_data, size_t count_of_bytes);
+    // Write the supplied buffer to OTP, starting at the specified
+    // OTP row and continuing until the buffer is fully written.
+    // Unlike writing ECC data, the buffer must be an integral multiple
+    // of four bytes.  This restriction is reasonable because the caller
+    // must already handle the 3-bytes-in-4 for the buffers.
+    bool bp_otp_write_raw_data(uint16_t start_row, const void* data, size_t count_of_bytes);
+
+
     // Write the supplied buffer to OTP, starting at the specified
     // OTP row and continuing until the buffer is fully written.
     // Allows writing an odd number of bytes, so caller does not have to
@@ -174,22 +194,25 @@ static_assert(sizeof(BP_OTPDIR_ENTRY_TYPE) == sizeof(uint16_t));
     // Moves the current iterator to the next entry.
     // Returns FALSE when no more entries will be enumerated. (e.g., no additional entries found)
     bool bp_otpdir_find_next_entry(void);
+    // Resets the OTP directory iterator, and iterates until finding the specified entry type.
+    // Returns FALSE when no more entries will be enumerated. (e.g., no entries found)
+    bool bp_otpdir_find_first_entry_of_type(BP_OTPDIR_ENTRY_TYPE entryType);
+    // Moves the current iterator to the next entry of the specified type.
+    // Returns FALSE when no more entries will be enumerated. (e.g., no additional entries found)
+    bool bp_otpdir_find_next_entry_of_type(BP_OTPDIR_ENTRY_TYPE entryType);
+
     // Returns the TYPE of the current entry.
     // If the iterator is at the end, then the type is BP_OTPDIR_DATA_ENCODING_TYPE_NONE.
     BP_OTPDIR_ENTRY_TYPE bp_otpdir_get_current_entry_type(void);
     // Returns the buffer size (in bytes) required to get the data referenced by the current entry.
     // Gives a consistent API for all the various data encoding schemes (RAW, byte3x, RBIT3, RBIT8, etc.)
+    // NOTE: This provides a count of bytes required to retrieve the data, abstracting away the various encoding schemes
+    //       with their various conversions to/from row counts.   Simplifies things for the caller to only deal with bytes.
     size_t bp_otpdir_get_current_entry_buffer_size(void);
     // Reads the data from OTP on behalf of the caller.  If the data is successfully read (and validated,
     // for all types except RAW), the data will be in the caller-supplied buffer.
     // Automatically handles the various data encoding schemes (RAW, byte3x, RBIT3, RBIT8, etc.)
-    bool bp_otpdir_get_current_entry_data(void* buffer, size_t buffer_size);
-    // Gets the first occurrence of the specified ECC / ECC ASCII STRING entry type, and writes the data to the caller-specified buffer.
-    // This function makes it simpler to obtain strings or data that have a known maximum size.
-    // However, it will fail if the caller supplied buffer is too small.  In that case, the iterator will still be pointing to
-    // that next occurrence of the specified entry type ... allowing caller to retry with a larger buffer.
-    // This is STRICTLY A CONVENIENCE FUNCTION ... 
-    bool bp_otpdir_get_first_entry_ecc(BP_OTPDIR_ENTRY_TYPE entryType, void* buffer, size_t buffer_size);
+    size_t bp_otpdir_get_current_entry_data(void* buffer, size_t buffer_size);
     // Adds a new entry to the OTP directory.
     // Verification includes:
     // * entry type encoding is either ECC or ECC_STRING
@@ -197,7 +220,7 @@ static_assert(sizeof(BP_OTPDIR_ENTRY_TYPE) == sizeof(uint16_t));
     // * all rows would exist within the user data OTP rows
     // * all rows are readable and encode valid ECC-encoded data
     // * for ECC_ASCII_STRING, the first NULL byte corresponds to the valid_byte_count (must be NULL terminated, and valid_byte_count must include NULL character)
-    bool bp_otpdir_add_ecc_entry(BP_OTPDIR_ENTRY_TYPE entryType, uint16_t start_row, size_t valid_byte_count);
+    bool bp_otpdir_add_entry_for_existing_ecc_data(BP_OTPDIR_ENTRY_TYPE entryType, uint16_t start_row, size_t valid_byte_count);
     #pragma endregion // OTP Directory related functions
     void bp_otp_apply_whitelabel_data(void);
     bool bp_otp_lock_whitelabel(void);
