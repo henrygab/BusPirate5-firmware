@@ -70,6 +70,8 @@ static_assert(sizeof(BP_OTPDIR_ENTRY_TYPE) == sizeof(uint16_t));
 #define BP_OTPDIR_ENTRY_TYPE_USB_WHITELABEL   ((BP_OTPDIR_ENTRY_TYPE){ .id = 0x01u, .encoding_type = BP_OTPDIR_DATA_ENCODING_TYPE_ECC                           })
 #define BP_OTPDIR_ENTRY_TYPE_BP_CERTIFICATE   ((BP_OTPDIR_ENTRY_TYPE){ .id = 0x02u, .encoding_type = BP_OTPDIR_DATA_ENCODING_TYPE_ECC                           })
 #define BP_OTPDIR_ENTRY_TYPE_INVALID          ((BP_OTPDIR_ENTRY_TYPE){ .id = 0xFFu, .encoding_type = BP_OTPDIR_DATA_ENCODING_TYPE_INVALID, .must_be_zero = 0xFu })
+#pragma endregion // BP_OTP_DIRENTRY_TYPE
+
 
 #if RPI_PLATFORM == RP2040
 
