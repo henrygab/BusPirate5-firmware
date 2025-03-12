@@ -343,19 +343,6 @@ static bool write_single_otp_value_N_of_M(uint16_t start_row, uint8_t N, uint8_t
     }
     return true;
 }
-
-static bool read_single_otp_rbit3_value(uint16_t start_row, uint32_t* out_data) {
-    return read_single_otp_value_N_of_M(start_row, 2, 3, out_data);
-}
-static bool read_single_otp_rbit8_value(uint16_t start_row, uint32_t* out_data) {
-    return read_single_otp_value_N_of_M(start_row, 3, 8, out_data);
-}
-static bool write_single_otp_rbit3_value(uint16_t start_row, uint32_t new_value) {
-    return write_single_otp_value_N_of_M(start_row, 2, 3, new_value);
-}
-static bool write_single_otp_rbit8_value(uint16_t start_row, uint32_t new_value) {
-    return write_single_otp_value_N_of_M(start_row, 3, 8, new_value);
-}
 static bool read_otp_byte_3x(uint16_t row, uint8_t* out_data) {
     *out_data = 0xFFu;
 
@@ -546,10 +533,16 @@ bool bp_otp_read_single_row_redundant_byte3x(uint16_t row, uint8_t* out_data) {
     return read_otp_byte_3x(row, out_data);
 }
 bool bp_otp_write_redundant_rows_RBIT3(uint16_t start_row, uint32_t new_value) {
-    return write_single_otp_rbit3_value(start_row, new_value);
+    return write_single_otp_value_N_of_M(start_row, 2, 3, new_value);
 }
 bool bp_otp_read_redundant_rows_RBIT3(uint16_t start_row, uint32_t* out_data) {
-    return read_single_otp_rbit3_value(start_row, out_data);
+    return read_single_otp_value_N_of_M(start_row, 2, 3, out_data);
+}
+bool bp_otp_write_redundant_rows_RBIT8(uint16_t start_row, uint32_t new_value) {
+    return write_single_otp_value_N_of_M(start_row, 3, 8, new_value);
+}
+bool bp_otp_read_redundant_rows_RBIT8(uint16_t start_row, uint32_t* out_data) {
+    return read_single_otp_value_N_of_M(start_row, 3, 8, out_data);
 }
 
 // Arbitrary buffer size support functions
