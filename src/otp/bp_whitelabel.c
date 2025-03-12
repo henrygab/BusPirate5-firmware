@@ -382,7 +382,7 @@ bool internal_get_whitelabel_row_range(BP_OTP_ROW_RANGE *result_out) {
     memset(result_out, 0, sizeof(BP_OTP_ROW_RANGE));
     
     BP_OTP_USB_BOOT_FLAGS current_usb_boot_flags;
-    if (!bp_otp_read_redundant_rows_2_of_3(0x059, &current_usb_boot_flags.as_uint32)) {
+    if (!bp_otp_read_redundant_rows_RBIT3(0x059, &current_usb_boot_flags.as_uint32)) {
         PRINT_ERROR("Whitelabel Error: Raw OTP rows 0x59..0x5B (USB BOOT FLAGS) did not find majority agreement\n");
         return false;
     }
@@ -532,7 +532,7 @@ void bp_otp_apply_whitelabel_data(void) {
 
     // 6. Read the existing USB boot flags ... stored RBIT-3 (three rows, majority voting per bit)
     BP_OTP_USB_BOOT_FLAGS old_usb_boot_flags;
-    if (!bp_otp_read_redundant_rows_2_of_3(0x059, &old_usb_boot_flags.as_uint32)) {
+    if (!bp_otp_read_redundant_rows_RBIT3(0x059, &old_usb_boot_flags.as_uint32)) {
         PRINT_ERROR("Whitelabel Error: Raw OTP rows 0x59..0x5B (old USB BOOT FLAGS) did not find majority agreement\n");
         return;
     }
@@ -552,7 +552,7 @@ void bp_otp_apply_whitelabel_data(void) {
     // 7. NON-ECC write the USB boot flags ... RBIT-3 encoding
     BP_OTP_USB_BOOT_FLAGS new_flags = { .as_uint32 = old_usb_boot_flags.as_uint32 | usb_boot_flags.as_uint32 };
     PRINT_DEBUG("Whitelabel Debug: Writing USB BOOT FLAGS: 0x%06x -> 0x%06x\n", old_usb_boot_flags.as_uint32, new_flags);  WAIT_FOR_KEY();
-    if (!bp_otp_write_redundant_rows_2_of_3(0x059, new_flags.as_uint32)) {
+    if (!bp_otp_write_redundant_rows_RBIT3(0x059, new_flags.as_uint32)) {
         PRINT_ERROR("Whitelabel Error: Failed to write USB BOOT FLAGS\n");
         return;
     }
@@ -573,7 +573,7 @@ bool bp_otp_lock_whitelabel(void) {
     // g_WaitForKey = true;
 
     BP_OTP_USB_BOOT_FLAGS old_usb_boot_flags;
-    if (!bp_otp_read_redundant_rows_2_of_3(0x059, &old_usb_boot_flags.as_uint32)) {
+    if (!bp_otp_read_redundant_rows_RBIT3(0x059, &old_usb_boot_flags.as_uint32)) {
         PRINT_ERROR("Whitelabel Error: Raw OTP rows 0x59..0x5B (USB BOOT FLAGS) did not find majority agreement\n");
         return false;
     }
@@ -610,12 +610,12 @@ bool bp_otp_lock_whitelabel(void) {
 
     // TODO: is there an SDK API for locking pages?
     PRINT_DEBUG("Setting PAGE3_LOCK0 (0xF86) to `0x3Fu` (no keys; read-only without key)\n"); WAIT_FOR_KEY();
-    if (!bp_otp_write_single_row_byte3x(0xF86, 0x3Fu)) {
+    if (!bp_otp_write_single_row_redundant_byte3x(0xF86, 0x3Fu)) {
         PRINT_ERROR("Whitelabel Error: Failed to write PAGE3_LOCK0\n");
         return false;
     }
     PRINT_DEBUG("Whitelabel Debug: Setting PAGE3_LOCK1 (0xF87) to `0x15` (read-only for secure, non-secure, bootloader)\n"); WAIT_FOR_KEY();
-    if (!bp_otp_write_single_row_byte3x(0xF87, 0x15u)) {
+    if (!bp_otp_write_single_row_redundant_byte3x(0xF87, 0x15u)) {
         PRINT_ERROR("Whitelabel Error: Failed to write PAGE3_LOCK1\n");
         return false;
     }

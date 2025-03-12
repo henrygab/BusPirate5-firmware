@@ -86,10 +86,10 @@ static_assert(sizeof(BP_OTPDIR_ENTRY_TYPE) == sizeof(uint16_t));
     __attribute__((deprecated)) inline bool bp_otp_write_ecc_data(uint16_t start_row, const void* data, size_t count_of_bytes) { return false; }
     __attribute__((deprecated)) inline bool bp_otp_read_raw_data(uint16_t start_row, void* out_data, size_t count_of_bytes)    { return false; }
     __attribute__((deprecated)) inline bool bp_otp_write_raw_data(uint16_t start_row, const void* data, size_t count_of_bytes) { return false; }
-    __attribute__((deprecated)) inline bool bp_otp_write_single_row_byte3x(uint16_t row, uint8_t new_value)                    { return false; }
-    __attribute__((deprecated)) inline bool bp_otp_read_single_row_byte3x(uint16_t row, uint8_t* out_data)                     { return false; }
-    __attribute__((deprecated)) inline bool bp_otp_write_redundant_rows_2_of_3(uint16_t start_row, uint32_t new_value)         { return false; }
-    __attribute__((deprecated)) inline bool bp_otp_read_redundant_rows_2_of_3(uint16_t start_row, uint32_t* out_data)          { return false; }
+    __attribute__((deprecated)) inline bool bp_otp_write_single_row_redundant_byte3x(uint16_t row, uint8_t new_value)                    { return false; }
+    __attribute__((deprecated)) inline bool bp_otp_read_single_row_redundant_byte3x(uint16_t row, uint8_t* out_data)                     { return false; }
+    __attribute__((deprecated)) inline bool bp_otp_write_redundant_rows_RBIT3(uint16_t start_row, uint32_t new_value)         { return false; }
+    __attribute__((deprecated)) inline bool bp_otp_read_redundant_rows_RBIT3(uint16_t start_row, uint32_t* out_data)          { return false; }
 
     __attribute__((deprecated)) void bp_otpdir_reset_iterator(void) {}
     __attribute__((deprecated)) bool bp_otpdir_find_next_entry(void) { return false; }
@@ -170,10 +170,10 @@ static_assert(sizeof(BP_OTPDIR_ENTRY_TYPE) == sizeof(uint16_t));
     // ensure that (with voting applied) the new value was correctly stored.
     // This style of storage is mostly used for flags that are independently
     // updated over multiple OTP writes. 
-    bool bp_otp_write_single_row_byte3x(uint16_t row, uint8_t new_value);
+    bool bp_otp_write_single_row_redundant_byte3x(uint16_t row, uint8_t new_value);
     // Reads a single OTP row with 8-bits of data stored with 3x redundancy.
     // Returns the 8-bits of data, after applying 2-of-3 voting.
-    bool bp_otp_read_single_row_byte3x(uint16_t row, uint8_t* out_data);
+    bool bp_otp_read_single_row_redundant_byte3x(uint16_t row, uint8_t* out_data);
 
     // Writes three consecutive rows of OTP data with same 24-bit data.
     // For each bit with a new value of zero:
@@ -182,11 +182,11 @@ static_assert(sizeof(BP_OTPDIR_ENTRY_TYPE) == sizeof(uint16_t));
     // After writing the new values, the function reads the value back
     // and will return false if the value (with voting applied) is not
     // the expected new value.
-    bool bp_otp_write_redundant_rows_2_of_3(uint16_t start_row, uint32_t new_value);
+    bool bp_otp_write_redundant_rows_RBIT3(uint16_t start_row, uint32_t new_value);
     // Reads three consecutive rows of raw OTP data (24-bits), and applies
     // 2-of-3 voting for each bit independently.
     // Returns the 24-bits of voted-upon data.
-    bool bp_otp_read_redundant_rows_2_of_3(uint16_t start_row, uint32_t* out_data);
+    bool bp_otp_read_redundant_rows_RBIT3(uint16_t start_row, uint32_t* out_data);
     #pragma endregion // OTP Read / Write functions
     #pragma region    // OTP Directory related functions
     // Resets the OTP directory iterator to the first entry.

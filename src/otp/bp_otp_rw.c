@@ -52,7 +52,6 @@ static void MyWaitForAnyKey_with_discards(void) {
     return;
 }
 
-// Detect if firmware is ready for whitelabeling
 // don't want to use that difficult-to-parse API in many places....
 static int write_raw_wrapper(uint16_t starting_row, const void* buffer, size_t buffer_size) {
     otp_cmd_t cmd;
@@ -212,69 +211,74 @@ static bool write_single_otp_raw_row(uint16_t row, uint32_t data) {
     }
     return true;
 }
-static bool read_otp_2_of_3(uint16_t start_row, uint32_t* out_data) {
+static bool read_single_otp_value_N_of_M(uint16_t start_row, uint8_t N, uint8_t M, uint32_t* out_data) {
     *out_data = 0xFFFFFFFFu;
 
-    // 1. read the base address, base+1, base+2
-    uint32_t v[3];
-    int r[3];
-    r[0] = read_raw_wrapper(start_row+0, &(v[0]), sizeof(uint32_t)); // DO NOT DIE ON FAILURE OF ANY ONE ROW
-    r[1] = read_raw_wrapper(start_row+1, &(v[1]), sizeof(uint32_t)); // DO NOT DIE ON FAILURE OF ANY ONE ROW
-    r[2] = read_raw_wrapper(start_row+2, &(v[2]), sizeof(uint32_t)); // DO NOT DIE ON FAILURE OF ANY ONE ROW
+    // Support both RBIT3 and RBIT8
+    if (N == 2 && M == 3) { }
+    else if (N == 3 && M == 8) {}
+    else {
+        PRINT_ERROR("OTP_RW Error: Read OTP N-of-M: Unsupported N=%d, M=%d\n", N, M);
+        return false;
+    }
+    uint32_t v[8u] = {0u}; // zero-initialize the array, sized for maximum supported `M`
+    int      r[8u] = {0u}; // zero-initialized is BOOTROM_OK ... but no bits set in unused elements, so it's OK
+    assert(M <= 8u);
 
-    // 2. Where all three reads succeeded, use bitwise majority voting and return result
-    if ((r[0] == BOOTROM_OK) && (r[1] == BOOTROM_OK) && (r[2] == BOOTROM_OK)) {
-        PRINT_VERBOSE("OTP_RW Read OTP 2-of-3: rows 0x%03x, 0x%03x, and 0x%03x all read successfully (0x%06x, 0x%06x, 0x%06x)\n",
-            start_row+0, start_row+1, start_row+2,
-            v[0], v[1], v[2]
-        );
-        uint32_t result = 0u;
-        for (uint32_t mask = 0x00800000u; mask; mask >>= 1) {
-            uint_fast8_t count = 0;
-            if (v[0] & mask) { ++count; }
-            if (v[1] & mask) { ++count; }
-            if (v[2] & mask) { ++count; }
-            if (count >= 2) {
-                result |= mask;
+    // Read each of the `M` rows
+    for (size_t i = 0; i < M; ++i) {
+        r[i] = read_raw_wrapper(start_row+i, &(v[i]), sizeof(uint32_t));
+    }
+
+    // Ensure at least `N` reads were successful, else return an error
+    uint_fast8_t successful_reads = 0;
+    for (size_t i = 0; i < M; ++i) {
+        if (BOOTROM_OK == r[i]) {
+            ++successful_reads;
+        }
+    }
+    if (successful_reads < N) {
+        PRINT_ERROR("OTP_RW Error: Read OTP N-of-M: rows 0x%03x to 0x%03x: only %d of %d reads successful ... failing\n", start_row, start_row+M-1, successful_reads, M);
+        return false;
+    }
+
+
+    uint_fast8_t votes[24]; // one count for each potential bit to be set
+
+    // Count the votes from the successful reads
+    for (size_t i = 0; i < M; ++i) {
+        // don't count any votes from failed reads
+        if (BOOTROM_OK != r[i]) {
+            continue;
+        }
+        // loop through each bit, add a vote if it's set
+        uint32_t tmp = v[i];
+        for (uint_fast8_t j = 0; j < 24u; ++j) {
+            uint32_t mask = (1u << j);
+            if ((tmp & mask) != 0u) {
+                ++votes[j];
             }
         }
-        PRINT_VERBOSE("OTP_RW Read OTP 2-of-3: Bit-by-bit voting result: 0x%06x\n", result);
-        *out_data = result;
-        return true;
     }
 
-    // 3. Else at most two reads succeeded.  If the two successful reads had identical data, accept that data as valid.
-    if ((r[0] == BOOTROM_OK) && (r[1] == BOOTROM_OK) && (v[0] == v[1]) && ((v[0] & 0xFF000000u) == 0)) {
-        PRINT_VERBOSE("OTP_RW Read OTP 2-of-3: rows 0x%03x and 0x%03x agree on data 0x%06x\n", start_row+0, start_row+1, v[0]);
-        *out_data = v[0];
-        return true;
-    } else
-    if ((r[0] == BOOTROM_OK) && (r[2] == BOOTROM_OK) && (v[0] == v[2]) && ((v[0] & 0xFF000000u) == 0)) {
-        PRINT_VERBOSE("OTP_RW Read OTP 2-of-3: rows 0x%03x and 0x%03x agree on data 0x%06x\n", start_row+0, start_row+2, v[0]);
-        *out_data = v[0];
-        return true;
-    } else
-    if ((r[1] == BOOTROM_OK) && (r[2] == BOOTROM_OK) && (v[1] == v[2]) && ((v[1] & 0xFF000000u) == 0)) {
-        PRINT_VERBOSE("OTP_RW Read OTP 2-of-3: rows 0x%03x and 0x%03x agree on data 0x%06x\n", start_row+1, start_row+2, v[1]);
-        *out_data = v[1];
-        return true;
+    // Generate a result based on the votes
+    uint32_t result = 0u;
+    for (uint_fast8_t i = 0; i < 24u; ++i) {
+        if (votes[i] >= N) {
+            result |= (1u << i);
+        }
     }
-    // 4. Else at most one read was successful.  There is no ability to detect validity of the data.  Return an error.
-    PRINT_ERROR("OTP_RW Error: Read OTP 2-of-3: rows 0x%03x, 0x%03x, and 0x%03x  (%d,%d,%d) --> (0x%06x, 0x%06x, 0x%06x) --> NO AGREEMENT\n",
-        start_row+0, start_row+1, start_row+2,
-        r[0], r[1], r[2],
-        v[0], v[1], v[2]
-    );
+    // return the voted-upon result
     return false;
 }
-static bool write_otp_2_of_3(uint16_t start_row, uint32_t new_value) {
+static bool write_single_otp_value_N_of_M(uint16_t start_row, uint8_t N, uint8_t M, uint32_t new_value) {
 
     // 1. read the old data
     PRINT_DEBUG("OTP_RW Debug: Write OTP 2-of-3: row 0x%03x\n", start_row); WAIT_FOR_KEY();
 
     uint32_t old_voted_bits;
-    if (!read_otp_2_of_3(start_row, &old_voted_bits)) {
-        PRINT_DEBUG("OTP_RW Debug: Failed to read agreed-upon old bits for OTP 2-of-3: rows 0x%03x, 0x%03x, and 0x%03x\n", start_row+0, start_row+1, start_row+2);
+    if (!read_single_otp_value_N_of_M(start_row, N, M, &old_voted_bits)) {
+        PRINT_DEBUG("OTP_RW Debug: Failed to read %d-of-%d starting at row 0x%03x\n", N, M, start_row);
         return false;
     }
 
@@ -287,14 +291,15 @@ static bool write_otp_2_of_3(uint16_t start_row, uint32_t new_value) {
         return false;
     }
 
-    // 2. Read-Modify-Write each row individually, logically OR'ing the requested bits into the olde value.
+    // 2. Read-Modify-Write each row individually, logically OR'ing the requested bits into the old value.
     //    This process allows for each individual row to have multiple bits set, even if not set in the new value.
-    //    Because the 2-of-3 voting was successful, this will not degrade the error detection.
-    for (uint16_t i = 0; i < 3; ++i) {
+    //    Because the N-of-M voting was successful, this will not degrade the error detection.
+    //    Moreover, allow each individual write to fail ... final success is based on reading the new value.
+    for (uint16_t i = 0; i < M; ++i) {
         uint32_t old_data;
         int r = read_raw_wrapper(start_row+i, &old_data, sizeof(old_data));
         if (BOOTROM_OK != r) {
-            PRINT_WARNING("OTP_RW Warn: unable to read old bits for OTP 2-of-3: row 0x%03x\n", start_row+i);
+            PRINT_WARNING("OTP_RW Warn: unable to read old bits for OTP %d-of-%d: row 0x%03x\n", N, M, start_row+i);
             continue; // to next OTP row, if any
         }
         if ((old_data & new_value) == new_value) {
@@ -307,30 +312,49 @@ static bool write_otp_2_of_3(uint16_t start_row, uint32_t new_value) {
         PRINT_DEBUG("OTP_RW Debug: updating row 0x%03x: 0x%06x --> 0x%06x\n", start_row+i, old_data, to_write); WAIT_FOR_KEY();
         r = write_raw_wrapper(start_row+i, &to_write, sizeof(to_write));
         if (BOOTROM_OK != r) {
-            PRINT_ERROR("OTP_RW Error: Failed to write new bits for OTP 2-of-3: row 0x%03x: 0x%06x --> 0x%06x\n", start_row+i, old_data, to_write);
+            PRINT_ERROR("OTP_RW Error: Failed to write new bits for OTP %d-of-%d: row 0x%03x: 0x%06x --> 0x%06x\n", N, M, start_row+i, old_data, to_write);
             continue; // to next OTP row, if any
         }
-        PRINT_DEBUG("OTP_RW Debug: Wrote new bits for OTP 2-of-3: row 0x%03x: 0x%06x --> 0x%06x\n", start_row+i, old_data, to_write);
+        PRINT_DEBUG("OTP_RW Debug: Wrote new bits for OTP %d-of-%d: row 0x%03x: 0x%06x --> 0x%06x\n", N, M, start_row+i, old_data, to_write);
     }
 
     // 3. Verify the data was updated to the expected value
     uint32_t new_voted_bits;
-    if (!read_otp_2_of_3(start_row, &new_voted_bits)) {
-        PRINT_ERROR("OTP_RW Error: Failed to read agreed-upon new bits for OTP 2-of-3: rows 0x%03x, 0x%03x, and 0x%03x\n", start_row+0, start_row+1, start_row+2);
+    if (!read_single_otp_value_N_of_M(start_row, N, M, &new_voted_bits)) {
+        PRINT_ERROR("OTP_RW Error: Failed to read agreed-upon new bits for OTP %d-of-%d starting at row 0x%03x\n", N, M, start_row);
         return false;
     }
 
     // 4. Verify the new data matches the requested value
     if (new_voted_bits != new_value) {
-        PRINT_ERROR("OTP_RW Error: OTP 2-of-3: rows 0x%03x, 0x%03x, and 0x%03x: 0x%06x -> 0x%06x, but got 0x%06x\n",
-            start_row+0, start_row+1, start_row+2,
+        PRINT_ERROR("OTP_RW Error: OTP %d-of-%d: starting at row 0x%03x: 0x%06x -> 0x%06x, but got 0x%06x\n",
+            N, M, start_row,
             old_voted_bits, new_value, new_voted_bits
         );
         return false;
     }
-    PRINT_DEBUG("OTP_RW Debug: Successfully update the RBIT3 (2-of-3 voting) rows\n");
-
+    // print success message
+    if (N == 2 && M == 3) {
+        PRINT_DEBUG("OTP_RW Debug: Successfully update the RBIT3 (2-of-3 voting) rows\n");
+    } else if (N == 3 && M == 8) {
+        PRINT_DEBUG("OTP_RW Debug: Successfully update the RBIT8 (3-of-8 voting) rows\n");
+    } else {
+        PRINT_DEBUG("OTP_RW Debug: Successfully update the %d-of-%d voting rows\n", N, M);
+    }
     return true;
+}
+
+static bool read_single_otp_rbit3_value(uint16_t start_row, uint32_t* out_data) {
+    return read_single_otp_value_N_of_M(start_row, 2, 3, out_data);
+}
+static bool read_single_otp_rbit8_value(uint16_t start_row, uint32_t* out_data) {
+    return read_single_otp_value_N_of_M(start_row, 3, 8, out_data);
+}
+static bool write_single_otp_rbit3_value(uint16_t start_row, uint32_t new_value) {
+    return write_single_otp_value_N_of_M(start_row, 2, 3, new_value);
+}
+static bool write_single_otp_rbit8_value(uint16_t start_row, uint32_t new_value) {
+    return write_single_otp_value_N_of_M(start_row, 3, 8, new_value);
 }
 static bool read_otp_byte_3x(uint16_t row, uint8_t* out_data) {
     *out_data = 0xFFu;
@@ -494,10 +518,10 @@ bool bp_otp_read_single_row_raw(uint16_t row, uint32_t* out_data);
 bool bp_otp_write_single_row_ecc(uint16_t row, uint16_t new_value);
 bool bp_otp_read_single_row_ecc(uint16_t row, uint16_t* out_data);
 bool bp_otp_read_ecc_data(uint16_t start_row, void* out_data, size_t count_of_bytes);
-bool bp_otp_write_single_row_byte3x(uint16_t row, uint8_t new_value);
-bool bp_otp_read_single_row_byte3x(uint16_t row, uint8_t* out_data);
-bool bp_otp_write_redundant_rows_2_of_3(uint16_t start_row, uint32_t new_value);
-bool bp_otp_read_redundant_rows_2_of_3(uint16_t start_row, uint32_t* out_data);
+bool bp_otp_write_single_row_redundant_byte3x(uint16_t row, uint8_t new_value);
+bool bp_otp_read_single_row_redundant_byte3x(uint16_t row, uint8_t* out_data);
+bool bp_otp_write_redundant_rows_RBIT3(uint16_t start_row, uint32_t new_value);
+bool bp_otp_read_redundant_rows_RBIT3(uint16_t start_row, uint32_t* out_data);
 bool bp_otp_read_ecc_data(uint16_t start_row, void* out_data, size_t count_of_bytes);
 
 #else // !defined(BP_USE_VIRTUALIZED_OTP)
@@ -515,17 +539,17 @@ bool bp_otp_write_single_row_ecc(uint16_t row, uint16_t new_value) {
 bool bp_otp_read_single_row_ecc(uint16_t row, uint16_t* out_data) {
     return read_single_otp_ecc_row(row, out_data);
 }
-bool bp_otp_write_single_row_byte3x(uint16_t row, uint8_t new_value) {
+bool bp_otp_write_single_row_redundant_byte3x(uint16_t row, uint8_t new_value) {
     return write_otp_byte_3x(row, new_value);
 }
-bool bp_otp_read_single_row_byte3x(uint16_t row, uint8_t* out_data) {
+bool bp_otp_read_single_row_redundant_byte3x(uint16_t row, uint8_t* out_data) {
     return read_otp_byte_3x(row, out_data);
 }
-bool bp_otp_write_redundant_rows_2_of_3(uint16_t start_row, uint32_t new_value) {
-    return write_otp_2_of_3(start_row, new_value);
+bool bp_otp_write_redundant_rows_RBIT3(uint16_t start_row, uint32_t new_value) {
+    return write_single_otp_rbit3_value(start_row, new_value);
 }
-bool bp_otp_read_redundant_rows_2_of_3(uint16_t start_row, uint32_t* out_data) {
-    return read_otp_2_of_3(start_row, out_data);
+bool bp_otp_read_redundant_rows_RBIT3(uint16_t start_row, uint32_t* out_data) {
+    return read_single_otp_rbit3_value(start_row, out_data);
 }
 
 // Arbitrary buffer size support functions
@@ -621,9 +645,4 @@ bool bp_otp_write_raw_data(uint16_t start_row, const void* data, size_t count_of
 
 
 #endif // defined(BP_USE_VIRTUALIZED_OTP)
-
-
-
-
-
                  

@@ -570,7 +570,7 @@ static size_t x_otp_direntry_get_current_entry_data(void* buffer, size_t buffer_
             size_t number_of_reads_required = required_size;
             uint8_t* p = buffer; // for pointer arithmetic
             for (size_t i = 0; i < number_of_reads_required; ++i) {
-                if (!bp_otp_read_single_row_byte3x(start_row+i, p+i)) {
+                if (!bp_otp_read_single_row_redundant_byte3x(start_row+i, p+i)) {
                     return 0u;
                 }
             }
@@ -581,7 +581,7 @@ static size_t x_otp_direntry_get_current_entry_data(void* buffer, size_t buffer_
             size_t number_of_reads_required = required_size / sizeof(uint32_t);
             uint32_t* p = (uint32_t*)buffer; // for pointer arithmetic
             for (size_t i = 0; i < number_of_reads_required; ++i) {
-                if (!bp_otp_read_redundant_rows_2_of_3(start_row+(i*3), p+i)) {
+                if (!bp_otp_read_redundant_rows_RBIT3(start_row+(i*3), p+i)) {
                     return 0u;
                 }
             }
