@@ -77,3 +77,66 @@ bp_debug_level_t _DEBUG_LEVELS[E_DEBUG_CAT_TEMP+1] = {
     [E_DEBUG_CAT_TEMP           ] = BP_DEBUG_LEVEL_DEBUG,
 }; // each category can have its own debug print level
 
+// TODO: Split this into parts to allow greater flexibility and performance:
+//       (a) formatting of the message into a per-core temporary buffer via
+//           `int snprintf_(char* buffer, size_t count, const char* format, ...);`
+//       (b) optionally, output of the formatted buffer via RTT
+//       (c) optionally, output of the formatted buffer via UART
+//       (d) optionally, output of the formatted buffer via console (printf)
+// Specifically, the above will avoid the need to reformat the message for each
+// output method.
+// NOTE: Reserve two characters at the start, to allow switching between RTT terminals
+//       Start with 0xFF 0xNN (0xNN is the hex character for the terminal number .. '0' .. '9', 'A' .. 'F'
+//       Then, for non-RTT output, just strip the first two characters.
+
+#define _DEBUG_PRINT_BUFFER_CHAR_COUNT (511u)
+char _DEBUG_PRINT_BUFFER[2][_DEBUG_PRINT_BUFFER_CHAR_COUNT+1]; // one buffer per core
+
+void bp_debug_internal_print_handler(uint8_t category, const char* file, int line, const char* function, const char *format_string, ...) {
+    char * buffer = _DEBUG_PRINT_BUFFER[get_core_num()];
+    size_t offset = 0u;
+
+    uint8_t cat_modulo16 = category % 16u;
+
+    buffer[offset] = 0xFF; // RTT terminal switch sentinel
+    buffer[offset+1] = (cat_modulo16 < 10) ? '0' + cat_modulo16 : 'A' + cat_modulo16 - 10;
+    offset += 2;
+
+    if (file != NULL) {
+        offset += snprintf(
+            buffer + offset,
+            _DEBUG_PRINT_BUFFER_CHAR_COUNT - offset,
+            "%s:%4d ",
+            file,
+            line
+        );
+    }
+    if (function != NULL) {
+        offset += snprintf(
+            buffer + offset,
+            _DEBUG_PRINT_BUFFER_CHAR_COUNT - offset,
+            ":%s ",
+            function
+        );
+    }
+    if (format_string != NULL) {
+        va_list ParamList;
+        va_start(ParamList, format_string);
+        offset += vsnprintf(
+            buffer + offset,
+            _DEBUG_PRINT_BUFFER_CHAR_COUNT - offset,
+            format_string,
+            ParamList
+        );
+        va_end(ParamList);
+    }
+
+    // Now that the message if fully formatted, output it via RTT
+    SEGGER_RTT_Write(0, buffer, offset);
+
+    // TODO: also output via debug UART, console (puts()), etc.
+    // puts(buffer+2);
+    // NOTE: can we avoid blocking functions here?
+
+    return;
+}

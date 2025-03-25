@@ -198,19 +198,18 @@ static inline bool bp_debug_should_print(bp_debug_level_t level, bp_debug_catego
     return ((category_mask & _DEBUG_ENABLED_CATEGORIES.as_uint32.v[category_uint32_index]) != 0);
 }
 
+// internal implementation detail, not intended for direct use
+// Still performance-oriented, but formatting a string is non-trivial, so don't over-optimize.
+// Pass NULL for `file` to omit file / line number.
+// Pass NULL for `function` to omit function name.
+// Pass NULL for `format_string` to omit the message.
+void bp_debug_internal_print_handler(uint8_t category, const char* file, int line, const char* function, const char* format_string, ...);
+
 // This is the underlying debug macro logic, also used by the other debug macros.
-// TODO: Split this into parts to allow greater flexibility and performance:
-//       (a) formatting of the message into a per-core temporary buffer via
-//           `int snprintf_(char* buffer, size_t count, const char* format, ...);`
-//       (b) optionally, output of the formatted buffer via RTT
-//       (c) optionally, output of the formatted buffer via UART
-//       (d) optionally, output of the formatted buffer via console (printf)
-// Specifically, the above will avoid the need to reformat the message for each
-// output method.
 #define BP_DEBUG_PRINT(_LEVEL, _CATEGORY, ...) \
     do {                                                \
         if (bp_debug_should_print(_LEVEL, _CATEGORY)) { \
-            SEGGER_RTT_printf(0, __VA_ARGS__);          \
+            bp_debug_internal_print_handler(_CATEGORY.category, __FILE__, __LINE__, __FUNCTION__, __VA_ARGS__);  \
         }                                               \
     } while (0);
 
