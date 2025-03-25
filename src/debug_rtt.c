@@ -65,8 +65,8 @@ bp_debug_categories_t _DEBUG_ENABLED_CATEGORIES = {
 
 // If listed, will be initialized to the specified value.
 // Otherwise, will be initialized to zero (BP_DEBUG_LEVEL_FATAL).
-// Unless enabled in the bitmask above, only fatal messages
-// will be output.
+// Note that, unless also enabled in the bitmask above,
+// only FATAL messages will be output.
 bp_debug_level_t _DEBUG_LEVELS[E_DEBUG_CAT_TEMP+1] = {
     [E_DEBUG_CAT_CATCHALL       ] = BP_DEBUG_LEVEL_FATAL,
     [E_DEBUG_CAT_EARLY_BOOT     ] = BP_DEBUG_LEVEL_VERBOSE,

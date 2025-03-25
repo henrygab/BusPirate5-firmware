@@ -27,8 +27,9 @@ static const char debug_pin_labels[][5] = {
 void debug_tx(char c) {
     uart_putc(debug_uart[system_config.debug_uart_number].uart, c);
 }
-// TODO: currently blocking function, make nonblocking
 bool debug_rx(char* c) {
+    // uart_is_readable() returns true if there is at least one character to receive
+    // and therefore, this function is non-blocking.
     if (uart_is_readable(debug_uart[system_config.debug_uart_number].uart)) {
         *c = uart_getc(debug_uart[system_config.debug_uart_number].uart);
         return true;
