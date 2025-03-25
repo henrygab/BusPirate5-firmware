@@ -32,7 +32,14 @@
         E_DEBUG_LEVEL_NEVER   = 0xFFu,
     } _bp_debug_level_enum_t;
 
-    // NOTE: Maximum value for this enum is *** 32u ***.  See comment following the definition.
+    // NOTE: Maximum value for the enum being *** 31u *** ....
+    //       This enum is used two ways:
+    //       1. as an index into an array of debug levels
+    //       2. to set a single bit within a `uint32_t`, usable to enable/disable that category's output.
+    //       To increase beyond 32 categories is possible.  To do so requires at least the following changes:
+    //       1. Modify `_DEBUG_ENABLED_CATEGORIES` to be a struct with multiple `uint32_t` members.
+    //       2. Modify the `bp_debug_should_print()` function to check the appropriate `uint32_t` member.
+    //       3. ... that's all ... ???
     typedef enum _bp_debug_category_enum_t {
         E_DEBUG_CAT_CATCHALL         =  0u, // (((uint32_t)1u) <<  0u), // for messages that are not (yet) categorized
         E_DEBUG_CAT_EARLY_BOOT       =  1u, // (((uint32_t)1u) <<  1u), // early-in-boot (initialization)
@@ -59,16 +66,54 @@
         // E_DEBUG_CAT_MODE_BINLOOPBACK = XXu, // (((uint32_t)1u) << XXu), // binloopback mode specific
         // E_DEBUG_CAT_MODE_LCDSPI      = XXu, // (((uint32_t)1u) << XXu), // lcdspi mode specific
         // E_DEBUG_CAT_MODE_LCDI2C      = XXu, // (((uint32_t)1u) << XXu), // lcdi2c mode specific
-        E_DEBUG_CAT_TEMP             = 31u, // (((uint32_t)1u) << 31u), // use for temporary debug messages, also the maximum index
+        E_DEBUG_CAT_TEMP             = 31u, // (((uint32_t)1u) << 31u), // use for temporary debug messages, MUST also be the maximum index
     } _bp_debug_category_enum_t;
-    // NOTE: Maximum value for this enum is *** 31u ***.
-    //       This enum is used two ways:
-    //       1. as an index into an array of debug levels
-    //       2. to set a single bit within a `uint32_t`, which is usable to enable/disable the category's output.
-    //       Any value greater than 31u will cause the bitmask to be zero, and that category's output will never appear.
+    #define BP_DEBUG_CATEGORY_BITFIELD_UINT32_COUNT ((E_DEBUG_CAT_TEMP / 32u) + ((E_DEBUG_CAT_TEMP % 32u) ? 1u : 0u))
 
-    // next, define a structure that wraps the enumeration.
-    // the structure's member will have the enum's type.
+    // NOTE: Must be kept in sync with above enumeration.
+    // This structure just makes it easier to see / set / get the individual categories.
+    // This is useful in debugger, and can also be used in code to enable/disable a category.
+    typedef struct _bp_debug_category_bitfield_t {
+        // NOTE: presumes first bit is the least significant bit (not guaranteed by C standard)
+        uint32_t catchall : 1;
+        uint32_t early_boot : 1;
+        uint32_t onboard_pixels : 1;
+        uint32_t onboard_storage : 1;
+        uint32_t otp : 1;
+        uint32_t certificate : 1;
+        uint32_t : 2;
+        // end of least significant byte
+        uint32_t : 8;
+        uint32_t : 8;
+        uint32_t : 7;
+        uint32_t temp : 1;
+    } bp_debug_category_bitfield_t;
+    typedef struct _bp_debug_category_as_uint32_t {
+        uint32_t v[BP_DEBUG_CATEGORY_BITFIELD_UINT32_COUNT];
+    } bp_debug_category_as_uint32_t;
+    _Static_assert(
+        sizeof(bp_debug_category_bitfield_t) == (BP_DEBUG_CATEGORY_BITFIELD_UINT32_COUNT * sizeof(uint32_t)),
+        "bp_debug_category_bitfield_t is not the expected size"
+    );
+    _Static_assert(
+        sizeof(bp_debug_category_as_uint32_t) == sizeof(bp_debug_category_bitfield_t),
+        "Mismatched sizes for bp_debug_category_as_uint32_t and bp_debug_category_bitfield_t"
+    );
+    // The following union allowes for simultaneously viewing the categories as both
+    // friendly-named bitfields (useful for debuggers, code that manually enables / disables categories)
+    // and as an array of `uint32_t` (useful for minimizing perf impact of debug prints).
+    typedef union _bp_debug_categories_t {
+        bp_debug_category_bitfield_t  bitfield;
+        bp_debug_category_as_uint32_t as_uint32;
+    } bp_debug_categories_t;
+    _Static_assert(
+        sizeof(bp_debug_categories_t) == sizeof(bp_debug_category_as_uint32_t),
+        "Mismatched sizes for bp_debug_categories_t and bp_debug_category_as_uint32_t"
+    );
+    _Static_assert(
+        sizeof(bp_debug_categories_t) == sizeof(bp_debug_category_bitfield_t),
+        "Mismatched sizes for bp_debug_categories_t and bp_debug_category_bitfield_t"
+    );
     typedef struct _bp_debug_level_t    { _bp_debug_level_enum_t    level;    } bp_debug_level_t;
     typedef struct _bp_debug_category_t { _bp_debug_category_enum_t category; } bp_debug_category_t;
 
@@ -124,11 +169,14 @@
 
 
 
-extern uint32_t         _DEBUG_ENABLED_CATEGORIES; // mask of enabled categories
-extern bp_debug_level_t _DEBUG_LEVELS[32]; // up to 32 categories, each with a debug level
+extern bp_debug_categories_t _DEBUG_ENABLED_CATEGORIES; // mask of enabled categories
+extern bp_debug_level_t      _DEBUG_LEVELS[E_DEBUG_CAT_TEMP+1]; // relies on E_DEBUG_CAT_TEMP being the largest value
 
 // Both attribute *AND* `static inline` are required to ensure inlining,
 // which is necessary to minimize overhead when a debug print is disabled.
+// Optimizer should reduce this to a few test / jmp instructions, when the
+// debug print is not enabled, and only call into the formatting function
+// when actually emitting output.
 __attribute__((always_inline))
 static inline bool bp_debug_should_print(bp_debug_level_t level, bp_debug_category_t category) {
     // ALWAYS print fatal messages, regardless of category or variable settings.
@@ -145,11 +193,20 @@ static inline bool bp_debug_should_print(bp_debug_level_t level, bp_debug_catego
         return false;
     }
     // Finally, check if the category is enabled in the flags.
-    uint32_t category_mask = ( (uint32_t) (((uint32_t)1u) << category.category) );
-    return ((category_mask & _DEBUG_ENABLED_CATEGORIES) != 0);
+    uint8_t  category_uint32_index = (category.category / 32u);
+    uint32_t category_mask = ( (uint32_t) (((uint32_t)1u) << (category.category % 32u)) );
+    return ((category_mask & _DEBUG_ENABLED_CATEGORIES.as_uint32.v[category_uint32_index]) != 0);
 }
 
 // This is the underlying debug macro logic, also used by the other debug macros.
+// TODO: Split this into parts to allow greater flexibility and performance:
+//       (a) formatting of the message into a per-core temporary buffer via
+//           `int snprintf_(char* buffer, size_t count, const char* format, ...);`
+//       (b) optionally, output of the formatted buffer via RTT
+//       (c) optionally, output of the formatted buffer via UART
+//       (d) optionally, output of the formatted buffer via console (printf)
+// Specifically, the above will avoid the need to reformat the message for each
+// output method.
 #define BP_DEBUG_PRINT(_LEVEL, _CATEGORY, ...) \
     do {                                                \
         if (bp_debug_should_print(_LEVEL, _CATEGORY)) { \
