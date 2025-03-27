@@ -3,17 +3,27 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <assert.h>
-#include "bp_otp_ecc.h" // not reliant on buspirate-specific settings!
+#include "bp_otp_ecc.h"
 
-#include "pirate.h"
+// Only one external control via defined token:
+//     RPI_PLATFORM=="rp2350"
+//     RPI_PLATFORM=="rp2040" marks all the functions as deprecated (nicer error message), and stubs them to all fail.
+//     RPI_PLATFORM being anything else will simply fail compilation.
 
-// Use prefix `bp_otp_` for functions in this file
-// Use prefix `BP_OTP_` for enums and typedef'd structs in this file
+
+
+// Currently, prefixing with `bp_otp_` or `BP_OTP_`.
+// If moved to external lib, remove / replace at least the `bp_` / `BP_` prefixes.
+// Currently:
+//     Use prefix `bp_otp_` for functions in this file
+//     Use prefix `BP_OTP_` for enums and typedef'd structs in this file
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+// Must be defined at same level as OTP directory item API,
+// to allow defining the OTPDIR_ENTRY_TYPE constants.
 typedef enum _BP_OTPDIR_DATA_ENCODING_TYPE {
     // No data is associated with this row.
     //  Single row, 24-bits of raw data, no error correction or detection
@@ -59,7 +69,7 @@ typedef struct _BP_OTPDIR_ENTRY_TYPE {
         uint16_t as_uint16_t;
         struct {
             uint16_t id            : 8; // can be extended to 12-bits if ever exceed 255 types for the given encoding type
-            uint16_t must_be_zero  : 4;
+            uint16_t must_be_zero  : 4; // reserved for future use
             uint16_t encoding_type : 4; // e.g., ECC, ECC_String, BYTE3X, RBIT3, RBIT8, RAW
         };
     };
@@ -70,11 +80,13 @@ static_assert(sizeof(BP_OTPDIR_ENTRY_TYPE) == sizeof(uint16_t));
 #define BP_OTPDIR_ENTRY_TYPE_USB_WHITELABEL   ((BP_OTPDIR_ENTRY_TYPE){ .id = 0x01u, .encoding_type = BP_OTPDIR_DATA_ENCODING_TYPE_ECC                           })
 #define BP_OTPDIR_ENTRY_TYPE_BP_CERTIFICATE   ((BP_OTPDIR_ENTRY_TYPE){ .id = 0x02u, .encoding_type = BP_OTPDIR_DATA_ENCODING_TYPE_ECC                           })
 #define BP_OTPDIR_ENTRY_TYPE_INVALID          ((BP_OTPDIR_ENTRY_TYPE){ .id = 0xFFu, .encoding_type = BP_OTPDIR_DATA_ENCODING_TYPE_INVALID, .must_be_zero = 0xFu })
+// C11 and C23 don't seem to enable a way to statically assert BP_OTPDIR_ENTRY_TYPE_INVALID.as_uint16 == 0xFFFFu.  Sigh...
 #pragma endregion // BP_OTP_DIRENTRY_TYPE
 
 
 #if RPI_PLATFORM == RP2040
 
+#pragma region    // OTP Read / Write functions
     // These functions actually access the hardware,
     // so code calling it on RP2040 is probably in error?
     // This is a nicer error message than a linker error....
@@ -92,7 +104,8 @@ static_assert(sizeof(BP_OTPDIR_ENTRY_TYPE) == sizeof(uint16_t));
     __attribute__((deprecated)) inline bool bp_otp_read_redundant_rows_RBIT3(uint16_t start_row, uint32_t* out_data)           { return false; }
     __attribute__((deprecated)) inline bool bp_otp_write_redundant_rows_RBIT8(uint16_t start_row, uint32_t new_value)          { return false; }
     __attribute__((deprecated)) inline bool bp_otp_read_redundant_rows_RBIT8(uint16_t start_row, uint32_t* out_data)           { return false; }
-
+#pragma endregion // OTP Read / Write functions
+#pragma region    // OTP Directory related functions (layer above the OTP read/write functions)
     __attribute__((deprecated)) void bp_otpdir_reset_iterator(void) {}
     __attribute__((deprecated)) bool bp_otpdir_find_next_entry(void) { return false; }
     __attribute__((deprecated)) BP_OTPDIR_ENTRY_TYPE bp_otpdir_get_current_entry_type(void) { return BP_OTPDIR_ENTRY_TYPE_END; }
@@ -102,9 +115,12 @@ static_assert(sizeof(BP_OTPDIR_ENTRY_TYPE) == sizeof(uint16_t));
 
     __attribute__((deprecated)) inline void bp_otp_apply_whitelabel_data(void) { }
     __attribute__((deprecated)) inline bool bp_otp_lock_whitelabel(void) { return false; }
+#pragma endregion // OTP Directory related functions (layer above the OTP read/write functions)
 
 #elif RPI_PLATFORM == RP2350
 
+    // BUGBUG / TODO - Move OTP Read / Write functions into a stand-alone library
+    //                 as the functionality has been well-tested.
     #pragma region    // OTP Read / Write functions
 
     // RP2350 OTP can encode data in multiple ways:
@@ -204,7 +220,7 @@ static_assert(sizeof(BP_OTPDIR_ENTRY_TYPE) == sizeof(uint16_t));
     // Returns the 24-bits of voted-upon data.
     bool bp_otp_read_redundant_rows_RBIT8(uint16_t start_row, uint32_t* out_data);
     #pragma endregion // OTP Read / Write functions
-    #pragma region    // OTP Directory related functions
+    #pragma region    // OTP Directory related functions (layer above the OTP read/write functions)
     // Resets the OTP directory iterator to the first entry.
     // For now, iterator state is kept per-CPU.  May change later to externally-allocated state.
     // Returns FALSE when no more entries will be enumerated. (e.g., no entries found)
@@ -240,6 +256,8 @@ static_assert(sizeof(BP_OTPDIR_ENTRY_TYPE) == sizeof(uint16_t));
     // * for ECC_ASCII_STRING, the first NULL byte corresponds to the valid_byte_count (must be NULL terminated, and valid_byte_count must include NULL character)
     bool bp_otpdir_add_entry_for_existing_ecc_data(BP_OTPDIR_ENTRY_TYPE entryType, uint16_t start_row, size_t valid_byte_count);
     #pragma endregion // OTP Directory related functions
+
+    // These are the only non-library functions...
     void bp_otp_apply_whitelabel_data(void);
     bool bp_otp_lock_whitelabel(void);
 
