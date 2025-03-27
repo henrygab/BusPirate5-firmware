@@ -26,7 +26,7 @@ typedef enum _BP_OTP_ECC_ERROR {
     BP_OTP_ECC_ERROR_POTENTIALLY_READABLE_BY_BOOTROM = 0xFF990000u, // TODO: prove or disprove bootrom behavior for these cases (all have 3 or 5 flipped bits)
 } BP_OTP_ECC_ERROR;
 
-// When reading ECC OTP data using RAW reads, the is an opaque 32-bit value.
+// When reading ECC OTP data using RAW reads, the result is an opaque 32-bit value.
 // Sometimes it's convenient to view as a uint32_t,
 // other times it's convenient to view the individual fields.
 // (ab)use anonymous unions to allow whichever use is convenient.

@@ -52,19 +52,96 @@ static void MyWaitForAnyKey_with_discards(void) {
     return;
 }
 
-// don't want to use that difficult-to-parse API in many places....
-static int write_raw_wrapper(uint16_t starting_row, const void* buffer, size_t buffer_size) {
+// BUGBUG / TODO: enable "virtual" OTP, by writing to memory buffer instead of OTP fuses,
+//                and tracking the written values in a separate buffer (+bitmask indicating which rows were written).
+//                This will allow testing of the OTP code without actually writing to the OTP fuses.
+
+
+#pragma region    // OTP HAL layer ... to allow for virtualized OTP
+
+// these functions actually write the hardware-based OTP fuses
+static int hw_write_raw_otp_wrapper(uint16_t starting_row, const void* buffer, size_t buffer_size) {
     otp_cmd_t cmd;
     cmd.flags = starting_row;
     cmd.flags |= OTP_CMD_WRITE_BITS;
     return rom_func_otp_access((uint8_t*)buffer, buffer_size, cmd);
 }
-static int read_raw_wrapper(uint16_t starting_row, void* buffer, size_t buffer_size) {
+static int hw_read_raw_otp_wrapper(uint16_t starting_row, void* buffer, size_t buffer_size) {
     otp_cmd_t cmd;
     cmd.flags = starting_row;
     return rom_func_otp_access((uint8_t*)buffer, buffer_size, cmd);
 }
 
+
+//#define BP_USE_VIRTUALIZED_OTP
+#if defined(BP_USE_VIRTUALIZED_OTP)
+
+// Enable "virtualized" OTP ... useful for testing.
+// 8k of OTP is a lot to virtualize... 
+// but RP2350 has 512k, of which >256k is currently free, so go with SIMPLE!
+// * [ ] At initialization:
+//   * [ ] Detect if OTP virtualization file exists on media (and correct size)
+//   * [ ] If so, read that file into memory
+//   * [ ] If not read from file (or failed), read all rows of OTP as part of the initialization
+// * [ ] All OTP reads get memcpy() from that buffer
+// * [ ] All OTP writes get logical-OR'd into that buffer
+// * [ ] At clean shutdown, write the virtualized OTP data to NAND
+//
+// For stretch goal of applying OTP page permissions:
+// * [ ] Support initially presuming all access is from secure mode
+//   * YAGNI - support for non-secure and bootloader modes ... keep it simple!
+// * [ ] OTP Access Keys == YAGNI
+//   * Plus, it'd be major investment to virtualize, using access permissions, traps, etc.
+// * [ ] Support for hard-locked pages
+//   * PAGEn_LOCK0 == YAGNI ... deals with OTP access keys ... which cannot easily be supported
+//   * PAGEn_LOCK1 == Permissions for secure mode are in least significant two bits
+//   * Values: 0x0 == R/W, 0x1 == R/O, 0x3 == NO ACCESS
+//   * All other values == YAGNI
+// * [ ] Support for soft-locked pages
+//   * SW_LOCK0 .. SW_LOCK63 == registers to read the permissions from
+//   * Permissions for secure mode are in least significant two bits
+//   * Values: 0x0 == R/W, 0x1 == R/O, 0x3 == NO ACCESS
+//   * All other values == YAGNI
+//
+typedef struct _BP_VIRTUALIZED_OTP_BUFFER {
+    BP_OTP_RAW_READ_RESULT rows[0x1000]; // 0x1000 == 4096 rows, requiring 4 bytes each in simplest raw form
+} BP_VIRTUALIZED_OTP_BUFFER;
+static BP_VIRTUALIZED_OTP_BUFFER g_virtual_otp = { };
+
+static void initialize_virtualized_otp(void) {
+    // read all 8k of OTP into the virtualized buffer
+    for (uint16_t row = 0; row < 0x1000u; ++row) {
+        int r = read_raw_wrapper(row, &g_virtual_otp.rows[row], sizeof(BP_OTP_RAW_READ_RESULT));
+        if (BOOTROM_OK != r) {
+            PRINT_ERROR("OTP_RW Error: virtual otp init: Failed to read row %03x: %d (0x%x)\n", row, r, r);
+            g_virtual_otp.rows[row].as_uint32 = 0xFFFFFFFFu; // ensure the stored value is an error
+        }
+    }
+}
+static inline uint16_t ROW_TO_OTP_PAGE(uint16_t row)    { return row >> 6; }
+#pragma error "TODO: Lots of things still to implement to enable virtualized OTP..."
+
+#endif // defined(BP_USE_VIRTUALIZED_OTP)
+
+// don't want to use that difficult-to-parse API in many places....
+static int write_raw_wrapper(uint16_t starting_row, const void* buffer, size_t buffer_size) {
+    // TODO: if virtualized OTP:
+    //       * STRETCH GOAL: read and apply page permissions
+    //       * if not already virtualized data, read current data into overlay memory
+    //       * update overlay memory with new data
+    //       * write updated virtualized OTP data to flash (so it's loaded next boot)
+    //       Else, write to actual OTP fuses:
+    return hw_write_raw_otp_wrapper(starting_row, buffer, buffer_size);
+}
+static int read_raw_wrapper(uint16_t starting_row, void* buffer, size_t buffer_size) {
+    // TODO: if virtualized OTP:
+    //       * STRETCH GOAL: read and apply page permissions
+    //       * search for data in overlay memory
+    //       * if found in overlay, return the data from the overlay memory
+    //       * else, ...
+    //       else, read the data from the actual OTP fuses
+    return hw_read_raw_otp_wrapper(starting_row, buffer, buffer_size);
+}
 // RP2350 OTP storage is strongly recommended to use some form of
 // error correction.  Most rows will use ECC, but three other forms exist:
 // (1) 2-of-3 voting of a single byte in a single row
@@ -96,7 +173,7 @@ static bool read_single_otp_ecc_row(uint16_t row, uint16_t * data_out) {
 static bool write_single_otp_ecc_row(uint16_t row, uint16_t data) {
 
     // Allow writes to valid ECC encoded data, so long as it's possible to do so.
-    // This means adjusting for BRBP bits that may are already be set to 1,
+    // This means adjusting for BRBP bits that may already be set to 1,
     // and then checking if there's a single-bit error that can be ignored.
     // If so, try to write the data, even if some bits are already set!
 
@@ -134,12 +211,19 @@ static bool write_single_otp_ecc_row(uint16_t row, uint16_t data) {
             data_to_write = encoded_new_data.as_uint32;
         } else if (bits_to_flip_brbp == 0u) {
             // Great!  Can write without error by using BRBP bits.
+            PRINT_VERBOSE("OTP_RW Info: Writing ECC OTP row %03x with data 0x%04x: Using BRBP bits\n", row, data);
             data_to_write = encoded_new_data_brbp.as_uint32;
         } else if (bits_to_flip == 1u) {
             // Can write, but will have an existing single-bit error in the data...
+            PRINT_WARNING("OTP_RW Warn: Writing ECC OTP row %03x with data 0x%04x: Redundancy compromised, but writing is possible with 1-bit error.\n",
+                row, data, encoded_new_data.as_uint32, existing_raw_data.as_uint32
+            );
             data_to_write = encoded_new_data.as_uint32 | existing_raw_data.as_uint32;
         } else if (bits_to_flip_brbp == 1u) {
-            // Can write, but will ahve to use BRBP bits, and there will still be a single-bit error in the data...
+            // Can write, but will need to use BRBP bits, and there will still be a single-bit error in the data...
+            PRINT_WARNING("OTP_RW Warn: Writing ECC OTP row %03x with data 0x%04x: Redundancy compromised, but writing is possible with BRBP *AND* 1-bit error.\n",
+                row, data, encoded_new_data_brbp.as_uint32, existing_raw_data.as_uint32
+            );
             data_to_write = encoded_new_data_brbp.as_uint32 | existing_raw_data.as_uint32;
         } else {
             // No way to write the data without multiple bit errors
@@ -218,6 +302,9 @@ static bool read_single_otp_value_N_of_M(uint16_t start_row, uint8_t N, uint8_t 
     if (N == 2 && M == 3) { }
     else if (N == 3 && M == 8) {}
     else {
+        // The below code ***should*** work for any N-of-M, so long as both N and M are <= 8.
+        // However, it's not been tested, and is not used in any real-world scenario.
+        // Thus: YAGNI ... and if you do need it, you'll need to test it yourself.
         PRINT_ERROR("OTP_RW Error: Read OTP N-of-M: Unsupported N=%d, M=%d\n", N, M);
         return false;
     }
@@ -251,7 +338,7 @@ static bool read_single_otp_value_N_of_M(uint16_t start_row, uint8_t N, uint8_t 
         if (BOOTROM_OK != r[i]) {
             continue;
         }
-        // loop through each bit, add a vote if it's set
+        // loop through each bit, and add a vote if that bit is set
         uint32_t tmp = v[i];
         for (uint_fast8_t j = 0; j < 24u; ++j) {
             uint32_t mask = (1u << j);
@@ -261,7 +348,7 @@ static bool read_single_otp_value_N_of_M(uint16_t start_row, uint8_t N, uint8_t 
         }
     }
 
-    // Generate a result based on the votes
+    // Generate a result based on the votes (set if votes >= N)
     uint32_t result = 0u;
     for (uint_fast8_t i = 0; i < 24u; ++i) {
         if (votes[i] >= N) {
@@ -394,7 +481,8 @@ static bool write_otp_byte_3x(uint16_t row, uint8_t new_value) {
             if (old_raw_data.as_bytes[1] & mask) { ++count; }
             if (old_raw_data.as_bytes[2] & mask) { ++count; }
             if (count >= 2) {
-                // found a bit that is voted to be set, and thus cannot be unset
+                // found a bit that already has enough votes to be set
+                // and thus cannot be unset (stored as zero in the new raw data)
                 PRINT_ERROR("OTP_RW Error: Attempt to byte_3x write row %03x to 0x%02x; Existing data 0x%06x bit %d votes as set, but is not set in new value\n",
                     row, new_value, old_raw_data.as_uint32, i
                 );
@@ -403,7 +491,7 @@ static bool write_otp_byte_3x(uint16_t row, uint8_t new_value) {
         }
     }
 
-    // 3. Does the existing data need any bits set that new_value has set?  If so, SUCCESS w/o writing.
+    // 3. Does the existing data already have all necessary bits set?  If so, SUCCESS w/o writing.
     if (((old_raw_data.as_bytes[0] & new_value) == new_value) &&
         ((old_raw_data.as_bytes[1] & new_value) == new_value) &&
         ((old_raw_data.as_bytes[2] & new_value) == new_value) ) {
@@ -441,78 +529,6 @@ static bool write_otp_byte_3x(uint16_t row, uint8_t new_value) {
 
 /// All code above this point are the static helper functions / implementation details.
 /// Only the below are the public API functions.
-
-
-//#define BP_USE_VIRTUALIZED_OTP
-#if defined(BP_USE_VIRTUALIZED_OTP)
-
-// Enable "virtualized" OTP ... useful for testing.
-// 8k of OTP is a lot to virtualize...
-// maybe only track written sections up to a fixed maximum?
-// For any other sections, fallback to reading the actual OTP?
-typedef struct _BP_OTP_VIRTUALIZED_PAGE {
-    uint16_t start_row;    // If zero, this page hasn't been written to yet.
-    uint16_t rfu_padding;
-    BP_OTP_RAW_READ_RESULT data[0x40];   // each page stores 0x40 (64) rows of OTP data
-} BP_OTP_VIRTUALIZED_PAGE;
-static BP_OTP_VIRTUALIZED_PAGE virtualized_otp[40] = { };
-static bool virtualized_otp_full = false;
-
-// probably want a helper function to map from row to virtualized page (nullptr if not exists)
-// Set allocate_if_needed only when next action is to write to the page.
-static inline uint16_t ROW_TO_PAGE_OFFSET(uint16_t row) { return row & 0x3Fu; }
-static inline BP_OTP_VIRTUALIZED_PAGE* ROW_TO_VIRTUALIZED_PAGE(uint16_t row, bool allocate_if_needed) {
-    if (row >= 0x1000u) { return NULL; } // invalid OTP Row ..  range is 0x000..0xFFF
-
-    BP_OTP_VIRTUALIZED_PAGE* result = NULL;
-    uint16_t page_start_row = row & (~0x3Fu);
-    // find matching start_row in array?
-    for (size_t i = 0; (result == NULL) && (i < ARRAY_SIZE(virtualized_otp)); ++i) {
-        if (virtualized_otp[i].start_row == page_start_row) {
-            result = &virtualized_otp[i];
-        }
-    }
-    if ((result == NULL) && allocate_if_needed) {
-        for (size_t i = 0; (result == NULL) && (i < ARRAY_SIZE(virtualized_otp)); ++i) {
-            if (virtualized_otp[i].start_row == 0u) {
-                BP_OTP_VIRTUALIZED_PAGE* tmp = &virtualized_otp[i];
-                // read the page from OTP into the virtualized page...
-                if (read_raw_wrapper(pages_start_row, tmp->data, sizeof(tmp->data)) != BOOTROM_OK) {
-                    tmp->start_row = page_start_row;
-                    result = tmp;
-                }
-            }
-        }
-    }
-    // NOTE: it's possible to return NULL even when not full, when unable to read the page from OTP
-    if ((result == NULL) && allocate_if_needed) {
-        bool full = true;
-        for (size_t i = 0; (result == NULL) && (i < ARRAY_SIZE(virtualized_otp)); ++i) {
-            if (virtualized_otp[i].start_row == 0u) {
-                full = false;
-            }
-        }
-        if (full) {
-            virtualized_otp_full = true;
-        }
-    }
-    return result;
-}
-
-// virtualize the access to the underlying OTP...
-bool bp_otp_write_single_row_raw(uint16_t row, uint32_t new_value);
-bool bp_otp_read_single_row_raw(uint16_t row, uint32_t* out_data);
-bool bp_otp_write_single_row_ecc(uint16_t row, uint16_t new_value);
-bool bp_otp_read_single_row_ecc(uint16_t row, uint16_t* out_data);
-bool bp_otp_read_ecc_data(uint16_t start_row, void* out_data, size_t count_of_bytes);
-bool bp_otp_write_single_row_redundant_byte3x(uint16_t row, uint8_t new_value);
-bool bp_otp_read_single_row_redundant_byte3x(uint16_t row, uint8_t* out_data);
-bool bp_otp_write_redundant_rows_RBIT3(uint16_t start_row, uint32_t new_value);
-bool bp_otp_read_redundant_rows_RBIT3(uint16_t start_row, uint32_t* out_data);
-bool bp_otp_read_ecc_data(uint16_t start_row, void* out_data, size_t count_of_bytes);
-
-#else // !defined(BP_USE_VIRTUALIZED_OTP)
-
 
 bool bp_otp_write_single_row_raw(uint16_t row, uint32_t new_value) {
     return write_single_otp_raw_row(row, new_value);
@@ -635,7 +651,4 @@ bool bp_otp_write_raw_data(uint16_t start_row, const void* data, size_t count_of
     return (write_raw_wrapper(start_row, data, count_of_bytes) == BOOTROM_OK);
 }
 
-
-
-#endif // defined(BP_USE_VIRTUALIZED_OTP)
                  
