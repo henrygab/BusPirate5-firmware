@@ -75,7 +75,7 @@ typedef struct _OTP_DUAL_ROW_READ_RESULT {
 static_assert(sizeof(OTP_DUAL_ROW_READ_RESULT) == sizeof(uint32_t), "");
 
 typedef struct _OTP_READ_RESULT {
-    BP_OTP_RAW_READ_RESULT as_raw;
+    SAFEROTP_RAW_READ_RESULT as_raw;
     uint16_t read_with_ecc;
     uint16_t read_via_bootrom; // recommended to use this as "truth" if no errors
     bool data_ok;
@@ -257,7 +257,7 @@ static void internal_triple_read_otp(OTP_READ_RESULT* out_data, uint16_t row) {
     // Use software ECC read ... because bootrom doesn't seem to report ECC errors
     do {
         uint16_t tmp;
-        if (!bp_otp_read_single_row_ecc(row, &tmp)) {
+        if (!saferotp_read_single_row_ecc(row, &tmp)) {
             out_data->err_from_bootrom = true;
             out_data->read_via_bootrom = 0xFFFFu;
         } else {

@@ -105,14 +105,14 @@ static int hw_read_raw_otp_wrapper(uint16_t starting_row, void* buffer, size_t b
 //   * All other values == YAGNI
 //
 typedef struct _BP_VIRTUALIZED_OTP_BUFFER {
-    BP_OTP_RAW_READ_RESULT rows[0x1000]; // 0x1000 == 4096 rows, requiring 4 bytes each in simplest raw form
+    SAFEROTP_RAW_READ_RESULT rows[0x1000]; // 0x1000 == 4096 rows, requiring 4 bytes each in simplest raw form
 } BP_VIRTUALIZED_OTP_BUFFER;
 static BP_VIRTUALIZED_OTP_BUFFER g_virtual_otp = { };
 
 static void initialize_virtualized_otp(void) {
     // read all 8k of OTP into the virtualized buffer
     for (uint16_t row = 0; row < 0x1000u; ++row) {
-        int r = read_raw_wrapper(row, &g_virtual_otp.rows[row], sizeof(BP_OTP_RAW_READ_RESULT));
+        int r = read_raw_wrapper(row, &g_virtual_otp.rows[row], sizeof(SAFEROTP_RAW_READ_RESULT));
         if (BOOTROM_OK != r) {
             PRINT_ERROR("OTP_RW Error: virtual otp init: Failed to read row %03x: %d (0x%x)\n", row, r, r);
             g_virtual_otp.rows[row].as_uint32 = 0xFFFFFFFFu; // ensure the stored value is an error
@@ -163,7 +163,7 @@ static bool read_single_otp_ecc_row(uint16_t row, uint16_t * data_out) {
         PRINT_ERROR("OTP_RW Error: Failed to read OTP raw row %03x: %d (0x%x)\n", row, r, r);
         return false;
     }
-    uint32_t decode_result = bp_otp_decode_raw(existing_raw_data);
+    uint32_t decode_result = saferotp_decode_raw(existing_raw_data);
     if ((decode_result & 0xFF000000u) != 0u) {
         PRINT_ERROR("OTP_RW Error: Failed to decode OTP row %03x value 0x%06x: Result 0x%08x\n", row, existing_raw_data, decode_result);
         return false;
@@ -179,7 +179,7 @@ static bool write_single_otp_ecc_row(uint16_t row, uint16_t data) {
     // If so, try to write the data, even if some bits are already set!
 
     // 1. Read the existing raw data
-    BP_OTP_RAW_READ_RESULT existing_raw_data;
+    SAFEROTP_RAW_READ_RESULT existing_raw_data;
     int r;
     r = read_raw_wrapper(row, &existing_raw_data, sizeof(existing_raw_data));
     if (BOOTROM_OK != r) {
@@ -190,7 +190,7 @@ static bool write_single_otp_ecc_row(uint16_t row, uint16_t data) {
     // 2. SUCCESS if existing raw data already encodes the value; Do not update the OTP row.
     //    TODO: Consider if existing data has a single bit flipped from one to zero ... could write
     //          the extra bit to try to reduce errors?
-    uint32_t decode_result = bp_otp_decode_raw(existing_raw_data.as_uint32);
+    uint32_t decode_result = saferotp_decode_raw(existing_raw_data.as_uint32);
     if (((decode_result & 0xFF000000u) == 0u) && ((uint16_t)decode_result == data)) {
         // already written, nothing more to do for this row
         PRINT_VERBOSE("OTP_RW: Row %03x already has data 0x%04x .. not writing\n", row, data);
@@ -200,8 +200,8 @@ static bool write_single_otp_ecc_row(uint16_t row, uint16_t data) {
     // 3. Do we have to adjust the encoded data due to existing BRBP bits?  Determine data to write (or fail if not possible)
     uint32_t data_to_write;
     do {
-        BP_OTP_RAW_READ_RESULT encoded_new_data      = { .as_uint32 = bp_otp_calculate_ecc(data) };
-        BP_OTP_RAW_READ_RESULT encoded_new_data_brbp = { .as_uint32 = encoded_new_data.as_uint32 ^ 0x00FFFFFFu };
+        SAFEROTP_RAW_READ_RESULT encoded_new_data      = { .as_uint32 = saferotp_calculate_ecc(data) };
+        SAFEROTP_RAW_READ_RESULT encoded_new_data_brbp = { .as_uint32 = encoded_new_data.as_uint32 ^ 0x00FFFFFFu };
         
         // count how many bits would be flipped vs. the new data
         uint_fast8_t bits_to_flip      = __builtin_popcount(existing_raw_data.as_uint32 ^ encoded_new_data.as_uint32);
@@ -435,7 +435,7 @@ static bool read_otp_byte_3x(uint16_t row, uint8_t* out_data) {
     *out_data = 0xFFu;
 
     // 1. read the data
-    BP_OTP_RAW_READ_RESULT v;
+    SAFEROTP_RAW_READ_RESULT v;
     int r;
     r = read_raw_wrapper(row, &v.as_uint32, sizeof(uint32_t));
     if (BOOTROM_OK != r) {
@@ -464,7 +464,7 @@ static bool write_otp_byte_3x(uint16_t row, uint8_t new_value) {
     PRINT_DEBUG("OTP_RW Debug: Write OTP byte_3x: row 0x%03x\n", row); WAIT_FOR_KEY();
 
     // 1. read the old data as raw bits
-    BP_OTP_RAW_READ_RESULT old_raw_data;
+    SAFEROTP_RAW_READ_RESULT old_raw_data;
     int r;
     r = read_raw_wrapper(row, &old_raw_data, sizeof(old_raw_data));
     if (BOOTROM_OK != r) {
@@ -502,7 +502,7 @@ static bool write_otp_byte_3x(uint16_t row, uint8_t new_value) {
     }
 
     // 4. Logically OR the new_value bits into the existing data, and write the updated raw data.
-    BP_OTP_RAW_READ_RESULT to_write = { .as_uint32 = old_raw_data.as_uint32 };
+    SAFEROTP_RAW_READ_RESULT to_write = { .as_uint32 = old_raw_data.as_uint32 };
     to_write.as_bytes[0] |= new_value;
     to_write.as_bytes[1] |= new_value;
     to_write.as_bytes[2] |= new_value;
@@ -531,40 +531,40 @@ static bool write_otp_byte_3x(uint16_t row, uint8_t new_value) {
 /// All code above this point are the static helper functions / implementation details.
 /// Only the below are the public API functions.
 
-bool bp_otp_write_single_row_raw(uint16_t row, uint32_t new_value) {
+bool saferotp_write_single_row_raw(uint16_t row, uint32_t new_value) {
     return write_single_otp_raw_row(row, new_value);
 }
-bool bp_otp_read_single_row_raw(uint16_t row, uint32_t* out_data) {
+bool saferotp_read_single_row_raw(uint16_t row, uint32_t* out_data) {
     return read_raw_wrapper(row, out_data, sizeof(uint32_t)) == BOOTROM_OK;
 }
-bool bp_otp_write_single_row_ecc(uint16_t row, uint16_t new_value) {
+bool saferotp_write_single_row_ecc(uint16_t row, uint16_t new_value) {
     return write_single_otp_ecc_row(row, new_value);
 }
-bool bp_otp_read_single_row_ecc(uint16_t row, uint16_t* out_data) {
+bool saferotp_read_single_row_ecc(uint16_t row, uint16_t* out_data) {
     return read_single_otp_ecc_row(row, out_data);
 }
-bool bp_otp_write_single_row_redundant_byte3x(uint16_t row, uint8_t new_value) {
+bool saferotp_write_single_row_redundant_byte3x(uint16_t row, uint8_t new_value) {
     return write_otp_byte_3x(row, new_value);
 }
-bool bp_otp_read_single_row_redundant_byte3x(uint16_t row, uint8_t* out_data) {
+bool saferotp_read_single_row_redundant_byte3x(uint16_t row, uint8_t* out_data) {
     return read_otp_byte_3x(row, out_data);
 }
-bool bp_otp_write_redundant_rows_RBIT3(uint16_t start_row, uint32_t new_value) {
+bool saferotp_write_redundant_rows_RBIT3(uint16_t start_row, uint32_t new_value) {
     return write_single_otp_value_N_of_M(start_row, 2, 3, new_value);
 }
-bool bp_otp_read_redundant_rows_RBIT3(uint16_t start_row, uint32_t* out_data) {
+bool saferotp_read_redundant_rows_RBIT3(uint16_t start_row, uint32_t* out_data) {
     return read_single_otp_value_N_of_M(start_row, 2, 3, out_data);
 }
-bool bp_otp_write_redundant_rows_RBIT8(uint16_t start_row, uint32_t new_value) {
+bool saferotp_write_redundant_rows_RBIT8(uint16_t start_row, uint32_t new_value) {
     return write_single_otp_value_N_of_M(start_row, 3, 8, new_value);
 }
-bool bp_otp_read_redundant_rows_RBIT8(uint16_t start_row, uint32_t* out_data) {
+bool saferotp_read_redundant_rows_RBIT8(uint16_t start_row, uint32_t* out_data) {
     return read_single_otp_value_N_of_M(start_row, 3, 8, out_data);
 }
 
 // Arbitrary buffer size support functions
 
-bool bp_otp_write_ecc_data(uint16_t start_row, const void* data, size_t count_of_bytes) {
+bool saferotp_write_ecc_data(uint16_t start_row, const void* data, size_t count_of_bytes) {
 
     // write / verify one OTP row at a time
     size_t loop_count = count_of_bytes / 2u;
@@ -573,7 +573,7 @@ bool bp_otp_write_ecc_data(uint16_t start_row, const void* data, size_t count_of
     // Write full-sized rows first
     for (size_t i = 0; i < loop_count; ++i) {
         uint16_t tmp = ((const uint16_t*)data)[i];
-        if (!bp_otp_write_single_row_ecc(start_row + i, tmp)) {
+        if (!saferotp_write_single_row_ecc(start_row + i, tmp)) {
             return false;
         }
     }
@@ -583,13 +583,13 @@ bool bp_otp_write_ecc_data(uint16_t start_row, const void* data, size_t count_of
         // Read the single byte ... do NOT read as uint16_t as additional byte may not be valid readable memory
         // and use the local stack uint16_t for the actual write operation.
         uint16_t tmp = ((const uint8_t*)data)[count_of_bytes-1];
-        if (!bp_otp_write_single_row_ecc(start_row + loop_count, tmp)) {
+        if (!saferotp_write_single_row_ecc(start_row + loop_count, tmp)) {
             return false;
         }
     }
     return true;
 }
-bool bp_otp_read_ecc_data(uint16_t start_row, void* out_data, size_t count_of_bytes) {
+bool saferotp_read_ecc_data(uint16_t start_row, void* out_data, size_t count_of_bytes) {
     if (count_of_bytes >= (0x1000*2)) { // OTP rows from 0x000u to 0xFFFu, so max 0x1000*2 bytes
         return false;
     }
@@ -601,7 +601,7 @@ bool bp_otp_read_ecc_data(uint16_t start_row, void* out_data, size_t count_of_by
     // Read full-sized rows first
     for (size_t i = 0; i < loop_count; ++i) {
         uint16_t * b = ((uint16_t*)out_data) + i; // pointer arithmetic
-        if (!bp_otp_read_single_row_ecc(start_row + i, b)) {
+        if (!saferotp_read_single_row_ecc(start_row + i, b)) {
             return false;
         }
     }
@@ -609,7 +609,7 @@ bool bp_otp_read_ecc_data(uint16_t start_row, void* out_data, size_t count_of_by
     // Read any final partial-row data
     if (requires_buffering_last_row) {
         uint16_t tmp = 0xFFFFu;
-        if (!bp_otp_read_single_row_ecc(start_row + loop_count, &tmp)) {
+        if (!saferotp_read_single_row_ecc(start_row + loop_count, &tmp)) {
             return false;
         }
         // update the last single byte of the buffer
@@ -620,7 +620,7 @@ bool bp_otp_read_ecc_data(uint16_t start_row, void* out_data, size_t count_of_by
     return true;
 }
 
-bool bp_otp_read_raw_data(uint16_t start_row, void* out_data, size_t count_of_bytes) {
+bool saferotp_read_raw_data(uint16_t start_row, void* out_data, size_t count_of_bytes) {
     if (count_of_bytes == 0u) {
         return false; // ?? should this return true?
     }
@@ -633,7 +633,7 @@ bool bp_otp_read_raw_data(uint16_t start_row, void* out_data, size_t count_of_by
     }
     return (read_raw_wrapper(start_row, out_data, count_of_bytes) == BOOTROM_OK);
 }
-bool bp_otp_write_raw_data(uint16_t start_row, const void* data, size_t count_of_bytes) {
+bool saferotp_write_raw_data(uint16_t start_row, const void* data, size_t count_of_bytes) {
     if (count_of_bytes == 0u) {
         return false; // ?? should this return true?
     }

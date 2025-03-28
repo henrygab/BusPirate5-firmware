@@ -1,4 +1,3 @@
-#define BP_DEBUG_OVERRIDE_DEFAULT_CATEGORY BP_DEBUG_CAT_OTP
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -6,8 +5,11 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
-#include "pirate.h"
+
 #include "saferotp.h"
+
+
+#define BP_DEBUG_OVERRIDE_DEFAULT_CATEGORY BP_DEBUG_CAT_OTP
 #include "debug_rtt.h"
 
 
@@ -60,15 +62,15 @@ typedef struct _BP_OTPDIR_ENTRY {
         uint16_t as_uint16[4];
  
         struct {
-            BP_OTPDIR_ENTRY_TYPE entry_type;
+            SAFEROTP_OTPDIR_ENTRY_TYPE entry_type;
             union {
-                // For BP_OTPDIR_DATA_ENCODING_TYPE_NONE
+                // For SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_NONE
                 // All fields must be zero.
                 // If the entry_type value is also zero, then by definition the CRC16 value is also zero.
                 struct {
                     uint16_t     must_be_zero[2];
-                } none; // BP_OTPDIR_DATA_ENCODING_TYPE_NONE
-                // For BP_OTPDIR_DATA_ENCODING_TYPE_RAW
+                } none; // SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_NONE
+                // For SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_RAW
                 // Start row is the first row storing the data.
                 // The row count must be non-zero.
                 // For buffer allocation purposes, the total data size is 32-bits for every row.
@@ -77,7 +79,7 @@ typedef struct _BP_OTPDIR_ENTRY {
                     uint16_t     start_row;   // first row of the data
                     uint16_t     row_count;   // count of rows used for the data, each row considered to be 32-bits in size (e.g., Raw 24 bits)
                 } raw_data;
-                // For BP_OTPDIR_DATA_ENCODING_TYPE_BYTE3X
+                // For SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_BYTE3X
                 // Start row is the first row storing the data.
                 // The row count must be non-zero.
                 // For buffer allocation purposes, the total data size is equal to the row count (one byte per row).
@@ -85,7 +87,7 @@ typedef struct _BP_OTPDIR_ENTRY {
                     uint16_t     start_row;   // first row of the data
                     uint16_t     row_count;   // number of rows used for the data, each row storing a single byte of data
                 } byte3x_data;
-                // For BP_OTPDIR_DATA_ENCODING_TYPE_RBIT3
+                // For SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_RBIT3
                 // Start row is the first row storing the data.
                 // The row count must be a non-zero multiple of 3.
                 // For buffer allocation purposes, the total data size is 32-bit for every three rows.
@@ -94,7 +96,7 @@ typedef struct _BP_OTPDIR_ENTRY {
                     uint16_t     start_row;   // first row of the data
                     uint16_t     row_count;   // MUST be a multiple of 3 ... as each row must be duplicated three times; every 3 rows considered to store 32-bits in size (e.g., Raw 24 bits)
                 } rbit3_data;
-                // For BP_OTPDIR_DATA_ENCODING_TYPE_RBIT8
+                // For SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_RBIT8
                 // Start row is the first row storing the data.
                 // The row count must be a non-zero multiple of 8.
                 // For buffer allocation purposes, the total data size is 32-bits for every eight rows.
@@ -103,7 +105,7 @@ typedef struct _BP_OTPDIR_ENTRY {
                     uint16_t     start_row;   // first row of the data
                     uint16_t     row_count;   // MUST be a multiple of 8 ... as each row must be duplicated eight times; every 8 rows considered to store 32-bits in size (e.g., Raw 24 bits)
                 } rbit8_data;
-                // For BP_OTPDIR_DATA_ENCODING_TYPE_ECC and BP_OTPDIR_DATA_ENCODING_TYPE_ECC_ASCII_STRING
+                // For SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_ECC and SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_ECC_ASCII_STRING
                 // Start row is the first row storing the data.
                 // The byte count must be non-zero.
                 // For buffer allocation purposes, the total data size is stored directly in the OTP directory entry.
@@ -112,7 +114,7 @@ typedef struct _BP_OTPDIR_ENTRY {
                     uint16_t     start_row;  // first row of the data
                     uint16_t     byte_count; // count of valid bytes in the data (including trailing NULL for strings)
                 } ecc_data;
-                // For BP_OTPDIR_DATA_ENCODING_TYPE_EMBEDED_IN_DIRENTRY
+                // For SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_EMBEDED_IN_DIRENTRY
                 // Data is stored embedded directly in the directory entry.
                 // For buffer allocation purposes, there is always a uint32_t of data.
                 // CAUTION: When implementing, must manually construct / decontruct the uint32_t value,
@@ -225,9 +227,9 @@ bool x_otpdir_is_valid_user_content_row_range(uint16_t start_row, uint16_t row_c
     return true;
 }
 
-// BP_OTPDIR_DATA_ENCODING_TYPE_NONE
+// SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_NONE
 bool x_otpdir_entry_appears_valid_none(const BP_OTPDIR_ENTRY* entry) {
-    if (entry->entry_type.encoding_type != BP_OTPDIR_DATA_ENCODING_TYPE_NONE) {
+    if (entry->entry_type.encoding_type != SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_NONE) {
         PRINT_ERROR("Validating entry type as NONE, but type of the entry is 0x%02x", entry->entry_type.encoding_type);
         return false;
     }
@@ -237,9 +239,9 @@ bool x_otpdir_entry_appears_valid_none(const BP_OTPDIR_ENTRY* entry) {
     }
     return true;
 }
-// BP_OTPDIR_DATA_ENCODING_TYPE_RAW
+// SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_RAW
 bool x_otpdir_entry_appears_valid_raw(const BP_OTPDIR_ENTRY* entry) {
-    if (entry->entry_type.encoding_type != BP_OTPDIR_DATA_ENCODING_TYPE_RAW) {
+    if (entry->entry_type.encoding_type != SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_RAW) {
         PRINT_ERROR("Validating entry type as RAW, but type of the entry is 0x%02x", entry->entry_type.encoding_type);
         return false;
     }
@@ -252,9 +254,9 @@ bool x_otpdir_entry_appears_valid_raw(const BP_OTPDIR_ENTRY* entry) {
     }
     return true;
 }
-// BP_OTPDIR_DATA_ENCODING_TYPE_BYTE3X
+// SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_BYTE3X
 bool x_otpdir_entry_appears_valid_byte3x(const BP_OTPDIR_ENTRY* entry) {
-    if (entry->entry_type.encoding_type != BP_OTPDIR_DATA_ENCODING_TYPE_BYTE3X) {
+    if (entry->entry_type.encoding_type != SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_BYTE3X) {
         PRINT_ERROR("Validating entry type as BYTE3X, but type of the entry is 0x%02x", entry->entry_type.encoding_type);
         return false;
     }
@@ -269,7 +271,7 @@ bool x_otpdir_entry_appears_valid_byte3x(const BP_OTPDIR_ENTRY* entry) {
 }
 // BP_OTPDIR_DATA_ENCODING_TYPE_RBIT3
 bool x_otpdir_entry_appears_valid_rbit3(const BP_OTPDIR_ENTRY* entry) {
-    if (entry->entry_type.encoding_type != BP_OTPDIR_DATA_ENCODING_TYPE_RBIT3) {
+    if (entry->entry_type.encoding_type != SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_RBIT3) {
         PRINT_ERROR("Validating entry type as RBIT3, but type of the entry is 0x%02x", entry->entry_type.encoding_type);
         return false;
     }
@@ -286,9 +288,9 @@ bool x_otpdir_entry_appears_valid_rbit3(const BP_OTPDIR_ENTRY* entry) {
     }
     return true;
 }
-// BP_OTPDIR_DATA_ENCODING_TYPE_RBIT8
+// SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_RBIT8
 bool x_otpdir_entry_appears_valid_rbit8(const BP_OTPDIR_ENTRY* entry) {
-    if (entry->entry_type.encoding_type != BP_OTPDIR_DATA_ENCODING_TYPE_RBIT8) {
+    if (entry->entry_type.encoding_type != SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_RBIT8) {
         PRINT_ERROR("Validating entry type as RBIT8, but type of the entry is 0x%02x", entry->entry_type.encoding_type);
         return false;
     }
@@ -305,9 +307,9 @@ bool x_otpdir_entry_appears_valid_rbit8(const BP_OTPDIR_ENTRY* entry) {
     }
     return true;
 }
-// BP_OTPDIR_DATA_ENCODING_TYPE_ECC and BP_OTPDIR_DATA_ENCODING_TYPE_ECC_ASCII_STRING
+// SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_ECC and SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_ECC_ASCII_STRING
 bool x_otpdir_entry_appears_valid_ecc(const BP_OTPDIR_ENTRY* entry) {
-    if (entry->entry_type.encoding_type != BP_OTPDIR_DATA_ENCODING_TYPE_ECC) {
+    if (entry->entry_type.encoding_type != SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_ECC) {
         PRINT_ERROR("Validating entry type as ECC, but type of the entry is 0x%02x", entry->entry_type.encoding_type);
         return false;
     }
@@ -321,9 +323,9 @@ bool x_otpdir_entry_appears_valid_ecc(const BP_OTPDIR_ENTRY* entry) {
     }
     return true;
 }
-// BP_OTPDIR_DATA_ENCODING_TYPE_EMBEDED_IN_DIRENTRY
+// SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_EMBEDED_IN_DIRENTRY
 bool x_otpdir_entry_appears_valid_embedded(const BP_OTPDIR_ENTRY* entry) {
-    if (entry->entry_type.encoding_type != BP_OTPDIR_DATA_ENCODING_TYPE_EMBEDED_IN_DIRENTRY) {
+    if (entry->entry_type.encoding_type != SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_EMBEDED_IN_DIRENTRY) {
         PRINT_ERROR("Validating entry type as EMBEDED_IN_DIRENTRY, but type of the entry is 0x%02x", entry->entry_type.encoding_type);
         return false;
     }
@@ -351,7 +353,7 @@ static void x_otp_read_and_validate_direntry(uint16_t direntry_otp_row, XOTP_DIR
  
     // read the entry
     if (!failure) {
-        if (!bp_otp_read_ecc_data(direntry_otp_row, &entry, sizeof(BP_OTPDIR_ENTRY))) {
+        if (!saferotp_read_ecc_data(direntry_otp_row, &entry, sizeof(BP_OTPDIR_ENTRY))) {
             // TODO: Want to skip entries that are not readable.
             //       Maybe read as RAW to distinguish unreadable vs. not encoded with ECC data?
             //       For now, just skip the entry ... eventually will hit invalid data or out-of-range row.
@@ -377,38 +379,38 @@ static void x_otp_read_and_validate_direntry(uint16_t direntry_otp_row, XOTP_DIR
 
     // Perform entry-type-specific validation
     if (!failure) {
-        if (entry.entry_type.encoding_type == BP_OTPDIR_DATA_ENCODING_TYPE_NONE) {
+        if (entry.entry_type.encoding_type == SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_NONE) {
             if (!x_otpdir_entry_appears_valid_none(&entry)) {
                 failure = true;
             }
-            // else, it's a valid entry that encodes no data (including type BP_OTPDIR_ENTRY_TYPE_END)
-        } else if (entry.entry_type.encoding_type == BP_OTPDIR_DATA_ENCODING_TYPE_INVALID) {
+            // else, it's a valid entry that encodes no data (including type SAFEROTP_OTPDIR_ENTRY_TYPE_END)
+        } else if (entry.entry_type.encoding_type == SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_INVALID) {
             failure = true;
-        } else if (entry.entry_type.encoding_type == BP_OTPDIR_DATA_ENCODING_TYPE_RAW) {
+        } else if (entry.entry_type.encoding_type == SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_RAW) {
             if (!x_otpdir_entry_appears_valid_raw(&entry)) {
                 failure = true;
             }
-        } else if (entry.entry_type.encoding_type == BP_OTPDIR_DATA_ENCODING_TYPE_BYTE3X) {
+        } else if (entry.entry_type.encoding_type == SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_BYTE3X) {
             if (!x_otpdir_entry_appears_valid_byte3x(&entry)) {
                 failure = true;
             }
-        } else if (entry.entry_type.encoding_type == BP_OTPDIR_DATA_ENCODING_TYPE_RBIT3) {
+        } else if (entry.entry_type.encoding_type == SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_RBIT3) {
             if (!x_otpdir_entry_appears_valid_rbit3(&entry)) {
                 failure = true;
             }
-        } else if (entry.entry_type.encoding_type == BP_OTPDIR_DATA_ENCODING_TYPE_RBIT8) {
+        } else if (entry.entry_type.encoding_type == SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_RBIT8) {
             if (!x_otpdir_entry_appears_valid_rbit8(&entry)) {
                 failure = true;
             }
-        } else if (entry.entry_type.encoding_type == BP_OTPDIR_DATA_ENCODING_TYPE_ECC) {
+        } else if (entry.entry_type.encoding_type == SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_ECC) {
             if (!x_otpdir_entry_appears_valid_ecc(&entry)) {
                 failure = true;
             }
-        } else if (entry.entry_type.encoding_type == BP_OTPDIR_DATA_ENCODING_TYPE_ECC_ASCII_STRING) {
+        } else if (entry.entry_type.encoding_type == SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_ECC_ASCII_STRING) {
             if (!x_otpdir_entry_appears_valid_ecc(&entry)) {
                 failure = true;
             }
-        } else if (entry.entry_type.encoding_type == BP_OTPDIR_DATA_ENCODING_TYPE_EMBEDED_IN_DIRENTRY) {
+        } else if (entry.entry_type.encoding_type == SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_EMBEDED_IN_DIRENTRY) {
             if (!x_otpdir_entry_appears_valid_embedded(&entry)) {
                 failure = true;
             }
@@ -426,7 +428,7 @@ static void x_otp_read_and_validate_direntry(uint16_t direntry_otp_row, XOTP_DIR
     // NOTE: SUCCESS will be returned when there is an entry of `BP_OTDIR_ENTRY_TYPE_END`.
     if (failure) {
         memset(out_state, 0, sizeof(XOTP_DIRENTRY_ITERATOR_STATE));
-        out_state->current_entry.entry_type.as_uint16_t = BP_OTPDIR_ENTRY_TYPE_INVALID.as_uint16_t;
+        out_state->current_entry.entry_type.as_uint16_t = SAFEROTP_OTPDIR_ENTRY_TYPE_INVALID.as_uint16_t;
         out_state->should_try_next_row_if_not_validated = should_try_next_row_if_not_validated;
     } else {
         memcpy(&out_state->current_entry, &entry, sizeof(BP_OTPDIR_ENTRY));
@@ -465,7 +467,7 @@ static bool x_otp_direntry_move_to_next_entry(void) {
     if (!state->entry_validated) {
         return false; // do nothing ...
     }
-    if (state->current_entry.entry_type.as_uint16_t == BP_OTPDIR_ENTRY_TYPE_END.as_uint16_t) {
+    if (state->current_entry.entry_type.as_uint16_t == SAFEROTP_OTPDIR_ENTRY_TYPE_END.as_uint16_t) {
         return false; // do nothing ...
     }
     uint16_t starting_row = state->current_otp_row_start - xROWS_PER_DIRENTRY;
@@ -477,10 +479,10 @@ static bool x_otp_direntry_move_to_next_entry(void) {
 // 1. Get the current type
 // 2. Get size of buffer required to read the corresponding data
 // 3. Read the corresponding data into a caller-supplied buffer
-static BP_OTPDIR_ENTRY_TYPE x_otp_direntry_get_current_type(void) {
+static SAFEROTP_OTPDIR_ENTRY_TYPE x_otp_direntry_get_current_type(void) {
     XOTP_DIRENTRY_ITERATOR_STATE* state = &x_current_directory_entry[ get_core_num() ];
     if (!state->entry_validated) {
-        return BP_OTPDIR_ENTRY_TYPE_END;
+        return SAFEROTP_OTPDIR_ENTRY_TYPE_END;
     }
     return state->current_entry.entry_type;
 }
@@ -492,21 +494,21 @@ static size_t x_otp_direntry_get_current_buffer_size_required(void) {
 
     if (!state->entry_validated) {
         result = 0u;
-    } else if (state->current_entry.entry_type.encoding_type == BP_OTPDIR_DATA_ENCODING_TYPE_NONE) {
+    } else if (state->current_entry.entry_type.encoding_type == SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_NONE) {
         result = 0u;
-    } else if (state->current_entry.entry_type.encoding_type == BP_OTPDIR_DATA_ENCODING_TYPE_RAW) {
+    } else if (state->current_entry.entry_type.encoding_type == SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_RAW) {
         result = state->current_entry.raw_data.row_count * sizeof(uint32_t); // 32-bits per row, of which 24 bits contain the data
-    } else if (state->current_entry.entry_type.encoding_type == BP_OTPDIR_DATA_ENCODING_TYPE_BYTE3X) {
+    } else if (state->current_entry.entry_type.encoding_type == SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_BYTE3X) {
         result = state->current_entry.byte3x_data.row_count;
-    } else if (state->current_entry.entry_type.encoding_type == BP_OTPDIR_DATA_ENCODING_TYPE_RBIT3) {
+    } else if (state->current_entry.entry_type.encoding_type == SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_RBIT3) {
         result = (state->current_entry.rbit3_data.row_count / 3u) * sizeof(uint32_t); // 32-bits per 3 rows, of which 24 bits contain the data
-    } else if (state->current_entry.entry_type.encoding_type == BP_OTPDIR_DATA_ENCODING_TYPE_RBIT8) {
+    } else if (state->current_entry.entry_type.encoding_type == SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_RBIT8) {
         result = (state->current_entry.rbit8_data.row_count / 8u) * sizeof(uint32_t); // 32-bits per 8 rows, of which 24 bits contain the data
-    } else if (state->current_entry.entry_type.encoding_type == BP_OTPDIR_DATA_ENCODING_TYPE_ECC) {
+    } else if (state->current_entry.entry_type.encoding_type == SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_ECC) {
         result = state->current_entry.ecc_data.byte_count;
-    } else if (state->current_entry.entry_type.encoding_type == BP_OTPDIR_DATA_ENCODING_TYPE_ECC_ASCII_STRING) {
+    } else if (state->current_entry.entry_type.encoding_type == SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_ECC_ASCII_STRING) {
         result = state->current_entry.ecc_data.byte_count;
-    } else if (state->current_entry.entry_type.encoding_type == BP_OTPDIR_DATA_ENCODING_TYPE_EMBEDED_IN_DIRENTRY) {
+    } else if (state->current_entry.entry_type.encoding_type == SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_EMBEDED_IN_DIRENTRY) {
         result = sizeof(uint32_t);
     } else {
         // ERROR! Unknown entry type!
@@ -545,59 +547,59 @@ static size_t x_otp_direntry_get_current_entry_data(void* buffer, size_t buffer_
     }
 
     switch (state->current_entry.entry_type.encoding_type) {
-        case BP_OTPDIR_DATA_ENCODING_TYPE_NONE: {
+        case SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_NONE: {
 
             return 0u;
         }
-        case BP_OTPDIR_DATA_ENCODING_TYPE_RAW: {
-            if (!bp_otp_read_raw_data(state->current_entry.raw_data.start_row, buffer, required_size)) {
+        case SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_RAW: {
+            if (!saferotp_read_raw_data(state->current_entry.raw_data.start_row, buffer, required_size)) {
                 return 0u;
             }
             return required_size;
         }
-        case BP_OTPDIR_DATA_ENCODING_TYPE_BYTE3X: {
+        case SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_BYTE3X: {
             uint16_t start_row = state->current_entry.byte3x_data.start_row;
             size_t number_of_reads_required = required_size;
             uint8_t* p = buffer; // for pointer arithmetic
             for (size_t i = 0; i < number_of_reads_required; ++i) {
-                if (!bp_otp_read_single_row_redundant_byte3x(start_row+i, p+i)) {
+                if (!saferotp_read_single_row_redundant_byte3x(start_row+i, p+i)) {
                     return 0u;
                 }
             }
             return required_size;
         }
-        case BP_OTPDIR_DATA_ENCODING_TYPE_RBIT3: {
+        case SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_RBIT3: {
             uint16_t start_row = state->current_entry.rbit3_data.start_row;
             size_t number_of_reads_required = required_size / sizeof(uint32_t);
             uint32_t* p = (uint32_t*)buffer; // for pointer arithmetic
             for (size_t i = 0; i < number_of_reads_required; ++i) {
-                if (!bp_otp_read_redundant_rows_RBIT3(start_row+(i*3), p+i)) {
+                if (!saferotp_read_redundant_rows_RBIT3(start_row+(i*3), p+i)) {
                     return 0u;
                 }
             }
             return required_size;
         }
-        case BP_OTPDIR_DATA_ENCODING_TYPE_RBIT8: {
+        case SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_RBIT8: {
             uint16_t start_row = state->current_entry.rbit8_data.start_row;
             size_t number_of_reads_required = required_size / sizeof(uint32_t);
             uint32_t* p = (uint32_t*)buffer; // for pointer arithmetic
             for (size_t i = 0; i < number_of_reads_required; ++i) {
-                if (!bp_otp_read_redundant_rows_RBIT8(start_row+(i*8), p+i)) {
+                if (!saferotp_read_redundant_rows_RBIT8(start_row+(i*8), p+i)) {
                     return 0u;
                 }
             }
             return required_size;
         }
-        case BP_OTPDIR_DATA_ENCODING_TYPE_ECC: {
+        case SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_ECC: {
             uint16_t start_row = state->current_entry.ecc_data.start_row;
-            if (!bp_otp_read_ecc_data(start_row, buffer, required_size)) {
+            if (!saferotp_read_ecc_data(start_row, buffer, required_size)) {
                 return 0u;
             }
             return required_size;
         }
-        case BP_OTPDIR_DATA_ENCODING_TYPE_ECC_ASCII_STRING: {
+        case SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_ECC_ASCII_STRING: {
             uint16_t start_row = state->current_entry.ecc_data.start_row;
-            if (!bp_otp_read_ecc_data(start_row, buffer, required_size)) {
+            if (!saferotp_read_ecc_data(start_row, buffer, required_size)) {
                 return 0u;
             }
             uint8_t* p = buffer; // for pointer arithmetic
@@ -613,7 +615,7 @@ static size_t x_otp_direntry_get_current_entry_data(void* buffer, size_t buffer_
             }
             return required_size;
         }
-        case BP_OTPDIR_DATA_ENCODING_TYPE_EMBEDED_IN_DIRENTRY: {
+        case SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_EMBEDED_IN_DIRENTRY: {
             memcpy(buffer, &state->current_entry.embedded_data.data, sizeof(uint32_t));
             return sizeof(uint32_t);
         }
@@ -627,29 +629,29 @@ static size_t x_otp_direntry_get_current_entry_data(void* buffer, size_t buffer_
 /// All code above this point are the static helper functions / implementation details.
 /// Only the below are the public API functions.
 
-bool bp_otpdir_find_first_entry(void) {
+bool saferotp_otpdir_find_first_entry(void) {
     return x_otp_direntry_reset_directory_iterator();
 }
-bool bp_otpdir_find_next_entry(void) {
+bool saferotp_otpdir_find_next_entry(void) {
     return x_otp_direntry_move_to_next_entry();
 }
-bool bp_otpdir_find_first_entry_of_type(BP_OTPDIR_ENTRY_TYPE entryType) {
-    if (!bp_otpdir_find_first_entry()) {
+bool saferotp_otpdir_find_first_entry_of_type(SAFEROTP_OTPDIR_ENTRY_TYPE entryType) {
+    if (!saferotp_otpdir_find_first_entry()) {
         return false;
     }
-    while (bp_otpdir_get_current_entry_type().as_uint16_t != entryType.as_uint16_t) {
-        if (!bp_otpdir_find_next_entry()) {
+    while (saferotp_otpdir_get_current_entry_type().as_uint16_t != entryType.as_uint16_t) {
+        if (!saferotp_otpdir_find_next_entry()) {
             return false;
         }
     }
     return true;
 }
-bool bp_otpdir_find_next_entry_of_type(BP_OTPDIR_ENTRY_TYPE entryType) {
-    if (!bp_otpdir_find_next_entry()) {
+bool saferotp_otpdir_find_next_entry_of_type(SAFEROTP_OTPDIR_ENTRY_TYPE entryType) {
+    if (!saferotp_otpdir_find_next_entry()) {
         return false;
     }
-    while (bp_otpdir_get_current_entry_type().as_uint16_t != entryType.as_uint16_t) {
-        if (!bp_otpdir_find_next_entry()) {
+    while (saferotp_otpdir_get_current_entry_type().as_uint16_t != entryType.as_uint16_t) {
+        if (!saferotp_otpdir_find_next_entry()) {
             return false;
         }
     }
@@ -662,12 +664,12 @@ bool bp_otpdir_find_next_entry_of_type(BP_OTPDIR_ENTRY_TYPE entryType) {
 // On success, returns the number of bytes actually read.
 // On failure, returns zero.
 // The buffer provided must be at least bp_otpdir_get_current_entry_buffer_size() bytes in size.
-size_t bp_otpdir_get_current_entry_data(void* buffer, size_t buffer_size) {
+size_t saferotp_otpdir_get_current_entry_data(void* buffer, size_t buffer_size) {
     return x_otp_direntry_get_current_entry_data(buffer, buffer_size);
 }
 
 
-BP_OTPDIR_ENTRY_TYPE bp_otpdir_get_current_entry_type(void) {
+SAFEROTP_OTPDIR_ENTRY_TYPE saferotp_otpdir_get_current_entry_type(void) {
     return x_otp_direntry_get_current_type();
 }
 // Returns the buffer size (in bytes) required to get the data referenced by the current entry.
@@ -682,7 +684,7 @@ size_t bp_otpdir_get_current_entry_buffer_size(void) {
 
 // Adds a new entry to the OTP directory.
 // NOTE: Resets the iterator state.
-//       bp_otpdir_find_first_entry_of_type(BP_OTPDIR_ENTRY_TYPE_END)
+//       saferotp_otpdir_find_first_entry_of_type(SAFEROTP_OTPDIR_ENTRY_TYPE_END)
 // Currently limited to adding ECC encoded data, to get something integrated and working.
 //
 // Verification includes:
@@ -692,7 +694,7 @@ size_t bp_otpdir_get_current_entry_buffer_size(void) {
 // * all rows are readable
 // * all rows encode valid ECC-encoded data
 // * for ECC_ASCII_STRING, the first NULL byte corresponds to the valid_byte_count (must be NULL terminated, and valid_byte_count must include NULL character)
-// bool bp_otpdir_add_entry_for_existing_ecc_data(BP_OTPDIR_ENTRY_TYPE entryType, uint16_t start_row, size_t valid_byte_count);
+// bool saferotp_otpdir_add_entry_for_existing_ecc_data(SAFEROTP_OTPDIR_ENTRY_TYPE entryType, uint16_t start_row, size_t valid_byte_count);
 
 
 

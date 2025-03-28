@@ -382,14 +382,14 @@ bool internal_get_whitelabel_row_range(BP_OTP_ROW_RANGE *result_out) {
     memset(result_out, 0, sizeof(BP_OTP_ROW_RANGE));
     
     BP_OTP_USB_BOOT_FLAGS current_usb_boot_flags;
-    if (!bp_otp_read_redundant_rows_RBIT3(0x059, &current_usb_boot_flags.as_uint32)) {
+    if (!saferotp_read_redundant_rows_RBIT3(0x059, &current_usb_boot_flags.as_uint32)) {
         PRINT_ERROR("Whitelabel Error: Raw OTP rows 0x59..0x5B (USB BOOT FLAGS) did not find majority agreement\n");
         return false;
     }
     PRINT_DEBUG("Whitelabel Debug: found USB BOOT FLAGS: %06x\n", current_usb_boot_flags.as_uint32);
 
     uint16_t base;
-    if (!bp_otp_read_single_row_ecc(0x05C, &base)) {
+    if (!saferotp_read_single_row_ecc(0x05C, &base)) {
         PRINT_ERROR("Whitelabel Error: OTP row 0x05C could not be read (WHITE_LABEL_ADDR)\n");
         return false;
     }
@@ -404,7 +404,7 @@ bool internal_get_whitelabel_row_range(BP_OTP_ROW_RANGE *result_out) {
 
     // Read in the whitelabel structure
     BP_OTP_WHITELABEL whitelabel = {0};
-    if (!bp_otp_read_ecc_data(base, &whitelabel, sizeof(whitelabel))) {
+    if (!saferotp_read_ecc_data(base, &whitelabel, sizeof(whitelabel))) {
         PRINT_ERROR("Whitelabel Error: Failed to read existing whitelabel data\n");
         return false;
     }
@@ -445,7 +445,7 @@ void bp_otp_apply_whitelabel_data(void) {
         uint16_t row = base + BP_OTP_ROW__STATIC_PORTION_OFFSET +  i;
         PRINT_DEBUG("Whitelabel Debug: Write static portion index %d: row 0x%03x, data 0x%04x\n", i, row, _static_portion[i]);
         WAIT_FOR_KEY();
-        bp_otp_write_single_row_ecc(row, _static_portion[i]) || DIE();
+        saferotp_write_single_row_ecc(row, _static_portion[i]) || DIE();
     }
     PRINT_DEBUG("Whitelabel Debug: Version extension: '%s'\n", _product_string);
 
@@ -461,7 +461,7 @@ void bp_otp_apply_whitelabel_data(void) {
 
         PRINT_DEBUG("Whitelabel Debug: Write product version extension index %d: row 0x%03x, data 0x%04x\n", i, row, data);
         WAIT_FOR_KEY();
-        bp_otp_write_single_row_ecc(row, data) || DIE();
+        saferotp_write_single_row_ecc(row, data) || DIE();
     }
 
     // 3. write the INFO_UF2.TXT board id (serial number)
@@ -491,7 +491,7 @@ void bp_otp_apply_whitelabel_data(void) {
             data  |= (uint8_t)(board_id_as_string[2u * i    ]);
 
             PRINT_DEBUG("Whitelabel Debug: Writing row 0x%03x: 0x%04x (`%c%c`)\n", row, data, byte_to_printable_char(data & 0xFFu), byte_to_printable_char(data >> 8)); WAIT_FOR_KEY();
-            bp_otp_write_single_row_ecc(row, data) || DIE();
+            saferotp_write_single_row_ecc(row, data) || DIE();
         }
         
 
@@ -509,30 +509,30 @@ void bp_otp_apply_whitelabel_data(void) {
     uint16_t tmp_p = product_revision_strdef.as_uint16;
 
     // 4. Write the portions of the first 16 rows that have valid data:
-    PRINT_DEBUG("Whitelabel Debug: Write WHITELABEL index 0: row 0x%03x\n", base + 0x0u);  WAIT_FOR_KEY();  bp_otp_write_single_row_ecc(base + 0x0u, 0x1209u) || DIE();  // USB VID == 0x1209
-    PRINT_DEBUG("Whitelabel Debug: Write WHITELABEL index 1: row 0x%03x\n", base + 0x1u);  WAIT_FOR_KEY();  bp_otp_write_single_row_ecc(base + 0x1u, 0x7332u) || DIE();  // USB PID == 0x7332
-    //INT_DEBUG("Whitelabel Debug: Write WHITELABEL index 2: row 0x%03x\n", base + 0x2u);  WAIT_FOR_KEY();  bp_otp_write_single_row_ecc(base + 0x2u, 0x....u) || DIE();  // USB BCD Device
-    //INT_DEBUG("Whitelabel Debug: Write WHITELABEL index 3: row 0x%03x\n", base + 0x3u);  WAIT_FOR_KEY();  bp_otp_write_single_row_ecc(base + 0x3u, 0x....u) || DIE();  // USB LangID for strings
-    PRINT_DEBUG("Whitelabel Debug: Write WHITELABEL index 4: row 0x%03x\n", base + 0x4u);  WAIT_FOR_KEY();  bp_otp_write_single_row_ecc(base + 0x4u, 0x230Au) || DIE();  // USB MANU              ten   chars @ offset 0x23
-    PRINT_DEBUG("Whitelabel Debug: Write WHITELABEL index 5: row 0x%03x\n", base + 0x5u);  WAIT_FOR_KEY();  bp_otp_write_single_row_ecc(base + 0x5u, tmp_p  ) || DIE();  // USB PROD              XXX   chars @ offset 0x23
-    //INT_DEBUG("Whitelabel Debug: Write WHITELABEL index 6: row 0x%03x\n", base + 0x6u);  WAIT_FOR_KEY();  bp_otp_write_single_row_ecc(base + 0x6u, 0x....u) || DIE();  // USB Serial Number
-    //INT_DEBUG("Whitelabel Debug: Write WHITELABEL index 7: row 0x%03x\n", base + 0x7u);  WAIT_FOR_KEY();  bp_otp_write_single_row_ecc(base + 0x7u, 0x....u) || DIE();  // USB config attributes & max power
-    PRINT_DEBUG("Whitelabel Debug: Write WHITELABEL index 8: row 0x%03x\n", base + 0x8u);  WAIT_FOR_KEY();  bp_otp_write_single_row_ecc(base + 0x8u, 0x1B08u) || DIE();  // STOR VOLUME LABEL     eight chars @ offset 0x1b
-    PRINT_DEBUG("Whitelabel Debug: Write WHITELABEL index 9: row 0x%03x\n", base + 0x9u);  WAIT_FOR_KEY();  bp_otp_write_single_row_ecc(base + 0x9u, 0x1F08u) || DIE();  // SCSI INQUIRY VENDOR   eight chars @ offset 0x1f
-    PRINT_DEBUG("Whitelabel Debug: Write WHITELABEL index A: row 0x%03x\n", base + 0xAu);  WAIT_FOR_KEY();  bp_otp_write_single_row_ecc(base + 0xAu, tmp_p  ) || DIE();  // SCSI INQUIRY PRODUCT  XXX   chars @ offset 0x23
-    PRINT_DEBUG("Whitelabel Debug: Write WHITELABEL index C: row 0x%03x\n", base + 0xCu);  WAIT_FOR_KEY();  bp_otp_write_single_row_ecc(base + 0xCu, 0x1016u) || DIE();  // redirect URL          22    chars @ offset 0x10
-    PRINT_DEBUG("Whitelabel Debug: Write WHITELABEL index D: row 0x%03x\n", base + 0xDu);  WAIT_FOR_KEY();  bp_otp_write_single_row_ecc(base + 0xDu, 0x140du) || DIE();  // redirect name         13    chars @ offset 0x14
-    PRINT_DEBUG("Whitelabel Debug: Write WHITELABEL index E: row 0x%03x\n", base + 0xEu);  WAIT_FOR_KEY();  bp_otp_write_single_row_ecc(base + 0xEu, tmp_p  ) || DIE();  // info_uf2.txt product  XXX   chars @ offset 0x23
-    PRINT_DEBUG("Whitelabel Debug: Write WHITELABEL index F: row 0x%03x\n", base + 0xFu);  WAIT_FOR_KEY();  bp_otp_write_single_row_ecc(base + 0xFu, 0x3417u) || DIE();  // info_uf2.txt board ID 23    chars @ offset 0x34
+    PRINT_DEBUG("Whitelabel Debug: Write WHITELABEL index 0: row 0x%03x\n", base + 0x0u);  WAIT_FOR_KEY();  saferotp_write_single_row_ecc(base + 0x0u, 0x1209u) || DIE();  // USB VID == 0x1209
+    PRINT_DEBUG("Whitelabel Debug: Write WHITELABEL index 1: row 0x%03x\n", base + 0x1u);  WAIT_FOR_KEY();  saferotp_write_single_row_ecc(base + 0x1u, 0x7332u) || DIE();  // USB PID == 0x7332
+    //INT_DEBUG("Whitelabel Debug: Write WHITELABEL index 2: row 0x%03x\n", base + 0x2u);  WAIT_FOR_KEY();  saferotp_write_single_row_ecc(base + 0x2u, 0x....u) || DIE();  // USB BCD Device
+    //INT_DEBUG("Whitelabel Debug: Write WHITELABEL index 3: row 0x%03x\n", base + 0x3u);  WAIT_FOR_KEY();  saferotp_write_single_row_ecc(base + 0x3u, 0x....u) || DIE();  // USB LangID for strings
+    PRINT_DEBUG("Whitelabel Debug: Write WHITELABEL index 4: row 0x%03x\n", base + 0x4u);  WAIT_FOR_KEY();  saferotp_write_single_row_ecc(base + 0x4u, 0x230Au) || DIE();  // USB MANU              ten   chars @ offset 0x23
+    PRINT_DEBUG("Whitelabel Debug: Write WHITELABEL index 5: row 0x%03x\n", base + 0x5u);  WAIT_FOR_KEY();  saferotp_write_single_row_ecc(base + 0x5u, tmp_p  ) || DIE();  // USB PROD              XXX   chars @ offset 0x23
+    //INT_DEBUG("Whitelabel Debug: Write WHITELABEL index 6: row 0x%03x\n", base + 0x6u);  WAIT_FOR_KEY();  saferotp_write_single_row_ecc(base + 0x6u, 0x....u) || DIE();  // USB Serial Number
+    //INT_DEBUG("Whitelabel Debug: Write WHITELABEL index 7: row 0x%03x\n", base + 0x7u);  WAIT_FOR_KEY();  saferotp_write_single_row_ecc(base + 0x7u, 0x....u) || DIE();  // USB config attributes & max power
+    PRINT_DEBUG("Whitelabel Debug: Write WHITELABEL index 8: row 0x%03x\n", base + 0x8u);  WAIT_FOR_KEY();  saferotp_write_single_row_ecc(base + 0x8u, 0x1B08u) || DIE();  // STOR VOLUME LABEL     eight chars @ offset 0x1b
+    PRINT_DEBUG("Whitelabel Debug: Write WHITELABEL index 9: row 0x%03x\n", base + 0x9u);  WAIT_FOR_KEY();  saferotp_write_single_row_ecc(base + 0x9u, 0x1F08u) || DIE();  // SCSI INQUIRY VENDOR   eight chars @ offset 0x1f
+    PRINT_DEBUG("Whitelabel Debug: Write WHITELABEL index A: row 0x%03x\n", base + 0xAu);  WAIT_FOR_KEY();  saferotp_write_single_row_ecc(base + 0xAu, tmp_p  ) || DIE();  // SCSI INQUIRY PRODUCT  XXX   chars @ offset 0x23
+    PRINT_DEBUG("Whitelabel Debug: Write WHITELABEL index C: row 0x%03x\n", base + 0xCu);  WAIT_FOR_KEY();  saferotp_write_single_row_ecc(base + 0xCu, 0x1016u) || DIE();  // redirect URL          22    chars @ offset 0x10
+    PRINT_DEBUG("Whitelabel Debug: Write WHITELABEL index D: row 0x%03x\n", base + 0xDu);  WAIT_FOR_KEY();  saferotp_write_single_row_ecc(base + 0xDu, 0x140du) || DIE();  // redirect name         13    chars @ offset 0x14
+    PRINT_DEBUG("Whitelabel Debug: Write WHITELABEL index E: row 0x%03x\n", base + 0xEu);  WAIT_FOR_KEY();  saferotp_write_single_row_ecc(base + 0xEu, tmp_p  ) || DIE();  // info_uf2.txt product  XXX   chars @ offset 0x23
+    PRINT_DEBUG("Whitelabel Debug: Write WHITELABEL index F: row 0x%03x\n", base + 0xFu);  WAIT_FOR_KEY();  saferotp_write_single_row_ecc(base + 0xFu, 0x3417u) || DIE();  // info_uf2.txt board ID 23    chars @ offset 0x34
 
     // 5. write the `WHITE_LABEL_ADDR` to point to the base address used here
     // NOTE: this is a fixed OTP row ... only get one shot to write this, so ensuring the above values are correctly written first is important!
     PRINT_DEBUG("Whitelabel Debug: Write WHITELABEL_BASE_ADDR 0x%03x to row 0x05C\n", base); WAIT_FOR_KEY();
-    bp_otp_write_single_row_ecc(0x05c, base) || DIE();
+    saferotp_write_single_row_ecc(0x05c, base) || DIE();
 
     // 6. Read the existing USB boot flags ... stored RBIT-3 (three rows, majority voting per bit)
     BP_OTP_USB_BOOT_FLAGS old_usb_boot_flags;
-    if (!bp_otp_read_redundant_rows_RBIT3(0x059, &old_usb_boot_flags.as_uint32)) {
+    if (!saferotp_read_redundant_rows_RBIT3(0x059, &old_usb_boot_flags.as_uint32)) {
         PRINT_ERROR("Whitelabel Error: Raw OTP rows 0x59..0x5B (old USB BOOT FLAGS) did not find majority agreement\n");
         return;
     }
@@ -552,7 +552,7 @@ void bp_otp_apply_whitelabel_data(void) {
     // 7. NON-ECC write the USB boot flags ... RBIT-3 encoding
     BP_OTP_USB_BOOT_FLAGS new_flags = { .as_uint32 = old_usb_boot_flags.as_uint32 | usb_boot_flags.as_uint32 };
     PRINT_DEBUG("Whitelabel Debug: Writing USB BOOT FLAGS: 0x%06x -> 0x%06x\n", old_usb_boot_flags.as_uint32, new_flags);  WAIT_FOR_KEY();
-    if (!bp_otp_write_redundant_rows_RBIT3(0x059, new_flags.as_uint32)) {
+    if (!saferotp_write_redundant_rows_RBIT3(0x059, new_flags.as_uint32)) {
         PRINT_ERROR("Whitelabel Error: Failed to write USB BOOT FLAGS\n");
         return;
     }
@@ -573,7 +573,7 @@ bool bp_otp_lock_whitelabel(void) {
     // g_WaitForKey = true;
 
     BP_OTP_USB_BOOT_FLAGS old_usb_boot_flags;
-    if (!bp_otp_read_redundant_rows_RBIT3(0x059, &old_usb_boot_flags.as_uint32)) {
+    if (!saferotp_read_redundant_rows_RBIT3(0x059, &old_usb_boot_flags.as_uint32)) {
         PRINT_ERROR("Whitelabel Error: Raw OTP rows 0x59..0x5B (USB BOOT FLAGS) did not find majority agreement\n");
         return false;
     }
@@ -610,12 +610,12 @@ bool bp_otp_lock_whitelabel(void) {
 
     // TODO: is there an SDK API for locking pages?
     PRINT_DEBUG("Setting PAGE3_LOCK0 (0xF86) to `0x3Fu` (no keys; read-only without key)\n"); WAIT_FOR_KEY();
-    if (!bp_otp_write_single_row_redundant_byte3x(0xF86, 0x3Fu)) {
+    if (!saferotp_write_single_row_redundant_byte3x(0xF86, 0x3Fu)) {
         PRINT_ERROR("Whitelabel Error: Failed to write PAGE3_LOCK0\n");
         return false;
     }
     PRINT_DEBUG("Whitelabel Debug: Setting PAGE3_LOCK1 (0xF87) to `0x15` (read-only for secure, non-secure, bootloader)\n"); WAIT_FOR_KEY();
-    if (!bp_otp_write_single_row_redundant_byte3x(0xF87, 0x15u)) {
+    if (!saferotp_write_single_row_redundant_byte3x(0xF87, 0x15u)) {
         PRINT_ERROR("Whitelabel Error: Failed to write PAGE3_LOCK1\n");
         return false;
     }

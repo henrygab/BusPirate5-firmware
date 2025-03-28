@@ -47,7 +47,7 @@ static uint32_t _even_parity(uint32_t input) {
     }
     return rc;
 }
-static uint32_t decode_raw_data_with_correction_impl(const BP_OTP_RAW_READ_RESULT data) {
+static uint32_t decode_raw_data_with_correction_impl(const SAFEROTP_RAW_READ_RESULT data) {
     // If this decodes correctly, only the lower 16-bits will be set.
     // Else, at least the top eight bits will be set, to indicate
     // an error condition.  (FFxxxxxx)
@@ -59,14 +59,14 @@ static uint32_t decode_raw_data_with_correction_impl(const BP_OTP_RAW_READ_RESUL
 
     // Input must be limited to 24-bit values
     if (data.as_uint32 & 0xFF000000u) {
-        return BP_OTP_ECC_ERROR_INVALID_INPUT;
+        return SAFEROTP_ECC_ERROR_INVALID_INPUT;
     }
     // 0. if only one BRBP bit is set, then check if exact match...
     if ((data.bit_repair_by_polarity == 0x1u) || (data.bit_repair_by_polarity == 0x2u)) {
         const uint16_t decoded_wo_brbp =  data.as_uint32;
         const uint16_t decoded_w__brbp = ~data.as_uint32;
-        const BP_OTP_RAW_READ_RESULT src_wo_brbp = { .as_uint32 = bp_otp_calculate_ecc( decoded_wo_brbp )              };
-        const BP_OTP_RAW_READ_RESULT src_w__brbp = { .as_uint32 = bp_otp_calculate_ecc( decoded_w__brbp ) ^ 0x00FFFFFF };
+        const SAFEROTP_RAW_READ_RESULT src_wo_brbp = { .as_uint32 = saferotp_calculate_ecc( decoded_wo_brbp )              };
+        const SAFEROTP_RAW_READ_RESULT src_w__brbp = { .as_uint32 = saferotp_calculate_ecc( decoded_w__brbp ) ^ 0x00FFFFFF };
 
         uint32_t diff_wo_brbp = data.as_uint32 ^ src_wo_brbp.as_uint32;
         uint32_t diff_w__brbp = data.as_uint32 ^ src_w__brbp.as_uint32;
@@ -76,7 +76,7 @@ static uint32_t decode_raw_data_with_correction_impl(const BP_OTP_RAW_READ_RESUL
         // Are both of those decodings an exact match (except for the BRBP bits?  If so, that's 
         if (match_wo_brbp && match_w__brbp) {
             // NOTE: This is expected to be impossible, but only way to know is via exhaustively checking all 16-bit values.
-            return BP_OTP_ECC_ERROR_BRBP_DUAL_DECODINGS_POSSIBLE;
+            return SAFEROTP_ECC_ERROR_BRBP_DUAL_DECODINGS_POSSIBLE;
         } else if (match_wo_brbp) {
             // There was a single-bit error in the BRBP bits; True value was 0b00  (no BRBP used to store the ECC encoded data).
             return decoded_wo_brbp;
@@ -85,7 +85,7 @@ static uint32_t decode_raw_data_with_correction_impl(const BP_OTP_RAW_READ_RESUL
             return decoded_w__brbp;
         } else {
             // Either multiple bits in error, or this data was not encoded with the RP2350 ECC encoding scheme.
-            return BP_OTP_ECC_ERROR_BRBP_NEITHER_DECODING_VALID;
+            return SAFEROTP_ECC_ERROR_BRBP_NEITHER_DECODING_VALID;
         }
     }
 
@@ -95,7 +95,7 @@ static uint32_t decode_raw_data_with_correction_impl(const BP_OTP_RAW_READ_RESUL
     //     BRBP checks for two ones in bits 23:22.  When both
     //     bits 23 and 22 are set, BRBP inverts the entire row
     //     before passing it to the modified Hamming code stage.
-    const BP_OTP_RAW_READ_RESULT src = {
+    const SAFEROTP_RAW_READ_RESULT src = {
         .as_uint32 =
             (data.bit_repair_by_polarity == 0x3u) ?
             (data.as_uint32 ^ 0x00FFFFFFu) :
@@ -108,7 +108,7 @@ static uint32_t decode_raw_data_with_correction_impl(const BP_OTP_RAW_READ_RESUL
     //     ECC recalculates the six parity bits based on the
     //     value read from the OTP row.
     //     ...
-    BP_OTP_RAW_READ_RESULT tmp = { .as_uint32 = bp_otp_calculate_ecc(src.as_uint32) };
+    SAFEROTP_RAW_READ_RESULT tmp = { .as_uint32 = saferotp_calculate_ecc(src.as_uint32) };
 
     // 3. Simplest case: do the values match exactly? If so, done!
     if (tmp.as_uint32 == src.as_uint32) {
@@ -149,7 +149,7 @@ static uint32_t decode_raw_data_with_correction_impl(const BP_OTP_RAW_READ_RESUL
         //       because should have found the one-bit error earlier (above).
         //       After all, a one-bit error in BRBP is either 0b01 or 0b10,
         //       both of which checked above.  Belt-and-suspenders....
-        return BP_OTP_ECC_ERROR_INTERNAL_ERROR_BRBP_BIT;
+        return SAFEROTP_ECC_ERROR_INTERNAL_ERROR_BRBP_BIT;
     }
 
     // 4. Decide result based on the parity & syndrome
@@ -166,10 +166,10 @@ static uint32_t decode_raw_data_with_correction_impl(const BP_OTP_RAW_READ_RESUL
         //       when calculated ECC from just the low 16 bits.
         //       Even so, belt-and-suspenders... Can this occur any other time?
         //       would need to check all 2^24 input values to be sure.
-        return BP_OTP_ECC_ERROR_INTERNAL_ERROR_PERFECT_MATCH;
+        return SAFEROTP_ECC_ERROR_INTERNAL_ERROR_PERFECT_MATCH;
     }
     if (tmp.parity_bit == 0u && tmp.hamming_ecc != 0u) {
-        return BP_OTP_ECC_ERROR_DETECTED_MULTI_BIT_ERROR;
+        return SAFEROTP_ECC_ERROR_DETECTED_MULTI_BIT_ERROR;
     }
 
 
@@ -189,7 +189,7 @@ static uint32_t decode_raw_data_with_correction_impl(const BP_OTP_RAW_READ_RESUL
         // All other values in the table are 0u, which would not flip a bit,
         // and thus would not correct an error.
         // It's unknown if this code path could be reached.
-        return BP_OTP_ECC_ERROR_NOT_VALID_SINGLE_BIT_FLIP;
+        return SAFEROTP_ECC_ERROR_NOT_VALID_SINGLE_BIT_FLIP;
     }
 
     return (src.as_uint32 ^ bitflip) & SUCCESS_MASK;
@@ -203,7 +203,7 @@ static uint32_t decode_raw_data_with_correction_impl(const BP_OTP_RAW_READ_RESUL
 // ======================================================================
 
 
-uint32_t bp_otp_calculate_ecc(uint16_t x) {
+uint32_t saferotp_calculate_ecc(uint16_t x) {
     uint32_t p = x;
     for (uint_fast8_t i = 0; i < 6; ++i) {
         p |= _even_parity(p & _otp_ecc_parity_table[i]) << (16 + i);
@@ -211,8 +211,8 @@ uint32_t bp_otp_calculate_ecc(uint16_t x) {
     return p;
 }
 
-uint32_t bp_otp_decode_raw(uint32_t raw_data) {
-    const BP_OTP_RAW_READ_RESULT data = { .as_uint32 = raw_data };
+uint32_t saferotp_decode_raw(uint32_t raw_data) {
+    const SAFEROTP_RAW_READ_RESULT data = { .as_uint32 = raw_data };
     // This function detects as erroneous raw data that the bootrom accepts
     // as being validly encoded ECC data.  This can occur when the count
     // of bitflips is 3, 5 (also 19, 21 for BRBP variants) vs. the correct encoding.
@@ -232,7 +232,7 @@ uint32_t bp_otp_decode_raw(uint32_t raw_data) {
     // ECC decoding, vs. an implementation that skips this step.
     if ((result & 0xFFFF0000u) == 0) {
         // result could be encoded two ways: with or without use of BRBP
-        uint32_t chk  = bp_otp_calculate_ecc(result);
+        uint32_t chk  = saferotp_calculate_ecc(result);
         uint32_t brbp = chk ^ 0xFFFFFFu;
         uint32_t chk_bits  = chk  ^ data.as_uint32;
         uint32_t brbp_bits = brbp ^ data.as_uint32;
@@ -242,7 +242,7 @@ uint32_t bp_otp_decode_raw(uint32_t raw_data) {
             // this is OK
         } else {
             // this is NOT a valid ECC decoding ... but maybe the bootrom will think it is.  :-)
-            return BP_OTP_ECC_ERROR_POTENTIALLY_READABLE_BY_BOOTROM;
+            return SAFEROTP_ECC_ERROR_POTENTIALLY_READABLE_BY_BOOTROM;
         }
     }
     return result;
