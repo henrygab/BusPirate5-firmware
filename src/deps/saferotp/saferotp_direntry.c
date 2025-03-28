@@ -7,7 +7,7 @@
 #include <string.h>
 #include <assert.h>
 #include "pirate.h"
-#include "bp_otp.h"
+#include "saferotp.h"
 #include "debug_rtt.h"
 
 
@@ -482,16 +482,6 @@ static BP_OTPDIR_ENTRY_TYPE x_otp_direntry_get_current_type(void) {
     if (!state->entry_validated) {
         return BP_OTPDIR_ENTRY_TYPE_END;
     }
-    //return state->current_entry.entry_type;
-    if (state->current_entry.entry_type.as_uint16_t == BP_OTPDIR_ENTRY_TYPE_END.as_uint16_t) {
-        return BP_OTPDIR_ENTRY_TYPE_END;
-    } else if (state->current_entry.entry_type.as_uint16_t == BP_OTPDIR_ENTRY_TYPE_USB_WHITELABEL.as_uint16_t) {
-        return BP_OTPDIR_ENTRY_TYPE_USB_WHITELABEL;
-    } else if (state->current_entry.entry_type.as_uint16_t == BP_OTPDIR_ENTRY_TYPE_BP_CERTIFICATE.as_uint16_t) {
-        return BP_OTPDIR_ENTRY_TYPE_BP_CERTIFICATE;
-    }
-    // The entry validated, so maybe it's a new entry type?
-    PRINT_WARNING("Unknown OTPDIR entry type: 0x%04x ... returning the type anyways as it passed validation", state->current_entry.entry_type.as_uint16_t);
     return state->current_entry.entry_type;
 }
 

@@ -6,12 +6,12 @@
 #include <stdio.h>
 #include <assert.h>
 #include "../pirate.h"
-#include "bp_otp.h"
 #include "pico.h"
 #include <boot/bootrom_constants.h>
 #include "pico/bootrom.h"
 #include "pico/unique_id.h"
 #include "debug_rtt.h"
+#include "deps/saferotp/saferotp.h"
 
 #ifndef BP_OTP_PRODUCT_VERSION_STRING
     #error "BP_OTP_PRODUCT_VERSION must be defined in the platform header as the portion of the string to follow `Bus Pirate `.  E.g., `6` for BP6, or `5XL` for the BP5XL"

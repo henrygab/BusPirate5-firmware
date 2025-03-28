@@ -5,11 +5,12 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <assert.h>
-#include "../pirate.h"
-#include "bp_otp.h"
 #include "pico.h"
 #include <boot/bootrom_constants.h>
 #include "pico/bootrom.h"
+
+#include "saferotp.h"
+#include "saferotp_ecc.h"
 #include "debug_rtt.h"
 
 
