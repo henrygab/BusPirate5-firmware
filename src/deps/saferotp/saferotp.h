@@ -200,19 +200,22 @@ SAFEROTP_OTPDIR_ENTRY_TYPE saferotp_otpdir_get_current_entry_type(void);
 // Gives a consistent API for all the various data encoding schemes (RAW, byte3x, RBIT3, RBIT8, etc.)
 // NOTE: This provides a count of bytes required to retrieve the data, abstracting away the various encoding schemes
 //       with their various conversions to/from row counts.   Simplifies things for the caller to only deal with bytes.
-size_t bp_otpdir_get_current_entry_buffer_size(void);
+size_t saferotp_otpdir_get_current_entry_buffer_size(void);
 // Reads the data from OTP on behalf of the caller.  If the data is successfully read (and validated,
 // for all types except RAW), the data will be in the caller-supplied buffer.
 // Automatically handles the various data encoding schemes (RAW, byte3x, RBIT3, RBIT8, etc.)
 size_t saferotp_otpdir_get_current_entry_data(void* buffer, size_t buffer_size);
-// Adds a new entry to the OTP directory.
 // Verification includes:
-// * entry type encoding is either ECC or ECC_STRING
+// * entry type encoding is either ECC or ECC_ASCII_STRING
 // * valid_byte_count is reasonable
 // * all rows would exist within the user data OTP rows
-// * all rows are readable and encode valid ECC-encoded data
-// * for ECC_ASCII_STRING, the first NULL byte corresponds to the valid_byte_count (must be NULL terminated, and valid_byte_count must include NULL character)
-bool saferotp_otpdir_add_entry_for_existing_ecc_data(SAFEROTP_OTPDIR_ENTRY_TYPE entryType, uint16_t start_row, size_t valid_byte_count);
+// * all rows are readable
+// * all rows encode valid ECC-encoded data
+// * For ECC_ASCII_STRING
+//   * First N bytes are all in range 0x20..0x7E
+//   * All remaining bytes are 0x00
+//   * The final byte must be 0x00
+bool saferotp_otpdir_add_entry_for_existing_ecc_data(SAFEROTP_OTPDIR_ENTRY_TYPE entryType, uint16_t start_row, size_t valid_data_byte_count);
 #pragma endregion // OTP Directory related functions
 
 #ifdef __cplusplus

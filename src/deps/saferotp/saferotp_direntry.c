@@ -9,7 +9,7 @@
 #include "saferotp.h"
 
 
-#define BP_DEBUG_OVERRIDE_DEFAULT_CATEGORY BP_DEBUG_CAT_OTP
+#define BP_DEBUG_OVERRIDE_DEFAULT_CATEGORY BP_DEBUG_CAT_OTP // BUGBUG / TODO - Remove this  when in library
 #include "debug_rtt.h"
 
 
@@ -56,7 +56,7 @@ static void MyWaitForAnyKey_with_discards(void) {
 // the actual structure for the OTP DIRENTRY should remain opaque to callers.
 // this allows us to fix any architectural oversights later in a backwards-compatible
 // manner, without changing most client code.
-typedef struct _BP_OTPDIR_ENTRY {
+typedef struct _X_DIRENTRY {
     union {
         uint8_t  as_uint8_t[8];
         uint16_t as_uint16[4];
@@ -127,13 +127,13 @@ typedef struct _BP_OTPDIR_ENTRY {
             uint16_t             crc16;
         }; // common entry_type and CRC16, with union for various encodings into the directory entry
     };
-} BP_OTPDIR_ENTRY;
-static_assert(sizeof(BP_OTPDIR_ENTRY) == (4 * sizeof(uint16_t)));
+} X_DIRENTRY;
+static_assert(sizeof(X_DIRENTRY) == (4 * sizeof(uint16_t)));
 #define xROWS_PER_DIRENTRY 4u
 
 
 #if RPI_PLATFORM == RP2350
-    #define xCORE_COUNT 2u
+    #define xCORE_COUNT             (2u)
     #define xFIRST_USER_CONTENT_ROW ((uint16_t)0x0C0u)
     #define xUSER_CONTENT_ROW_COUNT ((uint16_t)(0xF40u - xFIRST_USER_CONTENT_ROW))
 #else
@@ -141,21 +141,21 @@ static_assert(sizeof(BP_OTPDIR_ENTRY) == (4 * sizeof(uint16_t)));
 #endif
 
 // Define a hard-coded location at which to start searching for directory entries.
-#define BP_OTPDIR_ENTRY_START_ROW ((uint16_t)(xFIRST_USER_CONTENT_ROW + xUSER_CONTENT_ROW_COUNT - xROWS_PER_DIRENTRY))
+#define xSTART_ROW ((uint16_t)(xFIRST_USER_CONTENT_ROW + xUSER_CONTENT_ROW_COUNT - xROWS_PER_DIRENTRY))
 
 
 // define iterator state so it's invalid (needs reset) when zero-initialized.
-typedef struct _XOTP_DIRENTRY_ITERATOR_STATE {
+typedef struct _X_ITERATOR_STATE {
     uint16_t        current_otp_row_start;                // zero is not a valid OTP row for an OTP_DIRENTRY item
-    BP_OTPDIR_ENTRY current_entry;                        // all-zero data is indicative of end-of-directory
+    X_DIRENTRY current_entry;                  // all-zero data is indicative of end-of-directory
     bool            entry_validated;                      // zero means entry not yet validated (entry type, crc, start row, data length)
     bool            should_try_next_row_if_not_validated; // set to true when read fails with ECC error
-} XOTP_DIRENTRY_ITERATOR_STATE;
+} X_ITERATOR_STATE;
 
 // One "current" OTP_DIRENTRY location is stored for each core.
 // This avoids the need for cores to synchronize their read-only operations
 // on the OTP directory.
-static XOTP_DIRENTRY_ITERATOR_STATE x_current_directory_entry[xCORE_COUNT] = {};
+static X_ITERATOR_STATE x_current_directory_entry[xCORE_COUNT] = {};
 
 #pragma region    // Basic CRC16
 // It is critical that this CRC return a value of 0x0000u
@@ -210,7 +210,7 @@ static inline uint16_t crc16_calculate(const void* buffer, size_t buffer_len) {
 
 
 #pragma region    // OTP Directory Data Encoding Type Validation functions
-bool x_otpdir_is_valid_user_content_row_range(uint16_t start_row, uint16_t row_count) {
+static bool x_otpdir_is_valid_user_content_row_range(uint16_t start_row, uint16_t row_count) {
     if (start_row < xFIRST_USER_CONTENT_ROW) {
         PRINT_WARNING("Validation of OTPDIR entry as RAW failed: start row (%03x) is less than first user content row %03x",
             start_row, xFIRST_USER_CONTENT_ROW
@@ -228,7 +228,7 @@ bool x_otpdir_is_valid_user_content_row_range(uint16_t start_row, uint16_t row_c
 }
 
 // SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_NONE
-bool x_otpdir_entry_appears_valid_none(const BP_OTPDIR_ENTRY* entry) {
+static bool x_otpdir_entry_appears_valid_none(const X_DIRENTRY* entry) {
     if (entry->entry_type.encoding_type != SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_NONE) {
         PRINT_ERROR("Validating entry type as NONE, but type of the entry is 0x%02x", entry->entry_type.encoding_type);
         return false;
@@ -240,7 +240,7 @@ bool x_otpdir_entry_appears_valid_none(const BP_OTPDIR_ENTRY* entry) {
     return true;
 }
 // SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_RAW
-bool x_otpdir_entry_appears_valid_raw(const BP_OTPDIR_ENTRY* entry) {
+static bool x_otpdir_entry_appears_valid_raw(const X_DIRENTRY* entry) {
     if (entry->entry_type.encoding_type != SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_RAW) {
         PRINT_ERROR("Validating entry type as RAW, but type of the entry is 0x%02x", entry->entry_type.encoding_type);
         return false;
@@ -255,7 +255,7 @@ bool x_otpdir_entry_appears_valid_raw(const BP_OTPDIR_ENTRY* entry) {
     return true;
 }
 // SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_BYTE3X
-bool x_otpdir_entry_appears_valid_byte3x(const BP_OTPDIR_ENTRY* entry) {
+static bool x_otpdir_entry_appears_valid_byte3x(const X_DIRENTRY* entry) {
     if (entry->entry_type.encoding_type != SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_BYTE3X) {
         PRINT_ERROR("Validating entry type as BYTE3X, but type of the entry is 0x%02x", entry->entry_type.encoding_type);
         return false;
@@ -270,7 +270,7 @@ bool x_otpdir_entry_appears_valid_byte3x(const BP_OTPDIR_ENTRY* entry) {
     return true;
 }
 // BP_OTPDIR_DATA_ENCODING_TYPE_RBIT3
-bool x_otpdir_entry_appears_valid_rbit3(const BP_OTPDIR_ENTRY* entry) {
+static bool x_otpdir_entry_appears_valid_rbit3(const X_DIRENTRY* entry) {
     if (entry->entry_type.encoding_type != SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_RBIT3) {
         PRINT_ERROR("Validating entry type as RBIT3, but type of the entry is 0x%02x", entry->entry_type.encoding_type);
         return false;
@@ -289,7 +289,7 @@ bool x_otpdir_entry_appears_valid_rbit3(const BP_OTPDIR_ENTRY* entry) {
     return true;
 }
 // SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_RBIT8
-bool x_otpdir_entry_appears_valid_rbit8(const BP_OTPDIR_ENTRY* entry) {
+static bool x_otpdir_entry_appears_valid_rbit8(const X_DIRENTRY* entry) {
     if (entry->entry_type.encoding_type != SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_RBIT8) {
         PRINT_ERROR("Validating entry type as RBIT8, but type of the entry is 0x%02x", entry->entry_type.encoding_type);
         return false;
@@ -308,7 +308,7 @@ bool x_otpdir_entry_appears_valid_rbit8(const BP_OTPDIR_ENTRY* entry) {
     return true;
 }
 // SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_ECC and SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_ECC_ASCII_STRING
-bool x_otpdir_entry_appears_valid_ecc(const BP_OTPDIR_ENTRY* entry) {
+static bool x_otpdir_entry_appears_valid_ecc(const X_DIRENTRY* entry) {
     if (entry->entry_type.encoding_type != SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_ECC) {
         PRINT_ERROR("Validating entry type as ECC, but type of the entry is 0x%02x", entry->entry_type.encoding_type);
         return false;
@@ -324,7 +324,7 @@ bool x_otpdir_entry_appears_valid_ecc(const BP_OTPDIR_ENTRY* entry) {
     return true;
 }
 // SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_EMBEDED_IN_DIRENTRY
-bool x_otpdir_entry_appears_valid_embedded(const BP_OTPDIR_ENTRY* entry) {
+static bool x_otpdir_entry_appears_valid_embedded(const X_DIRENTRY* entry) {
     if (entry->entry_type.encoding_type != SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_EMBEDED_IN_DIRENTRY) {
         PRINT_ERROR("Validating entry type as EMBEDED_IN_DIRENTRY, but type of the entry is 0x%02x", entry->entry_type.encoding_type);
         return false;
@@ -339,7 +339,7 @@ bool x_otpdir_entry_appears_valid_embedded(const BP_OTPDIR_ENTRY* entry) {
 // This function will read the entry at the given OTP row.
 // If the entry is not readable in RAW form, then it will
 // skip the current entry and read the next one.
-static void x_otp_read_and_validate_direntry(uint16_t direntry_otp_row, XOTP_DIRENTRY_ITERATOR_STATE* out_state) {
+static void x_otp_read_and_validate_direntry(uint16_t direntry_otp_row, X_ITERATOR_STATE* out_state) {
     bool failure = false;
     bool should_try_next_row_if_not_validated = false;
     if (direntry_otp_row < xFIRST_USER_CONTENT_ROW) {
@@ -348,12 +348,12 @@ static void x_otp_read_and_validate_direntry(uint16_t direntry_otp_row, XOTP_DIR
         failure = true;
     }
 
-    BP_OTPDIR_ENTRY entry;
-    memset(&entry, 0, sizeof(BP_OTPDIR_ENTRY));
+    X_DIRENTRY entry;
+    memset(&entry, 0, sizeof(X_DIRENTRY));
  
     // read the entry
     if (!failure) {
-        if (!saferotp_read_ecc_data(direntry_otp_row, &entry, sizeof(BP_OTPDIR_ENTRY))) {
+        if (!saferotp_read_ecc_data(direntry_otp_row, &entry, sizeof(X_DIRENTRY))) {
             // TODO: Want to skip entries that are not readable.
             //       Maybe read as RAW to distinguish unreadable vs. not encoded with ECC data?
             //       For now, just skip the entry ... eventually will hit invalid data or out-of-range row.
@@ -371,7 +371,7 @@ static void x_otp_read_and_validate_direntry(uint16_t direntry_otp_row, XOTP_DIR
 
     // Validate the CRC16
     if (!failure) {
-        uint16_t crc16 = crc16_calculate(&entry, sizeof(BP_OTPDIR_ENTRY) - 2);
+        uint16_t crc16 = crc16_calculate(&entry, sizeof(X_DIRENTRY) - 2);
         if (crc16 != entry.crc16) {
             failure = true;
         }
@@ -427,11 +427,11 @@ static void x_otp_read_and_validate_direntry(uint16_t direntry_otp_row, XOTP_DIR
     // OK, either failure, or the entry itself seems reasonable.  Update the state accordingly.
     // NOTE: SUCCESS will be returned when there is an entry of `BP_OTDIR_ENTRY_TYPE_END`.
     if (failure) {
-        memset(out_state, 0, sizeof(XOTP_DIRENTRY_ITERATOR_STATE));
+        memset(out_state, 0, sizeof(X_ITERATOR_STATE));
         out_state->current_entry.entry_type.as_uint16_t = SAFEROTP_OTPDIR_ENTRY_TYPE_INVALID.as_uint16_t;
         out_state->should_try_next_row_if_not_validated = should_try_next_row_if_not_validated;
     } else {
-        memcpy(&out_state->current_entry, &entry, sizeof(BP_OTPDIR_ENTRY));
+        memcpy(&out_state->current_entry, &entry, sizeof(X_DIRENTRY));
         out_state->current_otp_row_start = direntry_otp_row;
         out_state->entry_validated = true;
     }
@@ -441,8 +441,8 @@ static void x_otp_read_and_validate_direntry(uint16_t direntry_otp_row, XOTP_DIR
 // This function will attempt to validate the entry at the given OTP starting row.
 // This function will automatically advance to the next entry if the current entry
 // is not valid, but 
-static bool x_otp_direntry_find_next_entry(XOTP_DIRENTRY_ITERATOR_STATE* state, uint16_t starting_row) {
-    memset(state, 0, sizeof(XOTP_DIRENTRY_ITERATOR_STATE));
+static bool x_otp_direntry_find_next_entry(X_ITERATOR_STATE* state, uint16_t starting_row) {
+    memset(state, 0, sizeof(X_ITERATOR_STATE));
     uint16_t row = starting_row;
     do {
         x_otp_read_and_validate_direntry(row, state);
@@ -457,13 +457,13 @@ static bool x_otp_direntry_find_next_entry(XOTP_DIRENTRY_ITERATOR_STATE* state, 
 }
 // Ref: FindFirstFile()
 static bool x_otp_direntry_reset_directory_iterator(void) {
-    XOTP_DIRENTRY_ITERATOR_STATE* state = &x_current_directory_entry[ get_core_num() ];
-    uint16_t starting_row = BP_OTPDIR_ENTRY_START_ROW;
+    X_ITERATOR_STATE* state = &x_current_directory_entry[ get_core_num() ];
+    uint16_t starting_row = xSTART_ROW;
     return x_otp_direntry_find_next_entry(state, starting_row);
 }
 // Ref: FindNextFile()
 static bool x_otp_direntry_move_to_next_entry(void) {
-    XOTP_DIRENTRY_ITERATOR_STATE* state = &x_current_directory_entry[ get_core_num() ];
+    X_ITERATOR_STATE* state = &x_current_directory_entry[ get_core_num() ];
     if (!state->entry_validated) {
         return false; // do nothing ...
     }
@@ -480,7 +480,7 @@ static bool x_otp_direntry_move_to_next_entry(void) {
 // 2. Get size of buffer required to read the corresponding data
 // 3. Read the corresponding data into a caller-supplied buffer
 static SAFEROTP_OTPDIR_ENTRY_TYPE x_otp_direntry_get_current_type(void) {
-    XOTP_DIRENTRY_ITERATOR_STATE* state = &x_current_directory_entry[ get_core_num() ];
+    X_ITERATOR_STATE* state = &x_current_directory_entry[ get_core_num() ];
     if (!state->entry_validated) {
         return SAFEROTP_OTPDIR_ENTRY_TYPE_END;
     }
@@ -489,7 +489,7 @@ static SAFEROTP_OTPDIR_ENTRY_TYPE x_otp_direntry_get_current_type(void) {
 
 static size_t x_otp_direntry_get_current_buffer_size_required(void) {
 
-    XOTP_DIRENTRY_ITERATOR_STATE* state = &x_current_directory_entry[ get_core_num() ];
+    X_ITERATOR_STATE* state = &x_current_directory_entry[ get_core_num() ];
     size_t result = 0u;
 
     if (!state->entry_validated) {
@@ -523,7 +523,7 @@ static size_t x_otp_direntry_get_current_buffer_size_required(void) {
 }
 
 static size_t x_otp_direntry_get_current_entry_data(void* buffer, size_t buffer_size) {
-    XOTP_DIRENTRY_ITERATOR_STATE* state = &x_current_directory_entry[ get_core_num() ];
+    X_ITERATOR_STATE* state = &x_current_directory_entry[ get_core_num() ];
 
     if (buffer_size == 0u) {
         PRINT_ERROR("Requested zero bytes of data for the current OTPDIR entry ... this is an error in the calling code");
@@ -663,38 +663,30 @@ bool saferotp_otpdir_find_next_entry_of_type(SAFEROTP_OTPDIR_ENTRY_TYPE entryTyp
 // Automatically handles the various data encoding schemes (RAW, byte3x, RBIT3, RBIT8, etc.).
 // On success, returns the number of bytes actually read.
 // On failure, returns zero.
-// The buffer provided must be at least bp_otpdir_get_current_entry_buffer_size() bytes in size.
+// The buffer provided must be at least saferotp_otpdir_get_current_entry_buffer_size() bytes in size.
 size_t saferotp_otpdir_get_current_entry_data(void* buffer, size_t buffer_size) {
     return x_otp_direntry_get_current_entry_data(buffer, buffer_size);
 }
-
 
 SAFEROTP_OTPDIR_ENTRY_TYPE saferotp_otpdir_get_current_entry_type(void) {
     return x_otp_direntry_get_current_type();
 }
 // Returns the buffer size (in bytes) required to get the data referenced by the current entry.
-// Gives a consistent API for all the various data encoding schemes (RAW, byte3x, RBIT3, RBIT8, etc.)
-// NOTE: This provides a count of bytes required to retrieve the data, abstracting away the various encoding schemes
-//       with their various conversions to/from row counts.   Simplifies things for the caller to only deal with bytes.
-size_t bp_otpdir_get_current_entry_buffer_size(void) {
+// Gives a consistent API for all the various data encoding schemes (RAW, byte3x, RBIT3, RBIT8, etc.).
+// NOTE: By abstracting away the various encoding schemes, callers can simply allocate a buffer
+//       of the returned size, and simply deal with byte-based buffers, simplifying use of the API.
+size_t saferotp_otpdir_get_current_entry_buffer_size(void) {
     return x_otp_direntry_get_current_buffer_size_required();
 }
 
+bool saferotp_otpdir_add_entry_for_existing_ecc_data(
+    SAFEROTP_OTPDIR_ENTRY_TYPE entryType,
+    uint16_t start_row,
+    size_t valid_data_byte_count
+)
+{
+    return false; // BUGBUG / TODO - NYI
+}
 
-
-// Adds a new entry to the OTP directory.
-// NOTE: Resets the iterator state.
-//       saferotp_otpdir_find_first_entry_of_type(SAFEROTP_OTPDIR_ENTRY_TYPE_END)
-// Currently limited to adding ECC encoded data, to get something integrated and working.
-//
-// Verification includes:
-// * entry type encoding is either ECC or ECC_STRING
-// * valid_byte_count is reasonable
-// * all rows would exist within the user data OTP rows
-// * all rows are readable
-// * all rows encode valid ECC-encoded data
-// * for ECC_ASCII_STRING, the first NULL byte corresponds to the valid_byte_count (must be NULL terminated, and valid_byte_count must include NULL character)
-// bool saferotp_otpdir_add_entry_for_existing_ecc_data(SAFEROTP_OTPDIR_ENTRY_TYPE entryType, uint16_t start_row, size_t valid_byte_count);
-
-
+// Adds a new directory entry of another type to the OTP directory.
 
