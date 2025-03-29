@@ -685,7 +685,108 @@ bool saferotp_otpdir_add_entry_for_existing_ecc_data(
     size_t valid_data_byte_count
 )
 {
-    return false; // BUGBUG / TODO - NYI
+    bool failure = false;
+    size_t required_rows;
+    bool is_ascii_string = false;
+    // Validate entry type's encoding is either ECC or ECC_ASCII_STRING
+    if (!failure) {
+        if (entryType.encoding_type == SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_ECC_ASCII_STRING) {
+            is_ascii_string = true;
+        } else if (entryType.encoding_type == SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_ECC) {
+            is_ascii_string = false;
+        } else {
+            PRINT_ERROR("Entry type 0x%04x has encoding type 0x%x (expected encoding 0x%x or 0x%x)",
+                entryType.encoding_type, entryType.encoding_type,
+                SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_ECC,
+                SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_ECC_ASCII_STRING
+            );
+            failure = true;
+        }
+    }
+    // Validate all rows would exist within the user data OTP rows
+    // Validate the byte_count is reasonable
+    if (!failure) {
+        required_rows = (valid_data_byte_count/2u) + (valid_data_byte_count % 2u) ? 1 : 0;
+        if (required_rows > xUSER_CONTENT_ROW_COUNT) {
+            PRINT_ERROR("valid_data_byte_count 0x%zx exceeds size of OTP user data space (0x%zx)",
+                entryType.encoding_type, required_rows, xUSER_CONTENT_ROW_COUNT
+            );
+            failure = true;
+        } else if (start_row < xFIRST_USER_CONTENT_ROW) {
+            PRINT_ERROR("Start row of %03x must be >= first user content row (%03x).",
+                start_row, xFIRST_USER_CONTENT_ROW
+            );
+            failure = true;
+        } else if (start_row >= xFIRST_USER_CONTENT_ROW + xUSER_CONTENT_ROW_COUNT) {
+            PRINT_ERROR("Start row of %03x must be < first user content row (%03x + %03x).",
+                start_row, xFIRST_USER_CONTENT_ROW, xUSER_CONTENT_ROW_COUNT
+            );
+            failure = true;
+        } else if (start_row + required_rows > xFIRST_USER_CONTENT_ROW + xUSER_CONTENT_ROW_COUNT) {
+            PRINT_ERROR("Start row of %03x ECC encoding %zx bytes (%x rows) exceeds end of user content space (%03x)",
+                start_row, valid_data_byte_count, required_rows,
+                xFIRST_USER_CONTENT_ROW + xUSER_CONTENT_ROW_COUNT
+            );
+            failure = true;
+        }
+    }
+    
+    // Validate all rows are readable, have vlaid ECC-encded data,
+    // and (for ASCII strings) that the data is actually valid ASCII string
+    if (!failure) {
+        bool found_trailing_null = false;
+        size_t remaining_bytes_to_check = valid_data_byte_count;
+        for (uint_fast16_t current_row = start_row; current_row < start_row + required_rows; ++current_row, remaining_bytes_to_check -= 2u) {
+            uint8_t data[2];
+            if (!saferotp_read_ecc_data(current_row, data, sizeof(data))) {
+                PRINT_ERROR("Failed to read ECC data from OTP row %03x", current_row);
+                failure = true;
+                break;
+            }
+            if (is_ascii_string) {
+                if (data[0] == 0u) {
+                    found_trailing_null = true;
+                } else if (found_trailing_null) {
+                    PRINT_ERROR("ECC ASCII string data contains embedded NULL followed by non-NULL at row %03x", data[0], current_row);
+                    failure = true;
+                    break;
+                } else if ((data[1] < 0x20u) || (data[0] > 0x7Eu)) {
+                    PRINT_ERROR("ECC ASCII string data contains non-printable character 0x%02x in row %03x", data[0], current_row);
+                    failure = true;
+                    break;
+                }
+                // repeat with the second byte
+                if (remaining_bytes_to_check < 2) {
+                    // no second byte to check ... ignore final filler byte
+                } else if (data[0] == 0u) {
+                    found_trailing_null = true;
+                } else if (found_trailing_null) {
+                    PRINT_ERROR("ECC ASCII string data contains embedded NULL followed by non-NULL at row %03x", data[0], current_row);
+                    failure = true;
+                    break;
+                } else if ((data[1] < 0x20u) || (data[0] > 0x7Eu)) {
+                    PRINT_ERROR("ECC ASCII string data contains non-printable character 0x%02x in row %03x", data[1], current_row);
+                    failure = true;
+                    break;
+                }
+            }
+        }
+
+        if (!failure && is_ascii_string && !found_trailing_null) {
+            PRINT_ERROR("ECC ASCII string must include a trailing NULL character, but none found");
+            failure = true;
+        }
+    }
+
+    // If the entry appears to point to valid ECC-encoded data,
+    // construct a new entry, find the end of the current directory,
+    // and write the new entry to extend the directory with the new entry.
+    if (!failure) {
+        PRINT_ERROR("Not yet implemented"); // BUGBUG / TODO - NYI
+        failure = true;
+    }
+
+    return failure;
 }
 
 // Adds a new directory entry of another type to the OTP directory.
