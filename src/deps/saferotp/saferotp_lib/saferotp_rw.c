@@ -144,7 +144,6 @@ static bool is_valid_otp_range_raw(uint16_t starting_row, size_t raw_byte_count)
     return true;
 }
 
-
 static void initialize_virtualized_otp(void) {
     // read all 16k of OTP into the virtualized buffer
     size_t error_count = 0u;
@@ -246,8 +245,8 @@ static bool virt_read_raw_otp_wrapper(uint16_t starting_row, void* buffer, size_
         // verify the existing value was readable ... else return an error
         SAFEROTP_RAW_READ_RESULT *current = &g_virtual_otp.rows[starting_row + i];
         if (current->is_error) {
-            PRINT_ERROR("OTP VIRT WRITE Error: Attempt to write virtualized OTP row 0x%03x, which previously failed to read (start row %03x, buffer size %zx)\n", starting_row+i, starting_row, buffer_size);
-            return false;
+            PRINT_ERROR("OTP VIRT READ Error: Attempt to write virtualized OTP row 0x%03x, which previously failed to read (start row %03x, buffer size %zx)\n", starting_row+i, starting_row, buffer_size);
+            return false; // report the error
         }
         // Else return the value from the virtualized buffer
         uint32_t * to_write = &(((uint32_t*)buffer)[i]);

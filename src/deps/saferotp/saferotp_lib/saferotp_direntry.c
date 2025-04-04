@@ -396,7 +396,7 @@ static void x_otp_read_and_validate_direntry(uint16_t direntry_otp_row, X_ITERAT
     // NOTE: SUCCESS will be returned when there is an entry of `BP_OTDIR_ENTRY_TYPE_END`.
     if (failure) {
         memset(out_state, 0, sizeof(X_ITERATOR_STATE));
-        out_state->current_entry.entry_type.as_uint16_t = SAFEROTP_OTPDIR_ENTRY_TYPE_INVALID.as_uint16_t;
+        out_state->current_entry.entry_type.as_uint16 = SAFEROTP_OTPDIR_ENTRY_TYPE_INVALID.as_uint16;
         out_state->should_try_next_row_if_not_validated = should_try_next_row_if_not_validated;
     } else {
         memcpy(&out_state->current_entry, &entry, sizeof(X_DIRENTRY));
@@ -435,7 +435,7 @@ static bool x_otp_direntry_move_to_next_entry(void) {
     if (!state->entry_validated) {
         return false; // do nothing ...
     }
-    if (state->current_entry.entry_type.as_uint16_t == SAFEROTP_OTPDIR_ENTRY_TYPE_END.as_uint16_t) {
+    if (state->current_entry.entry_type.as_uint16 == SAFEROTP_OTPDIR_ENTRY_TYPE_END.as_uint16) {
         return false; // do nothing ...
     }
     uint16_t starting_row = state->current_otp_row_start - xROWS_PER_DIRENTRY;
@@ -607,7 +607,7 @@ bool saferotp_otpdir_find_first_entry_of_type(SAFEROTP_OTPDIR_ENTRY_TYPE entryTy
     if (!saferotp_otpdir_find_first_entry()) {
         return false;
     }
-    while (saferotp_otpdir_get_current_entry_type().as_uint16_t != entryType.as_uint16_t) {
+    while (saferotp_otpdir_get_current_entry_type().as_uint16 != entryType.as_uint16) {
         if (!saferotp_otpdir_find_next_entry()) {
             return false;
         }
@@ -618,7 +618,7 @@ bool saferotp_otpdir_find_next_entry_of_type(SAFEROTP_OTPDIR_ENTRY_TYPE entryTyp
     if (!saferotp_otpdir_find_next_entry()) {
         return false;
     }
-    while (saferotp_otpdir_get_current_entry_type().as_uint16_t != entryType.as_uint16_t) {
+    while (saferotp_otpdir_get_current_entry_type().as_uint16 != entryType.as_uint16) {
         if (!saferotp_otpdir_find_next_entry()) {
             return false;
         }
