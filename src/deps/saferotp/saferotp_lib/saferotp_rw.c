@@ -38,6 +38,9 @@ static bool hw_write_raw_otp_wrapper(uint16_t starting_row, const void* buffer, 
     cmd.flags |= OTP_CMD_WRITE_BITS;
     WAIT_FOR_KEY();
     int r = rom_func_otp_access((uint8_t*)buffer, buffer_size, cmd);
+    if (r != BOOTROM_OK) {
+        PRINT_ERROR("OTP WRITE Error: Failed to write raw OTP values starting at row %03x (%d bytes / 0x%x rows), error %d (0x%x)\n", starting_row, buffer_size, (buffer_size/sizeof(uint32_t)), r, r);
+    }
     return (BOOTROM_OK == r);
 }
 // returns TRUE on successful read, FALSE on failures
@@ -45,6 +48,9 @@ static bool hw_read_raw_otp_wrapper(uint16_t starting_row, void* buffer, size_t 
     otp_cmd_t cmd;
     cmd.flags = starting_row;
     int r = rom_func_otp_access((uint8_t*)buffer, buffer_size, cmd);
+    if (r != BOOTROM_OK) {
+        PRINT_ERROR("OTP READ Error: Failed to write raw OTP values starting at row %03x (%d bytes / 0x%x rows), error %d (0x%x)\n", starting_row, buffer_size, (buffer_size/sizeof(uint32_t)), r, r);
+    }
     return (BOOTROM_OK == r);
 }
 
@@ -53,7 +59,7 @@ static bool hw_read_raw_otp_wrapper(uint16_t starting_row, void* buffer, size_t 
 #if defined(BP_USE_VIRTUALIZED_OTP)
 
 // Enable "virtualized" OTP ... useful for testing.
-// 8k of OTP is a lot to virtualize... 
+// 16k of OTP is a lot to virtualize... 
 // but RP2350 has 512k, of which >256k is currently free, so go with SIMPLE!
 // * [ ] At initialization:
 //   * [ ] Detect if OTP virtualization file exists on media (and correct size)
@@ -80,19 +86,30 @@ static bool hw_read_raw_otp_wrapper(uint16_t starting_row, void* buffer, size_t 
 //   * All other values == YAGNI
 //
 typedef struct _BP_VIRTUALIZED_OTP_BUFFER {
-    SAFEROTP_RAW_READ_RESULT rows[0x1000]; // 0x1000 == 4096 rows, requiring 4 bytes each in simplest raw form
+    SAFEROTP_RAW_READ_RESULT rows[0x1000]; // 0x1000 == 4096 rows, requiring 4 bytes each == 16k statically allocated buffer (!!)
 } BP_VIRTUALIZED_OTP_BUFFER;
 static BP_VIRTUALIZED_OTP_BUFFER g_virtual_otp = { };
 
 static void initialize_virtualized_otp(void) {
-    // read all 8k of OTP into the virtualized buffer
+    // read all 16k of OTP into the virtualized buffer
+    size_t error_count = 0u;
     for (uint16_t row = 0; row < 0x1000u; ++row) {
-        int r = read_raw_wrapper(row, &g_virtual_otp.rows[row], sizeof(SAFEROTP_RAW_READ_RESULT));
-        if (BOOTROM_OK != r) {
-            PRINT_ERROR("OTP_RW Error: virtual otp init: Failed to read row %03x: %d (0x%x)\n", row, r, r);
+        if (!read_raw_wrapper(row, &g_virtual_otp.rows[row], sizeof(SAFEROTP_RAW_READ_RESULT))) {
+            // can easily scan for errors by just checking if any of the high bits were set
             g_virtual_otp.rows[row].as_uint32 = 0xFFFFFFFFu; // ensure the stored value is an error
+            error_count++;
         }
     }
+    if (error_count > 0u) {
+        PRINT_WARNING("OTP VIRT Warning: Failed to read %d rows of OTP data into virtualized buffer\n", error_count);
+        // loop and print failing indices?
+        for (uint16_t row = 0; row < 0x1000u; ++row) {
+            if ((g_virtual_otp.rows[row].as_uint32 & 0xFFu) != 0u){
+                PRINT_WARNING("OTP VIRT Warning: -->  Row 0x%03x failed to read\n", row);
+            }
+        }
+    }
+    return;
 }
 static inline uint16_t ROW_TO_OTP_PAGE(uint16_t row)    { return row >> 6; }
 #pragma error "TODO: Lots of things still to implement to enable virtualized OTP..."
