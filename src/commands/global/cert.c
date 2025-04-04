@@ -27,7 +27,7 @@
 #include "pubkey/pubkey.h"
 #include <boot/bootrom_constants.h>
 #include <pico/bootrom.h>
-#include "deps/saferotp/saferotp.h"
+#include "saferotp.h"
 
  
 #define BYTES_PER_OTP_PAGE 128

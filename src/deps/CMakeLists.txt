@@ -1,3 +1,5 @@
-if (NOT TARGET buspirate_safeotp)
-  include(safeotp.cmake)
+
+if(${PICO_PLATFORM} MATCHES "rp2350")
+  message(STATUS "Adding SaferOTP library")
+  add_subdirectory(saferotp)
 endif()

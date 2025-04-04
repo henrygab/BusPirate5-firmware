@@ -14,6 +14,10 @@ ADD_CUSTOM_TARGET (
     COMMAND ${CMAKE_COMMAND} -P ${CMAKE_BINARY_DIR}/timestamp.cmake
     ADD_DEPENDENCIES ${CMAKE_BINARY_DIR}/timestamp.cmake)
 
+# Subdirectorise for independent static libraries (linked later)
+add_subdirectory(deps deps)
+
+
 # Add executable. Default name is the project name, version 0.1
 set(buspirate_common
         # main loop and printf
@@ -407,12 +411,6 @@ set (buspirate_rtt
 )
 
 set (rp2350_common
-        # SaferOTP will become a library...
-        deps/saferotp/saferotp_ecc.h
-        deps/saferotp/saferotp_ecc.c
-        deps/saferotp/saferotp_direntry.c
-        deps/saferotp/saferotp_rw.c
-        deps/saferotp/saferotp.h
         otp/bp_whitelabel.c
         commands/global/cmd_otp.c
         commands/global/cmd_otp.h
@@ -564,8 +562,10 @@ foreach(revision ${revisions})
         pico_set_program_version(${revision} "0.1.0")
         if(${PICO_PLATFORM} MATCHES "rp2350")
                 pico_set_program_description(${revision} "Bus Pirate 5XL/6/7 Firmware for RP2350")
+                target_link_libraries(${revision} ${stdlibs} saferotp_lib)
         else()
                 pico_set_program_description(${revision} "Bus Pirate 5 Firmware for RP2040")
+                target_link_libraries(${revision} ${stdlibs} )
         endif()
         pico_enable_stdio_uart(${revision} 0)
         pico_enable_stdio_usb(${revision} 0)
@@ -577,7 +577,6 @@ foreach(revision ${revisions})
         target_compile_definitions(${revision} PUBLIC PICO_STACK_SIZE=4096)        
 
         # Add the standard library to the build
-        target_link_libraries(${revision} ${stdlibs} )
         target_include_directories(${revision} PUBLIC
                 ${CMAKE_CURRENT_LIST_DIR}
                 .
@@ -600,16 +599,22 @@ string(APPEND CMAKE_EXE_LINKER_FLAGS "-Wl,--cref,--print-memory-usage")
 set(USE_LGPL3 TRUE CACHE BOOL "indicated if to include LGPL3 protected code")
 include(../cmake/ansi_colours_import.cmake)
 if(USE_LGPL3)
-if(LEGACY_ANSI_COLOURS_ENABLED)
-        if(${PICO_PLATFORM} MATCHES "rp2350")
-                target_link_libraries(bus_pirate5_xl         lib_ansi_colours)
-                target_link_libraries(bus_pirate6           lib_ansi_colours)
-#                target_link_libraries(bus_pirate7           lib_ansi_colours)
-        else()
-                target_link_libraries(bus_pirate5_rev10       lib_ansi_colours)
-                target_link_libraries(bus_pirate5_rev8        lib_ansi_colours)
+        if(LEGACY_ANSI_COLOURS_ENABLED)
+                if(${PICO_PLATFORM} MATCHES "rp2350")
+                        target_link_libraries(bus_pirate5_xl         lib_ansi_colours)
+                        target_link_libraries(bus_pirate6            lib_ansi_colours)
+#                        target_link_libraries(bus_pirate7           lib_ansi_colours)
+                else()
+                        target_link_libraries(bus_pirate5_rev10       lib_ansi_colours)
+                        target_link_libraries(bus_pirate5_rev8        lib_ansi_colours)
+                endif()
         endif()
 endif()
+if(${PICO_PLATFORM} MATCHES "rp2350")
+        target_link_libraries(bus_pirate5_xl   saferotp_lib)
+        target_link_libraries(bus_pirate6      saferotp_lib)
+#       target_link_libraries(bus_pirate7      saferotp_lib)
 endif()
+
 
  

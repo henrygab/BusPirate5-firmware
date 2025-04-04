@@ -6,12 +6,15 @@
 #include <string.h>
 #include <assert.h>
 
-#include "saferotp.h"
+//#include "pico.h"
 
+#include "saferotp.h"
+#include "saferotp_debug_stub.h"
+
+#if 0 // non-library debug code ... e.g., using Segger RTT for input / output
 
 #define BP_DEBUG_OVERRIDE_DEFAULT_CATEGORY BP_DEBUG_CAT_OTP // BUGBUG / TODO - Remove this  when in library
 #include "debug_rtt.h"
-
 
 // ****** IMPORTANT DEVELOPEMENT NOTE ******
 // During development, it's REALLY useful to force the code to single-step through this process.
@@ -51,6 +54,8 @@ static void MyWaitForAnyKey_with_discards(void) {
 
     return;
 }
+#endif
+
 
 // ======================================================================
 // the actual structure for the OTP DIRENTRY should remain opaque to callers.
@@ -318,7 +323,7 @@ static bool x_otpdir_entry_appears_valid_ecc(const X_DIRENTRY* entry) {
         return false;
     }
     uint16_t row_count = entry->ecc_data.byte_count / 2u + (entry->ecc_data.byte_count % 2u) ? 1 : 0;
-    if (!x_otpdir_is_valid_user_content_row_range(entry->ecc_data.start_row, (entry->ecc_data.byte_count + 1u) / 2u)) {
+    if (!x_otpdir_is_valid_user_content_row_range(entry->ecc_data.start_row, row_count)) {
         return false;
     }
     return true;

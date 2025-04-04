@@ -24,8 +24,8 @@
 //#include "msc_disk.h"
 #include "otp/bp_otp.h"
 #include "ui/ui_term.h"
-#include "deps/saferotp/saferotp_ecc.h"
-#include "deps/saferotp/saferotp.h"
+#include "saferotp_ecc.h"
+#include "saferotp.h"
 
 // This array of strings is used to display help USAGE examples for the dummy command
 static const char* const usage[] = {
