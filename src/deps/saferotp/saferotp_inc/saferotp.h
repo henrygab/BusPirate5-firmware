@@ -79,6 +79,38 @@ static_assert(sizeof(SAFEROTP_OTPDIR_ENTRY_TYPE) == sizeof(uint16_t));
 // C11 and C23 don't seem to enable a way to statically assert SAFEROTP_OTPDIR_ENTRY_TYPE_INVALID.as_uint16 == 0xFFFFu.  Sigh...
 #pragma endregion // BP_OTP_DIRENTRY_TYPE
 
+#pragma region    // OTP Virtualization support
+/// @brief 
+/// Initializes the virtualization layer.
+/// By default (mask of 0u), all current values are read from OTP to initialize the virtualized buffer.
+/// If any of the bits of the `ignored_pages_mask` are set, then those pages of OTP rows will not be
+/// read from OTP, and will be initialized to all-zero values.
+/// This function may only be called once ... after which OTP access via this library will
+/// be entirely virtualized.
+/// @param ignored_pages_mask If a bit is set, then the corresponding page of OTP rows will be
+///        initialized with zero instead of the current values
+/// @return true if the virtualization layer was successfully initialized.
+bool saferotp_virtualization_init_pages(uint64_t ignored_pages_mask);
+/// @brief Provides a way to restore a set of virtualized OTP rows, regardless of current values.
+///        This is intended to be used to allow state to be stored / restored externally, enabling
+///        testing of virtualized OTP across reboots.  Restoration can be done at any time, and
+///        in multiple calls, to align with various storage alignment restrictions.
+/// @param starting_row The first row of the OTP pages to restore with the provided values.
+/// @param buffer A buffer containing a `uint32_t` value for each consecutive OTP row to be restored.
+/// @param buffer_size Count of bytes in the buffer. This must be a multiple of 4 bytes.
+/// @return true if the virtualized OTP rows were successfully restored.
+bool saferotp_virtualization_restore(uint16_t starting_row, const void* buffer, size_t buffer_size);
+/// @brief Provides a way to retrieve a set of virtualized OTP rows, regardless of current values
+///        and permissions.  This is intended to be used to allow state to be stored / restored externally,
+///        enabling testing of virtualized OTP across reboots.  Retrieval can be done at any time, and
+///        in multiple calls, to align with various storage alignment restrictions.
+/// @param starting_row The first row of the OTP pages to retrieve with the provided values.
+/// @param buffer A buffer in which to write a `uint32_t` value for each consecutive OTP row to be retrieved.
+/// @param buffer_size Count of bytes in the buffer. This must be a multiple of 4 bytes.
+/// @return true if the virtualized OTP rows were successfully retrieved.
+bool saferotp_virtualization_save(uint16_t starting_row, void* buffer, size_t buffer_size);
+#pragma endregion // OTP Virtualization support
+
 #pragma region    // OTP Read / Write functions
 
 // RP2350 OTP can encode data in multiple ways:
