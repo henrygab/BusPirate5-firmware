@@ -1,4 +1,5 @@
 
+#include <stdio.h>
 #include "debug_rtt.h"
 
 bool _SYSTEM_INITIALIZATION_COMPLETED = false;
