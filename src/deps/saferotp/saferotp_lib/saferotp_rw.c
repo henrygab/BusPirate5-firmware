@@ -13,6 +13,10 @@
 #include "saferotp_debug_stub.h"
 
 
+// Set this global variable anywhere in the code
+// to immediately wait for keypress prior to writing
+// to the OTP fuses.  This will catch ***ALL*** writes
+// that use this library.
 static volatile bool g_WaitForKey_otp_rw = false;
 #define WAIT_FOR_KEY()                 \
     do {                               \
@@ -327,8 +331,7 @@ static bool read_single_otp_value_N_of_M(uint16_t start_row, uint8_t N, uint8_t 
 static bool write_single_otp_value_N_of_M(uint16_t start_row, uint8_t N, uint8_t M, uint32_t new_value) {
 
     // 1. read the old data
-    PRINT_DEBUG("OTP_RW Debug: Write OTP 2-of-3: row 0x%03x\n", start_row); WAIT_FOR_KEY();
-
+    PRINT_DEBUG("OTP_RW Debug: Write OTP 2-of-3: row 0x%03x\n", start_row);
     uint32_t old_voted_bits;
     if (!read_single_otp_value_N_of_M(start_row, N, M, &old_voted_bits)) {
         PRINT_DEBUG("OTP_RW Debug: Failed to read %d-of-%d starting at row 0x%03x\n", N, M, start_row);
@@ -363,7 +366,7 @@ static bool write_single_otp_value_N_of_M(uint16_t start_row, uint8_t N, uint8_t
         // new_value may have additional bits set that are not intended to be set after voting.
         // This is OK ... validate voted-upon results after the writes are all done.
         uint32_t to_write = old_data | new_value;
-        PRINT_DEBUG("OTP_RW Debug: updating row 0x%03x: 0x%06x --> 0x%06x\n", start_row+i, old_data, to_write); WAIT_FOR_KEY();
+        PRINT_DEBUG("OTP_RW Debug: updating row 0x%03x: 0x%06x --> 0x%06x\n", start_row+i, old_data, to_write);
         if (!write_raw_wrapper(start_row+i, &to_write, sizeof(to_write))){
             PRINT_ERROR("OTP_RW Error: Failed to write new bits for OTP %d-of-%d: row 0x%03x: 0x%06x --> 0x%06x\n", N, M, start_row+i, old_data, to_write);
             continue; // to next OTP row, if any
@@ -424,7 +427,7 @@ static bool read_otp_byte_3x(uint16_t row, uint8_t* out_data) {
 }
 static bool write_otp_byte_3x(uint16_t row, uint8_t new_value) {
 
-    PRINT_DEBUG("OTP_RW Debug: Write OTP byte_3x: row 0x%03x\n", row); WAIT_FOR_KEY();
+    PRINT_DEBUG("OTP_RW Debug: Write OTP byte_3x: row 0x%03x\n", row);
 
     // 1. read the old data as raw bits
     SAFEROTP_RAW_READ_RESULT old_raw_data;
@@ -467,7 +470,7 @@ static bool write_otp_byte_3x(uint16_t row, uint8_t new_value) {
     to_write.as_bytes[0] |= new_value;
     to_write.as_bytes[1] |= new_value;
     to_write.as_bytes[2] |= new_value;
-    PRINT_DEBUG("OTP_RW Debug: Write OTP byte_3x: updating row 0x%03x: 0x%06x --> 0x%06x\n", row, old_raw_data.as_uint32, to_write.as_uint32); WAIT_FOR_KEY();
+    PRINT_DEBUG("OTP_RW Debug: Write OTP byte_3x: updating row 0x%03x: 0x%06x --> 0x%06x\n", row, old_raw_data.as_uint32, to_write.as_uint32);
     if (!write_raw_wrapper(row, &to_write, sizeof(to_write))) {
         PRINT_ERROR("OTP_RW Error: Failed to write new bits for byte_3x: row 0x%03x: 0x%06x --> 0x%06x\n", row, old_raw_data.as_uint32, to_write.as_uint32);
         return false;

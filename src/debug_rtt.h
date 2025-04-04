@@ -1,6 +1,5 @@
 #pragma once
 
-#include "pirate.h"
 #include "pico.h" // needed for at least `get_core_num()`
 #include "lib/rtt/RTT/SEGGER_RTT.h"
 
