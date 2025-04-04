@@ -20,6 +20,7 @@ add_library(                saferotp_lib   STATIC
 
 # HACK -- Manually add the include directory for debug_rtt.h
 #         To support saferotp_lib/saferotp_debug_stub.h
+message(STATUS "SaferOTP ... using hack to include debug_rtt.h")
 target_include_directories( saferotp_lib PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../)
 
 # Cannot be INTERFACE ... as cannot then find "pico/stdlib.h"
