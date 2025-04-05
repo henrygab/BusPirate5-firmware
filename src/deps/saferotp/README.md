@@ -6,6 +6,9 @@
 The one-time programmable fuses on the Raspberry Pi RP2350 chip
 provides a great deal of flexibility.  The design has some nice
 features, such as built-in multiple ways to store redundant data.
+It also has much hidden complexity and edge cases.  This library
+aims to provide a simpler, safer API surface to get and set data
+that is stored in the OTP fuses.
 
 ## Problems
 
@@ -20,11 +23,12 @@ These can allow additional errors to sneak through.
 
 Development for mere mortals can be expensive, as any
 mistake may make the board unusable (one-time programmable).
-Alternatively, development becomes very slow work, as each
-instruction must be carefully tested.
+Alternatively, development may become very slo, as each
+write must be manually and carefully reviewed.
 
 Having a set of well-tested higher-level APIs can greatly
-reduce this burden.
+reduce this burden.  Having the ability to easily virtualize
+the OTP data is just amazing!
 
 ## Complexity
 
@@ -102,14 +106,54 @@ Byte-count oriented for all encodings.
     fewer binned compared to using fixed rows
   * Directory entry type specifies how the data is encoded
     into the OTP rows (RAW, BYTE3, RBIT3, RBIT8, ECC, ...)
+* Enforcing permissions for access to OTP registers.
+  * ***Excluding*** OTP access keys (see below)
+  * Unique permissions support for Secure-mode vs. Non-secure-mode
+     * Initial implementation presumes all access is from secure mode
+  * Application of OTP permissions in PAGEn_LOCK0 and PAGEn_LOCK1 OTP rows
+  * Hard-coded write restriction for PAGE0 (per datasheet)
+  * Reading soft-lock registers, at least at initialization
+    * Detecting other writes would require use of the memory
+      protection features of the RP2350 (to virtualize access
+      to the soft-lock registers).
+* Failing writes to special OTP rows with unsupported functionality
+  * e.g., OTP access keys, bootloader keys, encryption keys, etc.
 
+## Non-Goals
+
+* Emulation of OTP Access Keys
+  * Emulation of OTP access keys would require use of the memory
+    protection features of the RP2350 (to virtualize access
+    to the OTP Access Key registers).
+  * OTP Access Key rows are currently treated the same
+    as any other row.
+* Having virtualized OTP have any effect on bootloader,
+  boot encryption, etc.
+* Other interactions with the CPU / hardware.
+  * e.g., don't expect debug access to be locked out
+    or require a key specified only in virtualized OTP.
 
 ## Debugging
 
 This is a static library, and so gets embedded into other projects.
 However, it has rich debug outputs through macros that can be
-redefined as appropriate for your system.   Tested with output
-sent to Segger's RTT, sent via TinyUSB serial port, and likely
-easily supporting other debug output modes, by simply defining
-a few macros at the head of the file.
+redefined as appropriate for your system... See:
+* `saferotp_lib/saferotp_debug_stub.h`
+* `saferotp_lib/saferotp_debug_stub.c`
+
+
+This has been tested with input and output sent via Segger's RTT,
+sent via TinyUSB serial port, and likely supports other debug output
+modes, by simply defining a few macros at the head of the file.
+
+## WORK IN PROGRESS
+
+This library doesn't even have a version number yet.
+However, given how many edge cases were uncovered during testing
+of the RP2350 OTP implementation, it seemed this might be useful
+to many other folks working with the RP2350 ... even if not
+feature complete yet.
+
+
+
 
