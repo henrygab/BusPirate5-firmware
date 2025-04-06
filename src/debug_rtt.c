@@ -93,11 +93,11 @@ bp_debug_level_t _DEBUG_LEVELS[E_DEBUG_CAT_TEMP+1] = {
 #define _DEBUG_PRINT_BUFFER_CHAR_COUNT (511u)
 char _DEBUG_PRINT_BUFFER[2][_DEBUG_PRINT_BUFFER_CHAR_COUNT+1]; // one buffer per core
 
-void bp_debug_internal_print_handler(uint8_t category, const char* file, int line, const char* function, const char *format_string, ...) {
+void bp_debug_internal_print_handler(bp_debug_level_t level, bp_debug_category_t category, const char* file, int line, const char* function, const char *format_string, ...) {
     char * buffer = _DEBUG_PRINT_BUFFER[get_core_num()];
     size_t offset = 0u;
 
-    uint8_t cat_modulo16 = category % 16u;
+    uint8_t cat_modulo16 = category.category % 16u;
 
     buffer[offset] = 0xFF; // RTT terminal switch sentinel
     buffer[offset+1] = (cat_modulo16 < 10) ? '0' + cat_modulo16 : 'A' + cat_modulo16 - 10;

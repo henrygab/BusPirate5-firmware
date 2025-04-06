@@ -502,8 +502,7 @@ static bool animation_angular_wipe(CPIXEL_COLOR color) {
         // until migrate the FastLED color mixing,
         // background must be black for blur / diffusion effects
         if (diff < value_diffusion) {
-            static_assert(value_diffusion < 256u,
-                          "invalid brightness calculations when value_diffusion is too large (limited to uint8_t)");
+            assert(value_diffusion < 256u); // "invalid brightness calculations when value_diffusion is too large (limited to uint8_t)" );
             CPIXEL_COLOR dimmed_color = reduce_brightness(color, value_diffusion - diff, value_diffusion);
             assign_pixel_color(1u << i, dimmed_color);
         } else {

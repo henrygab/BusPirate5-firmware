@@ -453,7 +453,11 @@ if(${PICO_PLATFORM} MATCHES "rp2350")
         target_compile_definitions(bus_pirate6 PUBLIC BP_VER=6) 
         target_compile_definitions(bus_pirate6 PUBLIC BP_REV=10) 
         target_compile_definitions(bus_pirate6 PUBLIC BP_FIRMWARE_HASH="${BP_FIRMWARE_HASH}") 
-#        target_compile_options(    bus_pirate6 PRIVATE -Wpedantic -Wall -Werror -O3 -Wno-unknown-pragmas -Wno-inline -Wno-unused-function)
+
+        message(STATUS "------> TEMPORARILY BUILDING WITHOUT OPTIMIZATIONS <------")
+        target_compile_options(    bus_pirate6 PRIVATE   -Og)
+
+        #        target_compile_options(    bus_pirate6 PRIVATE -Wpedantic -Wall -Werror -O3 -Wno-unknown-pragmas -Wno-inline -Wno-unused-function)
 
 
         add_executable(bus_pirate5_xl

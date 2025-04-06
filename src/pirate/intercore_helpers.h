@@ -1,6 +1,12 @@
+#pragma once
+
 // Inter-Core Messages
 
 #include "pico/multicore.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 // This file added in response to manual code review discovering the following:
 //     Some places, core0 sends, and then loops until core1 sends ***same*** value as response.
@@ -57,3 +63,7 @@ inline void icm_core1_notify_completion(bp_icm_raw_message_t icm_raw_value) {
 inline bp_icm_message_t get_embedded_message(bp_icm_raw_message_t icm_raw_value) {
     return icm_raw_value.msg;
 }
+
+#ifdef __cplusplus
+}
+#endif

@@ -19,10 +19,12 @@ static struct _pio_config pio_config;
 #define DUMP_COMMANDS
 
 // WCH-specific debug interface config registers
-static const int WCH_DM_CPBR     = 0x7C;
-static const int WCH_DM_CFGR     = 0x7D;
-static const int WCH_DM_SHDWCFGR = 0x7E;
-static const int WCH_DM_PART     = 0x7F; // not in doc but appears to be part info
+enum {
+  WCH_DM_CPBR     = 0x7C,
+  WCH_DM_CFGR     = 0x7D,
+  WCH_DM_SHDWCFGR = 0x7E,
+  WCH_DM_PART     = 0x7F, // not in doc but appears to be part info
+};
 
 const char* ch32swio_addr_to_regname(uint8_t addr);
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdbool.h>
+#include <stdint.h>
 #include "pico.h" // needed for at least `get_core_num()`
 #include "lib/rtt/RTT/SEGGER_RTT.h"
 
@@ -23,6 +25,7 @@
     // NOTE: intentionally non-consecutive values.
     typedef enum { 
         E_DEBUG_LEVEL_FATAL   = 0x00u,
+        E_DEBUG_LEVEL_PRINTF  = 0x01u, // always print, except when catchall is set to fatal-only (zero)
         E_DEBUG_LEVEL_ERROR   = 0x20u,
         E_DEBUG_LEVEL_WARNING = 0x60u,
         E_DEBUG_LEVEL_INFO    = 0xA0u,
@@ -130,6 +133,7 @@
 // worthwhile to take whatever type safety we can wring out of C.
 
 #define BP_DEBUG_LEVEL_FATAL          ((bp_debug_level_t)   { E_DEBUG_LEVEL_FATAL          }) // unrecoerable errors that normally crash or require reset
+#define BP_DEBUG_LEVEL_PRINTF         ((bp_debug_level_t)   { E_DEBUG_LEVEL_PRINTF         }) // always print, except when catchall is set to fatal-only (zero)
 #define BP_DEBUG_LEVEL_ERROR          ((bp_debug_level_t)   { E_DEBUG_LEVEL_ERROR          }) // recoverable errors. 
 #define BP_DEBUG_LEVEL_WARNING        ((bp_debug_level_t)   { E_DEBUG_LEVEL_WARNING        }) // warnings, such as improper user input, edge cases occurring, potential (unveritifer) issues
 #define BP_DEBUG_LEVEL_INFO           ((bp_debug_level_t)   { E_DEBUG_LEVEL_INFO           }) // informational messages
@@ -202,16 +206,19 @@ static inline bool bp_debug_should_print(bp_debug_level_t level, bp_debug_catego
 // Pass NULL for `file` to omit file / line number.
 // Pass NULL for `function` to omit function name.
 // Pass NULL for `format_string` to omit the message.
-void bp_debug_internal_print_handler(uint8_t category, const char* file, int line, const char* function, const char* format_string, ...);
+void bp_debug_internal_print_handler(bp_debug_level_t level, bp_debug_category_t category, const char* file, int line, const char* function, const char *format_string, ...);
 
 // This is the underlying debug macro logic, also used by the other debug macros.
 #define BP_DEBUG_PRINT(_LEVEL, _CATEGORY, ...) \
     do {                                                \
         if (bp_debug_should_print(_LEVEL, _CATEGORY)) { \
-            bp_debug_internal_print_handler(_CATEGORY.category, __FILE__, __LINE__, __FUNCTION__, __VA_ARGS__);  \
+            bp_debug_internal_print_handler(_LEVEL, _CATEGORY, __FILE__, __LINE__, __FUNCTION__, __VA_ARGS__);  \
         }                                               \
     } while (0);
-
+#define BP_DEBUG_PRINTF(...) \
+    do {                                                \
+        bp_debug_internal_print_handler(BP_DEBUG_LEVEL_PRINTF, BP_DEBUG_DEFAULT_CATEGORY, __FILE__, __LINE__, __FUNCTION__, __VA_ARGS__);  \
+    } while (0);
 
 // USAGE:
 // * Files can immediately use the PRINT_* macros.  This will use the `CATCHALL` category.

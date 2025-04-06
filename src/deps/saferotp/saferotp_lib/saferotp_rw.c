@@ -136,7 +136,7 @@ static bool is_valid_otp_range_raw(uint16_t starting_row, size_t raw_byte_count)
     if (row_count == 0u) {
         return false;
     }
-    if ((NUM_OTP_ROWS - row_count) > starting_row) {
+    if ((NUM_OTP_ROWS - row_count) < starting_row) {
         // this would overflow past the last OTP row
         return false;
     }
@@ -339,7 +339,7 @@ static bool write_single_otp_ecc_row(uint16_t row, uint16_t data) {
     // If so, try to write the data, even if some bits are already set!
 
     // 1. Read the existing raw data
-    SAFEROTP_RAW_READ_RESULT existing_raw_data;
+    uint32_t existing_raw_data;
     if (!read_raw_wrapper(row, &existing_raw_data, sizeof(existing_raw_data))) {
         PRINT_ERROR("OTP_RW Error: Failed to read OTP raw row %03x\n", row);
         return false;
@@ -348,7 +348,7 @@ static bool write_single_otp_ecc_row(uint16_t row, uint16_t data) {
     // 2. SUCCESS if existing raw data already encodes the value; Do not update the OTP row.
     //    TODO: Consider if existing data has a single bit flipped from one to zero ... could write
     //          the extra bit to try to reduce errors?
-    uint32_t decode_result = saferotp_decode_raw(existing_raw_data.as_uint32);
+    uint32_t decode_result = saferotp_decode_raw(existing_raw_data);
     if (((decode_result & 0xFF000000u) == 0u) && ((uint16_t)decode_result == data)) {
         // already written, nothing more to do for this row
         PRINT_VERBOSE("OTP_RW: Row %03x already has data 0x%04x .. not writing\n", row, data);
@@ -358,36 +358,57 @@ static bool write_single_otp_ecc_row(uint16_t row, uint16_t data) {
     // 3. Do we have to adjust the encoded data due to existing BRBP bits?  Determine data to write (or fail if not possible)
     uint32_t data_to_write;
     do {
-        SAFEROTP_RAW_READ_RESULT encoded_new_data      = { .as_uint32 = saferotp_calculate_ecc(data) };
-        SAFEROTP_RAW_READ_RESULT encoded_new_data_brbp = { .as_uint32 = encoded_new_data.as_uint32 ^ 0x00FFFFFFu };
-        
-        // count how many bits would be flipped vs. the new data
-        uint_fast8_t bits_to_flip      = __builtin_popcount(existing_raw_data.as_uint32 ^ encoded_new_data.as_uint32);
-        uint_fast8_t bits_to_flip_brbp = __builtin_popcount(existing_raw_data.as_uint32 ^ encoded_new_data_brbp.as_uint32);
+        enum {
+            MASK_BRBP_BITS     = 0xC00000u,
+            MASK_NON_BRBP_BITS = 0x3FFFFFu,
+            MASK_ALL_RAW_BITS  = 0xFFFFFFu,
+        };
 
-        if (bits_to_flip == 0u) {
+        uint32_t encoded_new_data = saferotp_calculate_ecc(data);
+        uint32_t encoded_new_data_brbp = encoded_new_data ^ MASK_ALL_RAW_BITS;
+
+        // 1. bits can only transition from 0 --> 1
+        uint32_t to_write      = existing_raw_data | encoded_new_data;
+        uint32_t to_write_brbp = existing_raw_data | encoded_new_data_brbp;
+
+        // 2. bits that differ from new_data represent errors
+        uint32_t error_bits      = encoded_new_data      ^ to_write;
+        uint32_t error_bits_brbp = encoded_new_data_brbp ^ to_write_brbp;
+
+        // 3. One or fewer errors for non-brbp?  If so, that's good enough.
+        if (__builtin_popcount(error_bits) == 0u) {
             // Great!  Can write without adjusting for existing data.
-            data_to_write = encoded_new_data.as_uint32;
-        } else if (bits_to_flip_brbp == 0u) {
-            // Great!  Can write without error by using BRBP bits.
-            PRINT_VERBOSE("OTP_RW Info: Writing ECC OTP row %03x with data 0x%04x: Using BRBP bits\n", row, data);
-            data_to_write = encoded_new_data_brbp.as_uint32;
-        } else if (bits_to_flip == 1u) {
-            // Can write, but will have an existing single-bit error in the data...
-            PRINT_WARNING("OTP_RW Warn: Writing ECC OTP row %03x with data 0x%04x: Redundancy compromised, but writing is possible with 1-bit error.\n",
-                row, data, encoded_new_data.as_uint32, existing_raw_data.as_uint32
-            );
-            data_to_write = encoded_new_data.as_uint32 | existing_raw_data.as_uint32;
-        } else if (bits_to_flip_brbp == 1u) {
-            // Can write, but will need to use BRBP bits, and there will still be a single-bit error in the data...
-            PRINT_WARNING("OTP_RW Warn: Writing ECC OTP row %03x with data 0x%04x: Redundancy compromised, but writing is possible with BRBP *AND* 1-bit error.\n",
-                row, data, encoded_new_data_brbp.as_uint32, existing_raw_data.as_uint32
-            );
-            data_to_write = encoded_new_data_brbp.as_uint32 | existing_raw_data.as_uint32;
+            data_to_write = to_write;
+        } else if (__builtin_popcount(error_bits_brbp) == 0u) {
+            // Great!  Can write without adjusting for existing data.
+            data_to_write = to_write_brbp;
+        } else if (
+            (__builtin_popcount(error_bits_brbp & MASK_BRBP_BITS    ) <= 1u) &&
+            (__builtin_popcount(error_bits_brbp & MASK_NON_BRBP_BITS) <= 1u)
+        ) {
+            // OPTION: Consider allowing callers to REJECT writes with even a single-bit error?
+            // BRBP can have a single-bit error, and the remaining bits can also have a single-bit error.
+            // The value will still be properly decoded.
+            PRINT_WARNING("OTP_RW WARN: Writing ECC OTP row %03x with data 0x%06x: Redundancy compromised, but writing as BRBP is possible (bit errors: %06x).\n",
+                row, encoded_new_data_brbp, error_bits_brbp
+            );  
+            data_to_write = to_write_brbp;
+        } else if (
+            (__builtin_popcount(error_bits & MASK_BRBP_BITS    ) <= 1u) &&
+            (__builtin_popcount(error_bits & MASK_NON_BRBP_BITS) <= 1u)
+        ) {
+            // OPTION: Consider allowing callers to REJECT writes with even a single-bit error?
+            // BRBP can have a single-bit error, and the remaining bits can also have a single-bit error.
+            // The value will still be properly decoded.
+            // TODO: Verify the bootrom will also allow non-BRBP data to have a single-bit error in the BRBP bits?
+            PRINT_WARNING("OTP_RW WARN: Writing ECC OTP row %03x with data 0x%06x: Redundancy compromised, but writing as BRBP is possible (bit errors: %06x).\n",
+                row, encoded_new_data, error_bits
+            );  
+            data_to_write = to_write;
         } else {
-            // No way to write the data without multiple bit errors
-            PRINT_ERROR("OTP_RW Error: Cannot write ECC OTP row %03x with data 0x%04x: Encoded 0x%06x / 0x%06x vs. Existing 0x%06x prevents writing\n",
-                row, data, encoded_new_data.as_uint32, encoded_new_data_brbp.as_uint32, existing_raw_data.as_uint32
+            // No way to write the encoded ECC data (even if using BRBP)
+            PRINT_ERROR("OTP_RW Error: Cannot write ECC OTP row %03x with data 0x%06x / 0x%06x (existing 0x%06x): bit errors %06x / %06x\n",
+                row, encoded_new_data, encoded_new_data_brbp, existing_raw_data, error_bits, error_bits_brbp
             );
             return false;
         }
@@ -396,7 +417,7 @@ static bool write_single_otp_ecc_row(uint16_t row, uint16_t data) {
     // 4. write the encoded raw data
     if (!write_raw_wrapper(row, &data_to_write, sizeof(data_to_write))) {
         PRINT_ERROR("OTP_RW Error: Failed to write ECC OTP row %03x with data 0x%06x (ECC encoding of 0x%04x)\n",
-            row, data, data_to_write, data_to_write
+            row, data_to_write, data
         );
         return false;
     }
