@@ -115,7 +115,7 @@ static_assert(sizeof(X_DIRENTRY) == (4 * sizeof(uint16_t)));
 // define iterator state so it's invalid (needs reset) when zero-initialized.
 typedef struct _X_ITERATOR_STATE {
     uint16_t        current_otp_row_start;                // zero is not a valid OTP row for an OTP_DIRENTRY item
-    X_DIRENTRY current_entry;                  // all-zero data is indicative of end-of-directory
+    X_DIRENTRY      current_entry;                  // all-zero data is indicative of end-of-directory
     bool            entry_validated;                      // zero means entry not yet validated (entry type, crc, start row, data length)
     bool            should_try_next_row_if_not_validated; // set to true when read fails with ECC error
 } X_ITERATOR_STATE;
