@@ -411,6 +411,8 @@ set (buspirate_rtt
 )
 
 set (rp2350_common
+        test_otp.c
+        test_otp.h
         otp/bp_whitelabel.c
         commands/global/cmd_otp.c
         commands/global/cmd_otp.h
