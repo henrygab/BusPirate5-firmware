@@ -7,8 +7,8 @@ The one-time programmable fuses on the Raspberry Pi RP2350 chip
 provides a great deal of flexibility.  The design has some nice
 features, such as built-in multiple ways to store redundant data.
 It also has much hidden complexity and edge cases.  This library
-aims to provide a simpler, safer API surface to get and set data
-that is stored in the OTP fuses.
+aims to lower the costs / barriers to safer use of the OTP,
+by providing a simple, tested, well-documented API.
 
 ## Problems
 
@@ -22,9 +22,10 @@ These can allow additional errors to sneak through.
   error reporting for invalidly-encoded / corrupt data.
 
 Development for mere mortals can be expensive, as any
-mistake may make the board unusable (one-time programmable).
-Alternatively, development may become very slo, as each
-write must be manually and carefully reviewed.
+mistake programming the one-time-programmable (OTP) rows
+may make the board unusable.  Alternatively, development
+may become very slow, as each write must be manually and
+carefully reviewed.
 
 Having a set of well-tested higher-level APIs can greatly
 reduce this burden.  Having the ability to easily virtualize
@@ -61,35 +62,121 @@ In addition, when reading an OTP row with ECC encoded data, the
 API appears to require reading **_TWO_** rows at a time.  The
 datasheet says it will return 0xFFFFFFFF on a failure.
 Since the API reads two rows at a time, it cannot indicate which
-of the two rows had correct data (if any).  Moreover, it appears
-that the bootrom might NOT report ECC errors ... perhaps
-0xFFFFFFFF is only returned on permission errors?
+of the two rows had correct data (if any).
+
+The only way that **_might_** (untested) get notified of ECC errors
+is by using "guarded" reads.  However, using guarded reads will
+result in a hard fault ... requiring complex error handling
+code if it's actually desired to simply report the error and
+continue execution.
 
 As for the bit-by-bit voting ... That's template code that is
 not glamorous, and requires great care to implement correctly.
+Better to have that occur once in a single library, than to have
+many projects each implement and debug their own version.
+
 Without simple, tested helper APIs, many projects may choose to
 ignore the edge cases, or read only one copy ... effectively
 losing all redundancy.
 
+
 ## API
 
-Byte-count oriented for all encodings.  
-* RAW reads and write use `uint32_t` for each row, of which
-  only the least significant 24 bits contain data.
-* Reading RBIT3 and RBIT8 are similar, but will read three
-  (or eight) rows for each `uint32_t` and handle both errors
-  and bit-by-bit majority voting.
-* Writing RBIT3 and RBIT8 handle errors and edge cases,
-  such as allowing the overall write to succeed, even when
-  some bits across those rows are faulty (e.g., cannot be
-  set to one but should be, or already set to 1 but need to
-  store zero), so long as rows will decode correctly.
-* Reads and writes of BYTE3 use `uint8_t` for each row,
-  otherwise similarto RBIT3 / RBIT8
-* Reads and writes of ECC data returns `uint16_t` for each row.
+The API uses source data byte counts for all encodings.
+In other words, the byte count reflects the size of the buffer
+that the API will read from / write to.
 
+This allows simplified use of the API, as the caller may
+use `sizeof(DATA_STRUCTURE)` when writing that data structure.
+
+### Format specifics
+
+* `RAW` -- Caller provides a `uint32_t` for each OTP row.
+  Only the least significant 24 bits of each `uint32_t` will
+  contain data.  This reflects the API defined by the RP2350 hardware.
+* `RBIT3` and `RBIT8` -- Caller provides a `uint32_t` for each
+  set of three (or eight, respectively) rows that store the data.
+  * For reads, the bit-by-bit majority voting is applied prior
+    to returning the data.
+* `BYTE3` -- Caller provides one `uint8_t` for each row.
+  * For reads, the bit-by-bit majority voting is applied prior
+    to returning the data.
+* `ECC` -- Caller provides one `uint16_t` for each row.
+  * Validly encoded ECC data is returned.
+  * Invalid data returns an error result.
+
+### Error handling / reporting details
+
+#### `ECC` data
+
+The OTP is always read as a raw 24-bit value, which is then manually
+decoded into a potential result.  The potential result is then
+re-encoded using the ECC algorithm into a re-encoded result.
+(BRBP may be applied to the re-encoded result to match the raw data).
+
+Excluding the BRBP bits, it is permissible for the re-encoded result
+and the raw data to differ by at most one bit.  Otherwise, the data
+is considered to not be validly encoded ECC data, and an error is
+reported.  This avoids many false-positive decodings where three or
+five bits were flipped in the raw data.
+
+#### `RBIT3` and `RBIT8` data
+
+Both of these use bit-oriented voting, to determine if a bit
+should be set to `1`.  `RBIT3` requires two votes from the the
+bits stored in three rows, while `RBIT8` requires three votes from
+the bits stored in eight rows.
+
+Currently, the behavior for v1.0 of the library is intended to be:
+* Error conditions that cannot modify the resulting data are ignored / hidden.
+* Error conditions that have the potential to affect the resulting data are reported.
+
+The error conditions here refer to failures to read or write an OTP row.
+
+A future version of the library may allow for a behavior which simply
+**_IGNORES_** OTP rows that cannot be read, at least for `RBIT8`.
+The alternative behavior would have no effect on `RBIT3` nor `BYTE3`
+data.
+
+* Generically, reads occur as follows:
+  * Keep count of how many rows failed to be read.
+  * For OTP rows successfully read, each set bit adds a vote for its corresponding bit.
+  * After reading all rows, determine final bit value for each bit:
+    * If (votes >= `REQUIRED_BITS`) then set bit to 1
+    * else if (read failures >= `REQUIRED_BITS`) then ERROR CONDITION
+    * else if (votes >= `REQUIRED_BITS` - read failures) then ERROR CONDITION
+    * else set bit to 0
+
+* Generically, writes occur as follows:
+  * Determine if impossible to safely write the data by reading the old data, and
+    if so, exit before writing any data.
+  * Read/Modify/Write the requested bits into each rows (ignoring failures for now)
+  * Verify the data read back (using the `RBIT3` / `RBIT8` function) matches the requested data
+
+* How to determine it's impossible to write the requested data:
+  * Determine a `wrongly_fused_to_one` error count for each bit that
+    is set to `0` in the new value, but is already set to `1` in the row(s).
+  * If a row is unreadable, consider it `wrongly_fused_to_one` for this purpose.
+  * If `wrongly_fused_to_one` is >= `REQUIRED_BITS`, then ERROR CONDITION (without writing any rows).
+    This prevents writing rows that could not return `0` bit appropriately:
+    * existing fused bits would make a desired `0` bit always vote as a `1` bit, or
+    * as above, presuming all unreadable rows have all bits set to `1`
+  * If count of successfully read rows is less than `REQUIRED_BITS`, then ERROR CONDITION.
+    This prevents attempting to write, when unable to even read sufficient rows to reach the voting threshold.
+
+#### `BYTE3` data
+
+`BYTE3` uses bit-oriented voting, similar to `RBIT3`.  However, by only storing one byte
+in each OTP row, the error conditions are much simpler to handle (the OTP row is either
+readable or not ... whereas `RBIT3` and `RBIT8` have to consider some votes being readable
+and some votes being unreadable).
+
+Thus, if the OTP row is unreadable, it reports an error condition.
+Otherwise, the bit-by-bit voting is applied to retrieve a single byte for each OTP row.
 
 ## Stretch Goals
+
+* Support for OTP row ranges outside the user data area.
 
 * Virtualized OTP ... 
   * At any time, switch from interacting with the real OTP
@@ -99,13 +186,7 @@ Byte-count oriented for all encodings.
     config file, ...) a program desires.
   * Option to persist the current (real or) virtualized OTP
     to any other source (e.g., flash, config file, ...).
-* OTP Directory Entries
-  * Dynamically locate data stored in OTP
-  * Add new entries to the directory
-  * Increase yield for boards shipped with imperfect OTP ...
-    fewer binned compared to using fixed rows
-  * Directory entry type specifies how the data is encoded
-    into the OTP rows (RAW, BYTE3, RBIT3, RBIT8, ECC, ...)
+
 * Enforcing permissions for access to OTP registers.
   * ***Excluding*** OTP access keys (see below)
   * Unique permissions support for Secure-mode vs. Non-secure-mode
@@ -116,8 +197,19 @@ Byte-count oriented for all encodings.
     * Detecting other writes would require use of the memory
       protection features of the RP2350 (to virtualize access
       to the soft-lock registers).
-* Failing writes to special OTP rows with unsupported functionality
+
+* By default, failing writes to special OTP rows with unsupported functionality
   * e.g., OTP access keys, bootloader keys, encryption keys, etc.
+
+* OTP Directory Entries
+  * Dynamically locate data stored in OTP
+  * Add new entries to the directory
+  * Increase yield for boards shipped with imperfect OTP ...
+    fewer binned compared to using fixed rows
+  * Directory entry type specifies how the data is encoded
+    into the OTP rows (RAW, BYTE3, RBIT3, RBIT8, ECC, ...)
+
+
 
 ## Non-Goals
 
