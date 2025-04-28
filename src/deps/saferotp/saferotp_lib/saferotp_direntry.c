@@ -8,6 +8,7 @@
 
 #include "pico/stdlib.h" // required for get_core_num()
 #include "saferotp.h"
+#include "saferotp_direntry.h"
 #include "saferotp_debug_stub.h"
 
 static volatile bool g_WaitForKey_otpdir = false;

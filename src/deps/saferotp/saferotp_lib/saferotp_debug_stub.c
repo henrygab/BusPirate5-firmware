@@ -1,5 +1,9 @@
 #include "saferotp_debug_stub.h"
 
+// This example presumes the use of SEGGER RTT
+// for debugging input.
+
+
 // decide where to single-step through the whitelabel process ...
 // controlled via RTT (no USB connection required)
 void SaferOtp_WaitForKey_impl(void) {
