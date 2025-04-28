@@ -154,15 +154,14 @@ data.
   * Verify the data read back (using the `RBIT3` / `RBIT8` function) matches the requested data
 
 * How to determine it's impossible to write the requested data:
-  * Determine a `wrongly_fused_to_one` error count for each bit that
-    is set to `0` in the new value, but is already set to `1` in the row(s).
-  * If a row is unreadable, consider it `wrongly_fused_to_one` for this purpose.
-  * If `wrongly_fused_to_one` is >= `REQUIRED_BITS`, then ERROR CONDITION (without writing any rows).
-    This prevents writing rows that could not return `0` bit appropriately:
-    * existing fused bits would make a desired `0` bit always vote as a `1` bit, or
-    * as above, presuming all unreadable rows have all bits set to `1`
-  * If count of successfully read rows is less than `REQUIRED_BITS`, then ERROR CONDITION.
-    This prevents attempting to write, when unable to even read sufficient rows to reach the voting threshold.
+  * Read the voted-upon value using existing API
+    * Fails on various error conditions that should also prevent writing
+    * Also fail if any bits in result are `1`, but new value has them as `0`
+      This prevents writing rows when the requested value could not be stored.
+    * Write the new value (read/modify/write) to each OTP row
+    * Read back the new voted-upon value using existing API
+    * Fail if the voted-upon value does not match the requested value.
+    * Else, success!
 
 #### `BYTE3` data
 

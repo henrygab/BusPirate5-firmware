@@ -3,8 +3,6 @@
 #ifndef SAFEROTP_H
 #define SAFEROTP_H
 
-
-
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>

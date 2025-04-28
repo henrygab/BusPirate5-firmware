@@ -58,8 +58,11 @@ static bool g_virtual_otp_initialized = false;
 
 // returns TRUE on successful write, FALSE on failures
 static bool hw_write_raw_otp_wrapper(uint16_t starting_row, const void* buffer, size_t buffer_size) {
-    // TODO: Check BOOTLOCK7 to determine if bootrom will require ownership of BOOTLOCK2 (OTP)
-    //       This would return error BOOTROM_ERROR_LOCK_REQUIRED (-19) if this ever occurs.
+    // NOTE: rom_func_otp_access() ensures necessary bootrom locks are acquired.
+    //       It is unclear whether the memory-mapped regions are protected from simultaneous access
+    //       from the bootrom (nor from the other CPU).  If not, this is a potential problem, as
+    //       there is no protection against simultaneous use of the (opaque) Synopsys OTP IP block
+    //       (and the documentation indicates serialized access to the OTP rows is required).
     otp_cmd_t cmd;
     cmd.flags = starting_row;
     cmd.flags |= OTP_CMD_WRITE_BITS;
@@ -471,11 +474,19 @@ static bool write_single_otp_raw_row(uint16_t row, uint32_t data) {
     return true;
 }
 static bool read_single_otp_value_N_of_M(uint16_t start_row, uint8_t N, uint8_t M, uint32_t* out_data) {
+    #define MAX_M_VALUE (8u)
+
     *out_data = 0xFFFFFFFFu;
 
+    static_assert(MAX_M_VALUE < UINT8_MAX, "MAX_M_VALUE must be less than 0xFFu else need to adjust variables currently using uint8_t and uint_fast8_t");
+
     // Support both RBIT3 and RBIT8
-    if (N == 2 && M == 3) { }
-    else if (N == 3 && M == 8) {}
+    if (M > MAX_M_VALUE) {
+        PRINT_ERROR("OTP_RW Error: Read OTP N-of-M: Unsupported M=%d (max %zu)\n", M, MAX_M_VALUE);
+        return false;
+    }
+    else if (N == 2 && M == 3) { }
+    else if (N == 3 && M == 8) { }
     else {
         // The below code ***should*** work for any N-of-M, so long as both N and M are <= 8.
         // However, it's not been tested, and is not used in any real-world scenario.
@@ -483,35 +494,27 @@ static bool read_single_otp_value_N_of_M(uint16_t start_row, uint8_t N, uint8_t 
         PRINT_ERROR("OTP_RW Error: Read OTP N-of-M: Unsupported N=%d, M=%d\n", N, M);
         return false;
     }
-    uint32_t v[8u] = {0u};    // zero-initialize the array, sized for maximum supported `M`
-    bool     r[8u] = {false}; // zero-initialized is false
-    assert(M <= 8u);
+    uint32_t v[MAX_M_VALUE] = {0u};    // zero-initialize the array, sized for maximum supported `M`
+    bool     r[MAX_M_VALUE] = {false}; // zero-initialized is false
+    uint_fast8_t votes[24]; // one count for each potential bit to be set
+    uint_fast8_t successful_reads = 0u;
+    uint_fast8_t failed_reads = 0u;
 
     // Read each of the `M` rows
+    // tracking total count of successful / failed reads
     for (size_t i = 0; i < M; ++i) {
-        r[i] = read_raw_wrapper(start_row+i, &(v[i]), sizeof(uint32_t));
-    }
-
-    // Ensure at least `N` reads were successful, else return an error
-    uint_fast8_t successful_reads = 0;
-    for (size_t i = 0; i < M; ++i) {
-        if (r[i]) {
+        bool tmp = read_raw_wrapper(start_row+i, &(v[i]), sizeof(uint32_t));
+        r[i] = tmp;
+        if (tmp) {
             ++successful_reads;
+        } else {
+            ++failed_reads;
         }
     }
-    if (successful_reads < N) {
-        PRINT_ERROR("OTP_RW Error: Read OTP N-of-M: rows 0x%03x to 0x%03x: only %d of %d reads successful ... failing\n", start_row, start_row+M-1, successful_reads, M);
-        return false;
-    }
 
-
-    uint_fast8_t votes[24]; // one count for each potential bit to be set
-
-    // Count the votes from the successful reads
+    // Calculate the votes from the reads that succeeded
     for (size_t i = 0; i < M; ++i) {
         // don't count any votes from failed reads
-        // Could actually skip this, IFF failed reads were set to zero.
-        // This is because the voting only considers bits set to one.
         if (!r[i]) {
             continue;
         }
@@ -525,15 +528,46 @@ static bool read_single_otp_value_N_of_M(uint16_t start_row, uint8_t N, uint8_t 
         }
     }
 
-    // Generate a result based on the votes (set if votes >= N)
+    // Success depends on BOTH the count of successful reads AND
+    // the count of failed reads.  This is to avoid a marginal OTP row
+    // that fails to read this time, but succeeds a later read,
+    // from causing the result to change.
+    //
+    // If fewer than N successful reads:
+    //    None of the votes can be sufficient to set any bits (ERROR)
+    if (successful_reads < N) {
+        PRINT_ERROR("OTP_RW Error: Read OTP N-of-M: rows 0x%03x to 0x%03x: only %d of %d reads successful ... failing\n", start_row, start_row+M-1, successful_reads, M);
+        return false;
+    }
+
+    // For each bit voted upon:
+    //    If the number of votes is >= M:
+    //       Set the bit in the result. (SUCCESS)
+    //       Failed reads are irrelevant to this result.
+    //    Else if the number of failed reads is >= (N - votes):
+    //       Votes say zero, but failed reads could make it 1.  (ERROR)
+    //    Else:
+    //       The votes say zero, which is true even if all the failed reads
+    //       would have added to the vote. (SUCCESS)
     uint32_t result = 0u;
     for (uint_fast8_t i = 0; i < 24u; ++i) {
         if (votes[i] >= N) {
-            result |= (1u << i);
+            uint32_t mask = (1u << i);
+            result |= mask;
+        } else if (failed_reads >= (N - votes[i])) {
+            // votes from successful reads say the bit is zero, but
+            // the failed reads could change the result from 0 --> 1
+            PRINT_ERROR("OTP_RW Error: rows 0x%03x to 0x%03x: failed reads %d >= %d - %d votes ... failing\n", start_row, start_row+M-1, failed_reads, N, votes[i]);
+            return false;
+        } else {
+            // votes from successful reads say the bit is zero, and
+            // even if all failed reads voted for a `1`, the votes
+            // would still say the bit is zero.
+            // this is a success ... leave the bit as zero in the result.
         }
     }
-    // return the voted-upon result
-    return false;
+    // SUCCESS -- return the voted-upon result
+    return true;
 }
 static bool write_single_otp_value_N_of_M(uint16_t start_row, uint8_t N, uint8_t M, uint32_t new_value) {
 
@@ -581,14 +615,14 @@ static bool write_single_otp_value_N_of_M(uint16_t start_row, uint8_t N, uint8_t
         PRINT_DEBUG("OTP_RW Debug: Wrote new bits for OTP %d-of-%d: row 0x%03x: 0x%06x --> 0x%06x\n", N, M, start_row+i, old_data, to_write);
     }
 
-    // 3. Verify the data was updated to the expected value
+    // 3. Read the new N of M voted-upon bits
     uint32_t new_voted_bits;
     if (!read_single_otp_value_N_of_M(start_row, N, M, &new_voted_bits)) {
         PRINT_ERROR("OTP_RW Error: Failed to read agreed-upon new bits for OTP %d-of-%d starting at row 0x%03x\n", N, M, start_row);
         return false;
     }
 
-    // 4. Verify the new data matches the requested value
+    // 4. Verify the new voted-upon bits match the requested value
     if (new_voted_bits != new_value) {
         PRINT_ERROR("OTP_RW Error: OTP %d-of-%d: starting at row 0x%03x: 0x%06x -> 0x%06x, but got 0x%06x\n",
             N, M, start_row,
