@@ -721,39 +721,39 @@ bool saferotp_virtualization_save(uint16_t starting_row, void* buffer, size_t bu
 //       of the rows, or otherwise mark the range as containing unreliable data.
 
 
-bool saferotp_write_single_row_raw(uint16_t row, uint32_t new_value) {
+bool saferotp_write_single_value_raw_unsafe(uint16_t row, uint32_t new_value) {
     return write_single_otp_raw_row(row, new_value);
 }
-bool saferotp_read_single_row_raw(uint16_t row, uint32_t* out_data) {
+bool saferotp_read_single_value_raw_unsafe(uint16_t row, uint32_t* out_data) {
     return read_raw_wrapper(row, out_data, sizeof(uint32_t));
 }
-bool saferotp_write_single_row_ecc(uint16_t row, uint16_t new_value) {
+bool saferotp_write_single_value_ecc(uint16_t row, uint16_t new_value) {
     return write_single_otp_ecc_row(row, new_value);
 }
-bool saferotp_read_single_row_ecc(uint16_t row, uint16_t* out_data) {
+bool saferotp_read_single_value_ecc(uint16_t row, uint16_t* out_data) {
     return read_single_otp_ecc_row(row, out_data);
 }
-bool saferotp_write_single_row_redundant_byte3x(uint16_t row, uint8_t new_value) {
+bool saferotp_write_single_value_byte3x(uint16_t row, uint8_t new_value) {
     return write_otp_byte_3x(row, new_value);
 }
-bool saferotp_read_single_row_redundant_byte3x(uint16_t row, uint8_t* out_data) {
+bool saferotp_read_single_value_byte3x(uint16_t row, uint8_t* out_data) {
     return read_otp_byte_3x(row, out_data);
 }
-bool saferotp_write_redundant_rows_RBIT3(uint16_t start_row, uint32_t new_value) {
+bool saferotp_write_single_value_rbit3(uint16_t start_row, uint32_t new_value) {
     return write_single_otp_value_N_of_M(start_row, 2, 3, new_value);
 }
-bool saferotp_read_redundant_rows_RBIT3(uint16_t start_row, uint32_t* out_data) {
+bool saferotp_read_single_value_rbit3(uint16_t start_row, uint32_t* out_data) {
     return read_single_otp_value_N_of_M(start_row, 2, 3, out_data);
 }
-bool saferotp_write_redundant_rows_RBIT8(uint16_t start_row, uint32_t new_value) {
+bool saferotp_write_single_value_rbit8(uint16_t start_row, uint32_t new_value) {
     return write_single_otp_value_N_of_M(start_row, 3, 8, new_value);
 }
-bool saferotp_read_redundant_rows_RBIT8(uint16_t start_row, uint32_t* out_data) {
+bool saferotp_read_single_value_rbit8(uint16_t start_row, uint32_t* out_data) {
     return read_single_otp_value_N_of_M(start_row, 3, 8, out_data);
 }
 
 // Arbitrary buffer size support functions ...
-bool saferotp_write_ecc_data(uint16_t start_row, const void* data, size_t count_of_bytes) {
+bool saferotp_write_data_ecc(uint16_t start_row, const void* data, size_t count_of_bytes) {
 
     // write / verify one OTP row at a time
     size_t loop_count = count_of_bytes / 2u;
@@ -762,7 +762,7 @@ bool saferotp_write_ecc_data(uint16_t start_row, const void* data, size_t count_
     // Write full-sized rows first
     for (size_t i = 0; i < loop_count; ++i) {
         uint16_t tmp = ((const uint16_t*)data)[i];
-        if (!saferotp_write_single_row_ecc(start_row + i, tmp)) {
+        if (!saferotp_write_single_value_ecc(start_row + i, tmp)) {
             return false;
         }
     }
@@ -772,13 +772,13 @@ bool saferotp_write_ecc_data(uint16_t start_row, const void* data, size_t count_
         // Read the single byte ... do NOT read as uint16_t as additional byte may not be valid readable memory
         // and use the local stack uint16_t for the actual write operation.
         uint16_t tmp = ((const uint8_t*)data)[count_of_bytes-1];
-        if (!saferotp_write_single_row_ecc(start_row + loop_count, tmp)) {
+        if (!saferotp_write_single_value_ecc(start_row + loop_count, tmp)) {
             return false;
         }
     }
     return true;
 }
-bool saferotp_read_ecc_data(uint16_t start_row, void* out_data, size_t count_of_bytes) {
+bool saferotp_read_data_ecc(uint16_t start_row, void* out_data, size_t count_of_bytes) {
     if (count_of_bytes >= (0x1000*2)) { // OTP rows from 0x000u to 0xFFFu, so max 0x1000*2 bytes
         return false;
     }
@@ -790,7 +790,7 @@ bool saferotp_read_ecc_data(uint16_t start_row, void* out_data, size_t count_of_
     // Read full-sized rows first
     for (size_t i = 0; i < loop_count; ++i) {
         uint16_t * b = ((uint16_t*)out_data) + i; // pointer arithmetic
-        if (!saferotp_read_single_row_ecc(start_row + i, b)) {
+        if (!saferotp_read_single_value_ecc(start_row + i, b)) {
             return false;
         }
     }
@@ -798,7 +798,7 @@ bool saferotp_read_ecc_data(uint16_t start_row, void* out_data, size_t count_of_
     // Read any final partial-row data
     if (requires_buffering_last_row) {
         uint16_t tmp = 0xFFFFu;
-        if (!saferotp_read_single_row_ecc(start_row + loop_count, &tmp)) {
+        if (!saferotp_read_single_value_ecc(start_row + loop_count, &tmp)) {
             return false;
         }
         // update the last single byte of the buffer
@@ -809,7 +809,7 @@ bool saferotp_read_ecc_data(uint16_t start_row, void* out_data, size_t count_of_
     return true;
 }
 
-bool saferotp_read_raw_data(uint16_t start_row, void* out_data, size_t count_of_bytes) {
+bool saferotp_read_data_raw_unsafe(uint16_t start_row, void* out_data, size_t count_of_bytes) {
     if (count_of_bytes == 0u) {
         return false; // ?? should this return true?
     }
@@ -822,7 +822,7 @@ bool saferotp_read_raw_data(uint16_t start_row, void* out_data, size_t count_of_
     }
     return read_raw_wrapper(start_row, out_data, count_of_bytes);
 }
-bool saferotp_write_raw_data(uint16_t start_row, const void* data, size_t count_of_bytes) {
+bool saferotp_write_data_raw_unsafe(uint16_t start_row, const void* data, size_t count_of_bytes) {
     if (count_of_bytes == 0u) {
         return false; // ?? should this return true?
     }

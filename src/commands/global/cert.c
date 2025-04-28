@@ -280,7 +280,7 @@ int32_t otp_write_verify_ecc(uint16_t start_row, uint16_t length_bytes, char *da
     // write to OTP (bp_otp_write_ecc_... functions automatically verify the writes)
     if (!simulate) {
         // write the certificate itself with ECC to the discovered location
-        if (!saferotp_write_ecc_data(start_row, data, length_bytes)) {
+        if (!saferotp_write_data_ecc(start_row, data, length_bytes)) {
             if(debug) printf("Failed to write to OTP\r\n");
             return -1;
         }
@@ -500,7 +500,7 @@ bool cert_write_to_otp_new(
     }
     uint16_t info_row = 0x2c0; // BUGBUG -- what is this magic number?  Where is it from?
     // WHY WAS THIS USING BOTH OTP_CMD_ECC_BITS __AND__ OTP_CMD_WRITE_BITS ????
-    if (!saferotp_write_ecc_data(info_row, buf, offset)) {
+    if (!saferotp_write_data_ecc(info_row, buf, offset)) {
         if (debug) {
             printf("Failed to write info to OTP\r\n");
         }
@@ -515,7 +515,7 @@ bool cert_write_to_otp_new(
     return 0;
 
     // burn cert to OTP
-    if (!saferotp_write_ecc_data(ecc_row, cert_der, cert_der_len)) {
+    if (!saferotp_write_data_ecc(ecc_row, cert_der, cert_der_len)) {
         if (debug) {
             printf("Failed to write cert to OTP\r\n");
         }
@@ -696,7 +696,7 @@ cert_close_file:
 
 
     unsigned char buf[100];
-    if (!saferotp_read_ecc_data(BP_OTP_CERT_ROW, buf, 4)) {
+    if (!saferotp_read_data_ecc(BP_OTP_CERT_ROW, buf, 4)) {
         printf("Failed to read cert length from OTP\r\n");
         return;
     }
@@ -709,7 +709,7 @@ cert_close_file:
         return;
     }
 
-    if (!saferotp_read_ecc_data(BP_OTP_CERT_ROW, buf, cert_der_len)) {
+    if (!saferotp_read_data_ecc(BP_OTP_CERT_ROW, buf, cert_der_len)) {
         printf("Failed to read cert from OTP\r\n");
         return;
     }

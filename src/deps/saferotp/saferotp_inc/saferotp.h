@@ -61,19 +61,19 @@ bool saferotp_virtualization_save(uint16_t starting_row, void* buffer, size_t bu
 // `RAW` - Writes a single OTP row with 24-bits of data.  No ECC / BRBP is used.
 //         It is up to the caller to define and use some type of error correction / detection.
 // Returns false unless all data is written and verified.
-bool saferotp_write_single_row_raw(uint16_t row, uint32_t new_value);
+bool saferotp_write_single_value_raw_unsafe(uint16_t row, uint32_t new_value);
 // `RAW` - NOT RECOMMENDED DUE TO LIKELIHOOD OF UNDETECTED ERRORS:
 // `RAW` - Reads a single OTP row raw, returning the 24-bits of data without interpretation.
 //         It is up to the caller to define and use some type of error correction / detection.
 // Returns false unless all requested data is read.
-bool saferotp_read_single_row_raw(uint16_t row, uint32_t* out_data);
+bool saferotp_read_single_value_raw_unsafe(uint16_t row, uint32_t* out_data);
 // `RAW` - NOT RECOMMENDED DUE TO LIKELIHOOD OF UNDETECTED ERRORS:
 // `RAW` - Write the supplied buffer to OTP, starting at the specified
 //         OTP row and continuing until the buffer is fully written.
 //         It is up to the caller to define and use some type of error correction / detection.
 // Note: count_of_bytes must be an integral multiple of four.
 // Returns false unless all data is written and verified.
-bool saferotp_write_raw_data(uint16_t start_row, const void* data, size_t count_of_bytes);
+bool saferotp_write_data_raw_unsafe(uint16_t start_row, const void* data, size_t count_of_bytes);
 // `RAW` - NOT RECOMMENDED DUE TO LIKELIHOOD OF UNDETECTED ERRORS:
 // `RAW` - Read raw OTP row data, starting at the specified
 //         OTP row and continuing until the buffer is filled.
@@ -82,42 +82,30 @@ bool saferotp_write_raw_data(uint16_t start_row, const void* data, size_t count_
 // of four bytes.  This restriction is reasonable because the caller
 // must already handle the 3-bytes-in-4 for the buffers.
 // Returns false unless all requested data is read.
-bool saferotp_read_raw_data(uint16_t start_row, void* out_data, size_t count_of_bytes);
-
-// TODO: Rename above to `bool saferotp_write_single_value_raw_unsafe(uint16_t row, uint32_t new_value);
-// TODO: Rename above to `bool saferotp_read_single_value_raw_unsafe(uint16_t row, uint32_t* out_data);
-// TODO: Rename above to `bool saferotp_write_data_raw_unsafe(uint16_t start_row, const void* data, size_t count_of_bytes);`
-// TODO: Rename above to `bool saferotp_read_data_raw_unsafe(uint16_t start_row, void* out_data, size_t count_of_bytes);`
-
-
+bool saferotp_read_data_raw_unsafe(uint16_t start_row, void* out_data, size_t count_of_bytes);
 
 // `ECC` - Writes a single OTP row with 16-bits of data, protected by ECC.
 // Writes will NOT fail due to a single bit error.
 // Returns false unless all data is written and verified.
-bool saferotp_write_single_row_ecc(uint16_t row, uint16_t new_value);
+bool saferotp_write_single_value_ecc(uint16_t row, uint16_t new_value);
 // `ECC` - Reads a single OTP row, applies bit recovery by polarity,
 // and corrects any single-bit errors using ECC.  Returns the
 // corrected 16-bits of data.
 // Returns false unless all requested data is read.
-bool saferotp_read_single_row_ecc(uint16_t row, uint16_t* out_data);
+bool saferotp_read_single_value_ecc(uint16_t row, uint16_t* out_data);
 // `ECC` - Write the supplied buffer to OTP, starting at the specified
 // OTP row and continuing until the buffer is fully written.
 // Allows writing an odd number of bytes, so caller does not have to
 // do extra work to ensure buffer is always an even number of bytes.
 // In this case, the extra byte written will be zero.
 // Returns false unless all data is written and verified.
-bool saferotp_write_ecc_data(uint16_t start_row, const void* data, size_t count_of_bytes);
+bool saferotp_write_data_ecc(uint16_t start_row, const void* data, size_t count_of_bytes);
 // `ECC` - Fills the supplied buffer with ECC data, starting at the specified
 // OTP row and continuing until the buffer is filled.
 // Allows reading an odd number of bytes, so caller does not have to
 // do extra work to ensure buffer is always an even number of bytes.
 // Returns false unless all requested data is read.
-bool saferotp_read_ecc_data(uint16_t start_row, void* out_data, size_t count_of_bytes);
-
-// TODO: rename above to `saferotp_write_single_value_ecc(uint16_t row, uint8_t new_value);`
-// TODO: rename above to `saferotp_read_single_value_ecc(uint16_t row, uint8_t* out_data);`
-// TODO: rename above to `saferotp_write_data_ecc(uint16_t start_row, const void* data, size_t count_of_bytes);`
-// TODO: rename above to `saferotp_read_data_ecc(uint16_t start_row, void* out_data, size_t count_of_bytes);`
+bool saferotp_read_data_ecc(uint16_t start_row, void* out_data, size_t count_of_bytes);
 
 // `BYTE3X` - Writes a single OTP row with 8-bits of data stored with 3x redundancy.
 // For each bit of the new value that is zero:
@@ -128,14 +116,12 @@ bool saferotp_read_ecc_data(uint16_t start_row, void* out_data, size_t count_of_
 // This style of storage is mostly used for flags that are independently
 // updated over multiple OTP writes. 
 // Returns false unless all data is written and verified (with voting applied).
-bool saferotp_write_single_row_redundant_byte3x(uint16_t row, uint8_t new_value);
+bool saferotp_write_single_value_byte3x(uint16_t row, uint8_t new_value);
 // `BYTE3X` - Reads a single OTP row with 8-bits of data stored with 3x redundancy.
 // Returns the 8-bits of data, after applying 2-of-3 voting.
 // Returns false unless all requested data is read.
-bool saferotp_read_single_row_redundant_byte3x(uint16_t row, uint8_t* out_data);
+bool saferotp_read_single_value_byte3x(uint16_t row, uint8_t* out_data);
 
-// TODO: rename above to `saferotp_write_single_value_byte3x(uint16_t row, uint8_t new_value);`
-// TODO: rename above to `saferotp_read_single_value_byte3x(uint16_t row, uint8_t* out_data);`
 // TODO: add `saferotp_write_data_byte3x(uint16_t start_row, const void* data, size_t count_of_bytes);`
 // TODO: add `saferotp_read_data_byte3x(uint16_t start_row, void* out_data, size_t count_of_bytes);`
 
@@ -147,16 +133,14 @@ bool saferotp_read_single_row_redundant_byte3x(uint16_t row, uint8_t* out_data);
 // and will return false if the value (with voting applied) is not
 // the expected new value.
 // Returns false unless all data is written and verified (with voting applied).
-bool saferotp_write_redundant_rows_RBIT3(uint16_t start_row, uint32_t new_value);
+bool saferotp_write_single_value_rbit3(uint16_t start_row, uint32_t new_value);
 // `RBIT3` - Reads three consecutive rows of raw OTP data (24-bits), and applies
 // 2-of-3 voting for each bit independently.
 // So long as at least two reads succeed, the data will be returned.
 // Returns the 24-bits of voted-upon data.
 // Returns false unless all requested data is read.
-bool saferotp_read_redundant_rows_RBIT3(uint16_t start_row, uint32_t* out_data);
+bool saferotp_read_single_value_rbit3(uint16_t start_row, uint32_t* out_data);
 
-// TODO: rename above to `saferotp_write_single_value_rbit3(uint16_t row, uint8_t new_value);`
-// TODO: rename above to `saferotp_read_single_value_rbit3(uint16_t row, uint8_t* out_data);`
 // TODO: add `saferotp_write_data_rbit3(uint16_t start_row, const void* data, size_t count_of_bytes);`
 // TODO: add `saferotp_read_data_rbit3(uint16_t start_row, void* out_data, size_t count_of_bytes);`
 
@@ -168,16 +152,14 @@ bool saferotp_read_redundant_rows_RBIT3(uint16_t start_row, uint32_t* out_data);
 // and will return false if the value (with voting applied) is not
 // the expected new value.
 // Returns false unless all data is written and verified (with voting applied).
-bool saferotp_write_redundant_rows_RBIT8(uint16_t start_row, uint32_t new_value);
+bool saferotp_write_single_value_rbit8(uint16_t start_row, uint32_t new_value);
 // `RBIT8` - Reads eight consecutive rows of raw OTP data (24-bits), and applies
 // 3-of-8 voting for each bit independently.
 // So long as at least three reads succeed, the data will be returned.
 // Returns the 24-bits of voted-upon data.
 // Returns false unless all requested data is read.
-bool saferotp_read_redundant_rows_RBIT8(uint16_t start_row, uint32_t* out_data);
+bool saferotp_read_single_value_rbit8(uint16_t start_row, uint32_t* out_data);
 
-// TODO: rename above to `saferotp_write_single_value_rbit8(uint16_t row, uint8_t new_value);`
-// TODO: rename above to `saferotp_read_single_value_rbit8(uint16_t row, uint8_t* out_data);`
 // TODO: add `saferotp_write_data_rbit8(uint16_t start_row, const void* data, size_t count_of_bytes);`
 // TODO: add `saferotp_read_data_rbit8(uint16_t start_row, void* out_data, size_t count_of_bytes);`
 

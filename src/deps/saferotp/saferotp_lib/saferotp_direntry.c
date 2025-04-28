@@ -322,7 +322,7 @@ static void x_otp_read_and_validate_direntry(uint16_t direntry_otp_row, X_ITERAT
  
     // read the entry
     if (!failure) {
-        if (!saferotp_read_ecc_data(direntry_otp_row, &entry, sizeof(X_DIRENTRY))) {
+        if (!saferotp_read_data_ecc(direntry_otp_row, &entry, sizeof(X_DIRENTRY))) {
             // TODO: Want to skip entries that are not readable.
             //       Maybe read as RAW to distinguish unreadable vs. not encoded with ECC data?
             //       For now, just skip the entry ... eventually will hit invalid data or out-of-range row.
@@ -521,7 +521,7 @@ static size_t x_otp_direntry_get_current_entry_data(void* buffer, size_t buffer_
             return 0u;
         }
         case SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_RAW: {
-            if (!saferotp_read_raw_data(state->current_entry.raw_data.start_row, buffer, required_size)) {
+            if (!saferotp_read_data_raw_unsafe(state->current_entry.raw_data.start_row, buffer, required_size)) {
                 return 0u;
             }
             return required_size;
@@ -531,7 +531,7 @@ static size_t x_otp_direntry_get_current_entry_data(void* buffer, size_t buffer_
             size_t number_of_reads_required = required_size;
             uint8_t* p = buffer; // for pointer arithmetic
             for (size_t i = 0; i < number_of_reads_required; ++i) {
-                if (!saferotp_read_single_row_redundant_byte3x(start_row+i, p+i)) {
+                if (!saferotp_read_single_value_byte3x(start_row+i, p+i)) {
                     return 0u;
                 }
             }
@@ -542,7 +542,7 @@ static size_t x_otp_direntry_get_current_entry_data(void* buffer, size_t buffer_
             size_t number_of_reads_required = required_size / sizeof(uint32_t);
             uint32_t* p = (uint32_t*)buffer; // for pointer arithmetic
             for (size_t i = 0; i < number_of_reads_required; ++i) {
-                if (!saferotp_read_redundant_rows_RBIT3(start_row+(i*3), p+i)) {
+                if (!saferotp_read_single_value_rbit3(start_row+(i*3), p+i)) {
                     return 0u;
                 }
             }
@@ -553,7 +553,7 @@ static size_t x_otp_direntry_get_current_entry_data(void* buffer, size_t buffer_
             size_t number_of_reads_required = required_size / sizeof(uint32_t);
             uint32_t* p = (uint32_t*)buffer; // for pointer arithmetic
             for (size_t i = 0; i < number_of_reads_required; ++i) {
-                if (!saferotp_read_redundant_rows_RBIT8(start_row+(i*8), p+i)) {
+                if (!saferotp_read_single_value_rbit8(start_row+(i*8), p+i)) {
                     return 0u;
                 }
             }
@@ -561,14 +561,14 @@ static size_t x_otp_direntry_get_current_entry_data(void* buffer, size_t buffer_
         }
         case SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_ECC: {
             uint16_t start_row = state->current_entry.ecc_data.start_row;
-            if (!saferotp_read_ecc_data(start_row, buffer, required_size)) {
+            if (!saferotp_read_data_ecc(start_row, buffer, required_size)) {
                 return 0u;
             }
             return required_size;
         }
         case SAFEROTP_OTPDIR_DATA_ENCODING_TYPE_ECC_ASCII_STRING: {
             uint16_t start_row = state->current_entry.ecc_data.start_row;
-            if (!saferotp_read_ecc_data(start_row, buffer, required_size)) {
+            if (!saferotp_read_data_ecc(start_row, buffer, required_size)) {
                 return 0u;
             }
             uint8_t* p = buffer; // for pointer arithmetic
@@ -707,7 +707,7 @@ bool saferotp_otpdir_add_entry_for_existing_ecc_data(
         size_t remaining_bytes_to_check = valid_data_byte_count;
         for (uint_fast16_t current_row = start_row; current_row < start_row + required_rows; ++current_row, remaining_bytes_to_check -= 2u) {
             uint8_t data[2];
-            if (!saferotp_read_ecc_data(current_row, data, sizeof(data))) {
+            if (!saferotp_read_data_ecc(current_row, data, sizeof(data))) {
                 PRINT_ERROR("Failed to read ECC data from OTP row %03x", current_row);
                 failure = true;
                 break;

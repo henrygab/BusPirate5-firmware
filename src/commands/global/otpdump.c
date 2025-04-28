@@ -257,7 +257,7 @@ static void internal_triple_read_otp(OTP_READ_RESULT* out_data, uint16_t row) {
     // Use software ECC read ... because bootrom doesn't seem to report ECC errors
     do {
         uint16_t tmp;
-        if (!saferotp_read_single_row_ecc(row, &tmp)) {
+        if (!saferotp_read_single_value_ecc(row, &tmp)) {
             out_data->err_from_bootrom = true;
             out_data->read_via_bootrom = 0xFFFFu;
         } else {

@@ -27,7 +27,7 @@ void test_otp_subsystem(void) {
     BP_DEBUG_PRINTF("Caching first 0x140 OTP pages (real values)\n");
     SAFEROTP_RAW_READ_RESULT real_values[0x140]; // ~1.1k stack...
     for (uint32_t i = 0; i < ARRAY_SIZE(real_values); ++i) {
-        if (!saferotp_read_single_row_raw(i, &real_values[i].as_uint32)) {
+        if (!saferotp_read_single_value_raw_unsafe(i, &real_values[i].as_uint32)) {
             BP_DEBUG_PRINTF("OTP Failed to read row %03x\n", i);
             real_values[i].as_uint32 = 0xFFFFFFFFu;
         }
@@ -55,7 +55,7 @@ void test_otp_subsystem(void) {
         id1.as_uint8[3], id1.as_uint8[2], id1.as_uint8[1], id1.as_uint8[0],
     }};
     cpu_serial_number_t id2 = {0};
-    if (!saferotp_read_ecc_data(0, &id2, sizeof(id2))) {
+    if (!saferotp_read_data_ecc(0, &id2, sizeof(id2))) {
         BP_DEBUG_PRINTF("OTP Failed to read virtualized serial number\n");
         return;
     } else if ((id2.as_uint64 != id1.as_uint64) && (id2.as_uint64 != id1r.as_uint64)) {
@@ -67,7 +67,7 @@ void test_otp_subsystem(void) {
     BP_DEBUG_PRINTF("Re-reading the first 0x140 OTP pages (virtualized values)\n");
     for (uint32_t i = 0; i < ARRAY_SIZE(real_values); ++i) {
         SAFEROTP_RAW_READ_RESULT tmp = { 0 };
-        if (!saferotp_read_single_row_raw(i, &tmp.as_uint32)) {
+        if (!saferotp_read_single_value_raw_unsafe(i, &tmp.as_uint32)) {
             BP_DEBUG_PRINTF("OTP Failed to read virtualilzed row %03x\n", i);
             return;
         } else if (tmp.as_uint32 != real_values[i].as_uint32) {
@@ -81,7 +81,7 @@ void test_otp_subsystem(void) {
     uint16_t write_start_row = 0x200;
     for (uint16_t row = 0x200; row < 0x220; ++row) {
         uint32_t raw_data = saferotp_calculate_ecc(row);
-        if (!saferotp_write_single_row_ecc(row, row)) {
+        if (!saferotp_write_single_value_ecc(row, row)) {
             BP_DEBUG_PRINTF("OTP Failed to write row %03x with data %06x\n", row, raw_data);
             return;
         }
@@ -92,7 +92,7 @@ void test_otp_subsystem(void) {
         uint32_t raw_data = saferotp_calculate_ecc(row);
         SAFEROTP_RAW_READ_RESULT tmp_raw = { 0 };
         uint16_t tmp = 0;
-        if (!saferotp_read_single_row_raw(row, &tmp_raw.as_uint32)) {
+        if (!saferotp_read_single_value_raw_unsafe(row, &tmp_raw.as_uint32)) {
             BP_DEBUG_PRINTF("OTP Failed to read virtualized row %03x raw\n", row);
             return;
         } else if (tmp_raw.as_uint32 == raw_data) {
@@ -105,7 +105,7 @@ void test_otp_subsystem(void) {
             return;
         }
 
-        if (!saferotp_read_single_row_ecc(row, &tmp)) {
+        if (!saferotp_read_single_value_ecc(row, &tmp)) {
             BP_DEBUG_PRINTF("OTP Failed to read virtualized row %03x\n", row);
             return;
         } else if (tmp != row) {
@@ -119,7 +119,7 @@ void test_otp_subsystem(void) {
         uint32_t raw_data = saferotp_calculate_ecc(row);
         // now try to write the inverted data to the same row (as raw)
         uint32_t raw_data_inverted = (~raw_data) & 0xFFFFFFu;
-        if (saferotp_write_single_row_raw(row, raw_data_inverted)) {
+        if (saferotp_write_single_value_raw_unsafe(row, raw_data_inverted)) {
             BP_DEBUG_PRINTF("OTP Permitted write of row %03x containing %06x --> %06x --- ERROR!\n", row);
             return;
         }
@@ -130,14 +130,14 @@ void test_otp_subsystem(void) {
     if (true) {
         uint32_t all_bits_set = 0xFFFFFFu;
         for (uint16_t i = 0; i < 0x10u; ++i) {
-            if (!saferotp_write_single_row_raw(i, all_bits_set)) {
+            if (!saferotp_write_single_value_raw_unsafe(i, all_bits_set)) {
                 BP_DEBUG_PRINTF("OTP Failed to overwrite row %03x with 0xFFFFFF\n", i);
                 return;
             }
         }
         for (uint16_t i = 0; i < 0x10u; ++i) {
             uint32_t tmp = 0;
-            if (!saferotp_read_single_row_raw(i, &tmp)) {
+            if (!saferotp_read_single_value_raw_unsafe(i, &tmp)) {
                 BP_DEBUG_PRINTF("OTP Failed to read 0xFFFFFF overwritten row %03x\n", i);
                 return;
             } else if (tmp != all_bits_set) {
@@ -156,7 +156,7 @@ void test_otp_subsystem(void) {
     BP_DEBUG_PRINTF("Verifying restored data\n");
     for (uint16_t i = 0; i < 0x10u; ++i) {
         uint32_t tmp = 0;
-        if (!saferotp_read_single_row_raw(i, &tmp)) {
+        if (!saferotp_read_single_value_raw_unsafe(i, &tmp)) {
             BP_DEBUG_PRINTF("OTP Failed to read 0xFFFFFF overwritten row %03x\n", i);
             return;
         } else if (tmp != real_values[i].as_uint32) {
