@@ -6,45 +6,52 @@
 The one-time programmable fuses on the Raspberry Pi RP2350 chip
 provides a great deal of flexibility.  The design has some nice
 features, such as built-in multiple ways to store redundant data.
-It also has much hidden complexity and edge cases.  This library
-aims to lower the costs / barriers to safer use of the OTP,
-by providing a simple, tested, well-documented API.
 
 ## Problems
 
 These can allow additional errors to sneak through.
 
 * ECC algorithm in the datasheet was underspecified.
-* Bootrom does not report errors when reading ECC data.
-* Bootrom does not validate decoded ECC data (if detected
-  a bitflip), if re-encoded with ECC, matches the read data.
-* Memory-mapped OTP regions fail to provide any
+* Bootrom does not normally report errors when reading ECC data.
+  * When using guarded reads, a bus fault is reported for ECC errors;
+    While important for security-critical boot, to not normally
+    report ECC decoding errors is a poor design choice.  Moreover,
+    there is no well-defined method for handling bus faults caused
+    by a library's code.
+  * Bootrom does not validate that decoded ECC data (if it detected
+    correctable errors) actually re-encodes to the expected raw data.
+    This lets 3-bit and 5-bit errors slip through(!).
+* Memory-mapped OTP regions normally fail to provide any
   error reporting for invalidly-encoded / corrupt data.
+  * Same problem as above ... the bootrom appears to be calling
+    into the Synopsys IP block, rather than implementing the ECC
+    checks itself.
+  * The memory-mapped regions are thus also likely using the same
+    undocumented Synopsys IP block, and has the same problems as
+    calling into the bootrom functions.
 
 Development for mere mortals can be expensive, as any
-mistake programming the one-time-programmable (OTP) rows
-may make the board unusable.  Alternatively, development
-may become very slow, as each write must be manually and
-carefully reviewed.
+mistake may make the board unusable (one-time programmable).
+Alternatively, development becomes very slow work, as each
+instruction must be carefully tested.
 
 Having a set of well-tested higher-level APIs can greatly
-reduce this burden.  Having the ability to easily virtualize
-the OTP data is just amazing!
+reduce this burden.
 
 ## Complexity
 
 * There are many ways data could be encoded:
-  * RAW ... 24 bits per row, without any redundancy or ECC
-  * RBIT3 ... Storing the same 24 bits of data on three rows;
+  * `RAW` ... 24 bits per row, without any redundancy or ECC
+  * `RBIT3` ... Storing the same 24 bits of data on three rows;
     Reads use per-bit majority voting to determine set bits
     (2 of 3 majority voting)
-  * RBIT8 ... Storing the same 24 bits of data on eight rows;
+  * `RBIT8` ... Storing the same 24 bits of data on eight rows;
     Reads use per-bit majority voting to determine set bits
     (3 of 8 majority voting)
-  * BYTE3 ... Storing a the same 8 bits in a row three times;
+  * `BYTE3` ... Storing a the same 8 bits in a row three times;
     Reads use per-bit majority voting to determine set bits
     (2 of 3 majority voting)
-  * ECC ... Storing 16 bits of usable data in a row, with
+  * `ECC` ... Storing 16 bits of usable data in a row, with
     the ability to correct any single-bit error, and detect
     any two-bit error via six ECC bits.  The final two bits
     (BRBP) allow a sector with any single bit flipped to still
@@ -62,12 +69,13 @@ In addition, when reading an OTP row with ECC encoded data, the
 API appears to require reading **_TWO_** rows at a time.  The
 datasheet says it will return 0xFFFFFFFF on a failure.
 Since the API reads two rows at a time, it cannot indicate which
-of the two rows had correct data (if any).
+of the two rows had correct data (if any).  However, it appears
+that the bootrom does NOT even report ECC errors?
 
 The only way that **_might_** (untested) get notified of ECC errors
 is by using "guarded" reads.  However, using guarded reads will
 result in a hard fault ... requiring complex error handling
-code if it's actually desired to simply report the error and
+code, if the caller expects to simply report the error and
 continue execution.
 
 As for the bit-by-bit voting ... That's template code that is
