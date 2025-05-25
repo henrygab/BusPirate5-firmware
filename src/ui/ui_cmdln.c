@@ -1,3 +1,5 @@
+#define BP_DEBUG_OVERRIDE_DEFAULT_CATEGORY BP_DEBUG_CAT_CMDLINE_PARSER
+
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
@@ -16,6 +18,8 @@ struct _command_info_t command_info; // the current command and position in the 
 static const struct prompt_result empty_result;
 
 void cmdln_init(void) {
+    PRINT_DEBUG("cmdln_init()\r\n");
+
     for (uint32_t i = 0; i < UI_CMDBUFFSIZE; i++) {
         cmdln.buf[i] = 0x00;
     }
@@ -24,19 +28,32 @@ void cmdln_init(void) {
     cmdln.histptr = 0;
     cmdln.cursptr = 0;
 }
-// pointer update, rolls over
+// buffer offset update, rolls over
 uint32_t cmdln_pu(uint32_t i) {
+    // Is there any **_other_** reason why UI_CMDBUFFSIZE is commented as "Must be a power of 2?"
+    // If not, remove that restriction and simply (optimizer should result in equivalent code):
+    // return i % UI_CMDBUFFSIZE;
     return ((i) & (UI_CMDBUFFSIZE - 1));
+}
+static uint32_t cmdln_available_chars(uint32_t rptr, uint32_t wptr) {
+    // This is a circular buffer.
+    static_assert( (2*UI_CMDBUFFSIZE) < UINT32_MAX, "UI_CMDBUFFSIZE too large for this shortcut" );
+    // Just add UI_CMDBUFFSIZE to the write pointer before subtracting them.
+    // This avoids the need for conditional addition, since the modulo operation
+    // will remove this addition.
+    uint32_t tmp = wptr + UI_CMDBUFFSIZE - rptr;
+    return tmp % UI_CMDBUFFSIZE;
 }
 
 void cmdln_get_command_pointer(struct _command_pointer* cp) {
-    cp->wptr = cmdln.wptr;
-    cp->rptr = cmdln.rptr;
+    cp->wptr = cmdln.wptr; // These are offsets, NOT pointers
+    cp->rptr = cmdln.rptr; // These are offsets, NOT pointers
 }
 
 bool cmdln_try_add(char* c) {
     // TODO: leave one space for 0x00 command seperator????
     if (cmdln_pu(cmdln.wptr + 1) == cmdln_pu(cmdln.rptr)) {
+        PRINT_WARNING("cmdln_try_add: Buffer full, could not add '%c'", *c);
         return false;
     }
     cmdln.buf[cmdln.wptr] = (*c);
@@ -46,6 +63,8 @@ bool cmdln_try_add(char* c) {
 
 bool cmdln_try_remove(char* c) {
     if (cmdln_pu(cmdln.rptr) == cmdln_pu(cmdln.wptr)) {
+        // this is not a warning, as it's a normal occurrence
+        PRINT_DEBUG("cmdln_try_remove: Buffer empty, could not remove character");
         return false;
     }
 
@@ -55,13 +74,16 @@ bool cmdln_try_remove(char* c) {
 }
 
 bool cmdln_try_peek(uint32_t i, char* c) {
-    if (cmdln_pu(cmdln.rptr + i) == cmdln_pu(cmdln.wptr)) {
+    uint32_t tmp = cmdln_pu(cmdln.rptr + i);
+    if (tmp == cmdln_pu(cmdln.wptr)) {
+        PRINT_DEBUG("cmdln_try_peek: Buffer offset 0x%02x (%d) is end of written buffer, no character to peek\n",
+                    tmp, tmp);
         return false;
     }
 
-    (*c) = cmdln.buf[cmdln_pu(cmdln.rptr + i)];
-
+    (*c) = cmdln.buf[tmp];
     if ((*c) == 0x00) {
+        PRINT_DEBUG("cmdln_try_peek: Buffer offset 0x%02x (%d) stored null char\n", tmp, tmp);
         return false;
     }
 
@@ -69,22 +91,48 @@ bool cmdln_try_peek(uint32_t i, char* c) {
 }
 
 bool cmdln_try_peek_pointer(struct _command_pointer* cp, uint32_t i, char* c) {
-    if (cmdln_pu(cp->rptr + i) == cmdln_pu(cp->wptr)) {
+    uint32_t tmp = cmdln_pu(cp->rptr + i);
+    if (tmp == cmdln_pu(cp->wptr)) {
+        PRINT_DEBUG("cmdln_try_peek_pointer: Buffer offset 0x%02x (%d) is end of written buffer, no character to peek\n",
+                    tmp, tmp);
         return false;
     }
 
     (*c) = cmdln.buf[cmdln_pu(cp->rptr + i)];
+    if ((*c) == 0x00) {
+        PRINT_DEBUG("cmdln_try_peek_pointer: Buffer offset 0x%02x (%d) stored null char\n", tmp, tmp);
+        // BUGBUG -- Unlike cmdln_try_peek(), this does not return false if the character is 0x00?
+        // return false;
+    }
+
+
     return true;
 }
 
 bool cmdln_try_discard(uint32_t i) {
-    // this isn't very effective, maybe just not use it??
-    // if(cmdln_pu(cmdln.rptr+i) == cmdln_pu(cmdln.wprt))
-    //{
-    //    return false;
-    //}
-    cmdln.rptr = cmdln_pu(cmdln.rptr + i);
-    return true;
+
+    // BUGBUG -- this will increment the read offset, even if the read offset
+    //           says there's nothing to discard (i.e., rptr == wptr)
+
+    uint32_t available_chars = cmdln_available_chars(cmdln.rptr, cmdln.wptr);
+    
+    // When this was indiscriminately going past the end of the buffer,
+    // stuff was in undefined behavior land.
+    // What to do when there are some available characters, but not
+    // the count that was requested?
+    //   Option 1: return false, without dropping any characters
+    //   Option 2: drop the available characters, and return false
+    // Went with option 2, because name of this function is `try_discard()`.
+    bool result = available_chars >= i;
+
+    uint32_t to_discard = result ? i : available_chars;
+    if (to_discard != 0) {
+        if (!result) {
+            PRINT_WARNING("cmdln_try_discard: requested to discard %d characters, only %d discarded (no more remain)", i, to_discard);
+        }
+        cmdln.rptr = cmdln_pu(cmdln.rptr + to_discard);
+    }
+    return result;
 }
 
 bool cmdln_next_buf_pos(void) {
@@ -97,22 +145,14 @@ bool cmdln_next_buf_pos(void) {
 //  Isolate the next command between the current read pointer and 0x00, (?test?) end of pointer, ; || && (next commmand)
 //  functions to move within the single command range
 
-uint32_t cmdln_get_length_pointer(struct _command_line* cp) {
-    if (cp->rptr > cp->wptr) {
-        return (UI_CMDBUFFSIZE - cp->rptr) + cp->wptr;
-    } else {
-        return cp->wptr - cp->rptr;
-    }
-}
-
 // consume white space (0x20, space)
 //  non_white_space = true, consume non-white space characters (not space)
-bool cmdln_consume_white_space(uint32_t* rptr, bool non_white_space) {
+static bool cmdln_consume_white_space_ex(uint32_t* rptr, bool non_white_space) {
     // consume white space
     while (true) {
         char c;
-        // no more characters
-        if (!(command_info.endptr >= (command_info.startptr + (*rptr)) &&
+        // all remaining characters were space (or non-space) ... no more characters remain
+        if (!(command_info.endptr >= (command_info.startptr + (*rptr)) &&  // BUGBUG -- NOT pointers, and did NOT do modulo operation, so this will fail when start offset is near end of circular buffer
               cmdln_try_peek(command_info.startptr + (*rptr), &c))) {
             return false;
         }
@@ -125,6 +165,12 @@ bool cmdln_consume_white_space(uint32_t* rptr, bool non_white_space) {
         }
     }
     return true;
+}
+bool cmdln_consume_white_space(uint32_t* rptr) {
+    return cmdln_consume_white_space_ex(rptr, false);
+}
+bool cmdln_consume_non_white_space(uint32_t* rptr) {
+    return cmdln_consume_white_space_ex(rptr, true);
 }
 
 // internal function to take copy string from start position to next space or end of buffer
@@ -147,6 +193,9 @@ bool cmdln_args_get_string(uint32_t rptr, uint32_t max_len, char* string) {
         rptr++;
     }
 }
+
+// TODO: add support for C23-style numeric literal separator '
+//       e.g., 0x0001'3054   0b1101'1011'0111'1111   24'444'444.848'22
 
 // parse a hex value from the first digit
 // notice, we do not pass rptr by reference, so it is not updated
@@ -264,8 +313,8 @@ bool cmdln_args_find_flag_internal(char flag, command_var_t* arg) {
            cmdln_try_peek(rptr + 1, &flag_c)) {
         if (dash_c == '-' && flag_c == flag) {
             arg->has_arg = true;
-            if ((!cmdln_consume_white_space(&rptr, true))     // move past the flag characters
-                || (!cmdln_consume_white_space(&rptr, false)) // move past spaces. @end of buffer, next flag, or value
+            if ((!cmdln_consume_non_white_space(&rptr))     // move past the flag characters
+                || (!cmdln_consume_white_space(&rptr)) // move past spaces. @end of buffer, next flag, or value
                 || (cmdln_try_peek(rptr, &dash_c) && dash_c == '-')) // next argument, no value
             {
                 // printf("No value for flag %c\r\n", flag);
@@ -339,17 +388,18 @@ bool cmdln_args_string_by_position(uint32_t pos, uint32_t max_len, char* str) {
     uint32_t rptr = 0;
     memset(str, 0x00, max_len);
 // start at beginning of command range
+    PRINT_DEBUG("cmdln_args_string_by_position(%d, %d, %p)\r\n", pos, max_len, str);
 #ifdef UI_CMDLN_ARGS_DEBUG
     printf("Looking for string in pos %d\r\n", pos);
 #endif
     for (uint32_t i = 0; i < pos + 1; i++) {
         // consume white space
-        if (!cmdln_consume_white_space(&rptr, false)) {
+        if (!cmdln_consume_white_space(&rptr)) {
             return false;
         }
         // consume non-white space
         if (i != pos) {
-            if (!cmdln_consume_white_space(&rptr, true)) { // consume non-white space
+            if (!cmdln_consume_non_white_space(&rptr)) { // consume non-white space
                 return false;
             }
         } else {
@@ -378,12 +428,12 @@ bool cmdln_args_uint32_by_position(uint32_t pos, uint32_t* value) {
 #endif
     for (uint32_t i = 0; i < pos + 1; i++) {
         // consume white space
-        if (!cmdln_consume_white_space(&rptr, false)) {
+        if (!cmdln_consume_white_space(&rptr)) {
             return false;
         }
         // consume non-white space
         if (i != pos) {
-            if (!cmdln_consume_white_space(&rptr, true)) { // consume non-white space
+            if (!cmdln_consume_non_white_space(&rptr)) { // consume non-white space
                 return false;
             }
         } else {
@@ -408,12 +458,12 @@ bool cmdln_args_float_by_position(uint32_t pos, float* value) {
 #endif
     for (uint32_t i = 0; i < pos + 1; i++) {
         // consume white space
-        if (!cmdln_consume_white_space(&rptr, false)) {
+        if (!cmdln_consume_white_space(&rptr)) {
             return false;
         }
         // consume non-white space
         if (i != pos) {
-            if (!cmdln_consume_white_space(&rptr, true)) { // consume non-white space
+            if (!cmdln_consume_non_white_space(&rptr)) { // consume non-white space
                 return false;
             }
         } else {
@@ -453,34 +503,72 @@ bool cmdln_args_float_by_position(uint32_t pos, float* value) {
 }
 
 // finds the next command in user input
+// could be the comment indicator `#` ... in which case entire string ending in 0x00 is considered the comment
 // could be a single command ending in 0x00
 // could be multiple commands chained with ; || &&
 // sets the internal current command pointers to avoid reading into the next or previous commands
 // returns true if a command is found
 bool cmdln_find_next_command(struct _command_info_t* cp) {
     uint32_t i = 0;
-    char c, d;
-    cp->startptr = cp->endptr = cp->nextptr; // should be zero on first call, use previous value for subsequent calls
+    char c;
+    char d;
+    bool only_saw_leading_whitespace = true;
+    cp->startptr = cp->nextptr; // should be zero on first call, use previous value for subsequent calls
+    cp->endptr   = cp->nextptr; // should be zero on first call, use previous value for subsequent calls
+
+    PRINT_DEBUG("cmdln_find_next_command: startptr=%d\r\n", cp->startptr);
 
     if (!cmdln_try_peek(cp->endptr, &c)) {
+        PRINT_DEBUG("cmdln_find_next_command: No command found, endptr=%d\r\n", cp->endptr);
 #ifdef UI_CMDLN_ARGS_DEBUG
         printf("End of command line input at %d\r\n", cp->endptr);
 #endif
         cp->delimiter = false; // 0 = end of command input
         return false;
     }
-    memset(cp->command, 0x00, 9);
-    while (true) {
+    memset(cp->command, 0x00, 9); // BUGBUG -- Hardcoded size of buffer cp->command, should hard-code somewhere a MAXIMUM_COMMAND_IDENTIFIER_CHARACTERS
+
+    // Generally, this loop will (try to) peek the next character into `c`.
+    //   If the character is a space, the loop continues.
+    //   If the first non-space character is `#`, the remainder of the input line is a comment.
+    // Then, to support detection of chained commands using `;`, `||`, or `&&`, will (try to) peek another character into `d`.
+    // 
+    // If the first character was not retrieved: (SUCCESS)
+    //     There is no delimiter, so this is the final command.
+    // Else (first character is valid)...
+    //     If first character is `;`: (SUCCESS)
+    //         The delimiter is set to `;` to indicate more commands might follow.
+    //     If second character retrieved and the two characters are `||` or `&&`: (SUCCESS)
+    //         The delimiter is set to `|` or `&` to indicate more commands might follow.
+    //     The first eight non-space characters are copied into `cp->command`.
+
+    while (true) { // TODO: should limit loop to maximum input buffer length, to catch infinite loop bug that otherwise would be frustratingly hard to debug.
+
         bool got_pos1 = cmdln_try_peek(cp->endptr, &c);
         
-        //consume white space
-        if(got_pos1 && c == ' ') {
-            cp->endptr++;
-            continue;
+        // consume white space and detect if the line is a comment
+        if(got_pos1 && only_saw_leading_whitespace) {
+            // consume leading white space only (not any other whitespace)
+            if (c == ' ') {
+                cp->endptr++;
+                continue;
+            }
+            // If first non-space character is `#`, then the rest of the line is a comment
+            if (c == '#') { // first non-space character is `#`, so rest of the line is a comment
+                // loop until end of command line input
+                while (cmdln_try_peek(cp->endptr, &d)) {
+                    cp->endptr++;
+                }
+                goto cmdln_find_next_command_success;
+            } else {
+                // any character other than space or `#` means this is not a comment
+                only_saw_leading_whitespace = false;
+            }
         }
         
         bool got_pos2 = cmdln_try_peek(cp->endptr + 1, &d);
         if (!got_pos1) {
+            PRINT_DEBUG("cmdln_find_next_command: Found last/only command with end offset: %d\r\n", cp->endptr);
 #ifdef UI_CMDLN_ARGS_DEBUG
             printf("Last/only command line input: pos1=%d, c=%d\r\n", got_pos1, c);
 #endif
@@ -488,6 +576,7 @@ bool cmdln_find_next_command(struct _command_info_t* cp) {
             cp->nextptr = cp->endptr;
             goto cmdln_find_next_command_success;
         } else if (c == ';') {
+            PRINT_DEBUG("cmdln_find_next_command: Found ';' end offset: %d\r\n", cp->endptr);
 #ifdef UI_CMDLN_ARGS_DEBUG
             printf("Got end of command: ; position: %d, \r\n", cp->endptr);
 #endif
@@ -495,22 +584,33 @@ bool cmdln_find_next_command(struct _command_info_t* cp) {
             cp->nextptr = cp->endptr + 1;
             goto cmdln_find_next_command_success;
         } else if (got_pos2 && ((c == '|' && d == '|') || (c == '&' && d == '&'))) {
+            PRINT_DEBUG("cmdln_find_next_command: Found '%c%c' end offset: %d\r\n", c, d, cp->endptr);
 #ifdef UI_CMDLN_ARGS_DEBUG
             printf("Got end of command: %c position: %d, \r\n", c, cp->endptr);
 #endif
             cp->delimiter = c;
             cp->nextptr = cp->endptr + 2;
             goto cmdln_find_next_command_success;
-        } else if (i < 8) {
+        } else if (i < 8) { // BUGBUG -- Hardcoded size of buffer cp->command, should hard-code somewhere a MAXIMUM_COMMAND_IDENTIFIER_CHARACTERS
             cp->command[i] = c;
-            if (c == ' ') {
-                i = 8; // stop at space if possible
+            if (c == ' ') { // BUGBUG -- Could this have previously EVER been true?  Didn't the "eat whitespace" logic above ensure that a space character was never seen here?
+                i = 8; // stop at space if possible // BUGBUG -- Hardcoded (likely size of buffer cp->command), should hard-code somewhere a MAXIMUM_COMMAND_IDENTIFIER_CHARACTERS
             }
             i++;
         }
         cp->endptr++;
     }
+
 cmdln_find_next_command_success:
+    // NOTE: startptr and endptr are OFFSETS into the command line buffer.
+    //       Moreover, they are automagically WRAPPED around the circular
+    //       buffer in cmdln_try_peek(), cmdln_try_peek_pointer(), etc.
+    //       using `cmdln_pu(uint32_t offset)`
+    PRINT_DEBUG(
+        "cmdln_find_next_command: offset %d .. %d (%d chars)\n",
+        cp->startptr, cp->endptr, cp->endptr - cp->startptr
+        );
+
     cp->endptr--;
     command_info.startptr = cp->startptr;
     command_info.endptr = cp->endptr;
@@ -520,18 +620,34 @@ cmdln_find_next_command_success:
 // function for debugging the command line arguments parsers
 //  shows all commands and all detected positions
 bool cmdln_info(void) {
+
+    PRINT_DEBUG("cmdln_info(): start: %d  end: %d  length: %d", cmdln.rptr, cmdln.wptr, cmdln_available_chars(cmdln.rptr, cmdln.wptr));
     // start and end point?
     printf("Input start: %d, end %d\r\n", cmdln.rptr, cmdln.wptr);
     // how many characters?
-    printf("Input length: %d\r\n", cmdln_get_length_pointer(&cmdln));
+    printf("Input length: %d\r\n", cmdln_available_chars(cmdln.rptr, cmdln.wptr));
+
+    // loop through and display all commands in this command line
     uint32_t i = 0;
     struct _command_info_t cp;
     cp.nextptr = 0;
     while (cmdln_find_next_command(&cp)) {
+        if (cp.delimiter == 0) {
+            PRINT_DEBUG("cmdln_info:        Command %s <end of commands>\n", cp.command);
+        } else {
+            PRINT_DEBUG("cmdln_info:        Command %s, delimiter %c\n", cp.command, cp.delimiter);
+        }
         printf("Command: %s, delimiter: %c\r\n", cp.command, cp.delimiter);
+
+        // show all the arguments for this command
         uint32_t pos = 0;
         char str[9];
-        while (cmdln_args_string_by_position(pos, 9, str)) {
+        // BUGBUG ... this is O(n^2) complexity, because cmdln_arg_string_by_position()
+        //            iterates through the command line from the start each time.
+        //            May be able to ignore this, as maximum buffer is 512 bytes, and
+        //            512*512 = 262144 iterations, greatly limiting impact.
+        while (cmdln_args_string_by_position(pos, 9, str)) { // BUGBUG -- hardcoded, based on size of local array `str`
+            PRINT_DEBUG("cmdln_info:            Pos %d, value: %s\n", pos, str);
             printf("String pos: %d, value: %s\r\n", pos, str);
             pos++;
         }
@@ -541,18 +657,25 @@ bool cmdln_info(void) {
 // function for debugging the command line arguments parsers
 //  shows all integers and all detected positions
 bool cmdln_info_uint32(void) {
+    PRINT_DEBUG("cmdln_info_uint32(): start: %d  end: %d  length: %d", cmdln.rptr, cmdln.wptr, cmdln_available_chars(cmdln.rptr, cmdln.wptr));
     // start and end point?
     printf("Input start: %d, end %d\r\n", cmdln.rptr, cmdln.wptr);
     // how many characters?
-    printf("Input length: %d\r\n", cmdln_get_length_pointer(&cmdln));
+    printf("Input length: %d\r\n", cmdln_available_chars(cmdln.rptr, cmdln.wptr));
     uint32_t i = 0;
     struct _command_info_t cp;
     cp.nextptr = 0;
     while (cmdln_find_next_command(&cp)) {
+        if (cp.delimiter == 0) {
+            PRINT_DEBUG("cmdln_info_uint32:        Command %s <end of commands>\n", cp.command);
+        } else {
+            PRINT_DEBUG("cmdln_info_uint32:        Command %s, delimiter %c\n", cp.command, cp.delimiter);
+        }
         printf("Command: %s, delimiter: %c\r\n", cp.command, cp.delimiter);
         uint32_t pos = 0;
         uint32_t value = 0;
         while (cmdln_args_uint32_by_position(pos, &value)) {
+            PRINT_DEBUG("cmdln_info_uint32:            Pos %d, value: %d\n", pos, value);
             printf("Integer pos: %d, value: %d\r\n", pos, value);
             pos++;
         }

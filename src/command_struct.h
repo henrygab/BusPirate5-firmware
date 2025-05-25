@@ -1,3 +1,6 @@
+#pragma once
+
+#include <stdint.h>
 #define MAX_COMMAND_LENGTH 10
 
 typedef struct command_result {

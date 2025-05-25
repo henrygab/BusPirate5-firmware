@@ -1,8 +1,8 @@
 struct _command_line {
-    uint32_t wptr;
-    uint32_t rptr;
-    uint32_t histptr;
-    uint32_t cursptr;
+    uint32_t wptr;    // NOT a pointer .. this is an offset into member .buf (a circular buffer)
+    uint32_t rptr;    // NOT a pointer .. this is an offset into member .buf (a circular buffer)
+    uint32_t histptr; // NOT a pointer .. this is an offset into member .buf (a circular buffer)
+    uint32_t cursptr; // NOT a pointer .. this is an offset into member .buf (a circular buffer)
     char buf[UI_CMDBUFFSIZE];
 };
 
