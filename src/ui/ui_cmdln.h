@@ -1,3 +1,10 @@
+#pragma once
+
+// Although named `command_line`, this structure
+// covers the full history of the command line input.
+// so it may have multiple command lines stored within.
+// When read and write offsets are equal, the buffer is empty.
+// Read and write offsets should ALWAYS be between 0 and UI_CMDBUFFSIZE-1.
 struct _command_line {
     uint32_t wptr;    // NOT a pointer .. this is an offset into member .buf (a circular buffer)
     uint32_t rptr;    // NOT a pointer .. this is an offset into member .buf (a circular buffer)
@@ -6,19 +13,23 @@ struct _command_line {
     char buf[UI_CMDBUFFSIZE];
 };
 
+// This structure is used to track a single "command" input.
+// At present, multiple commands can be entered in a single command line,
+// and this structure will define the offsets to a single one of those commands.
 struct _command_pointer {
-    uint32_t wptr;
-    uint32_t rptr;
+    uint32_t wptr; // NOT a pointer .. this is an offset into member .buf (a circular buffer)
+    uint32_t rptr; // NOT a pointer .. this is an offset into member .buf (a circular buffer)
 };
 
+// 
 struct _command_info_t {
-    uint32_t rptr;
-    uint32_t wptr;
-    uint32_t startptr;
-    uint32_t endptr;
-    uint32_t nextptr;
+    uint32_t rptr;     // NOT a pointer .. this is an offset into member .buf (a circular buffer)
+    uint32_t wptr;     // NOT a pointer .. this is an offset into member .buf (a circular buffer)
+    uint32_t startptr; // NOT a pointer .. this is an offset into member .buf (a circular buffer)
+    uint32_t endptr;   // NOT a pointer .. this is an offset into member .buf (a circular buffer)
+    uint32_t nextptr;  // NOT a pointer .. this is an offset into member .buf (a circular buffer)
     char delimiter;
-    char command[9];
+    char command[9];   // BUGBUG -- Hard-coded buffer size ...
 };
 
 typedef struct command_var_struct {
@@ -39,27 +50,33 @@ bool cmdln_find_next_command(struct _command_info_t* cp);
 bool cmdln_info(void);
 bool cmdln_info_uint32(void);
 
-// update a command line buffer pointer with rollover
+// update a command line buffer offset with rollover -- (i.e., modulo operator due to circular buffer)
 uint32_t cmdln_pu(uint32_t i);
 // try to add a byte to the command line buffer, return false if buffer full
 bool cmdln_try_add(char* c);
 // try to get a byte, return false if buffer empty
 bool cmdln_try_remove(char* c);
-// try to peek 0+n bytes (no pointer update), return false if end of buffer
-// this should always be used on sequency (eg if(peek(0)){peek(1)})
+// try to peek 0+n bytes (no offsets updated)
+// returns false if at the end of the buffer
+// this should always be used sequentially from zero,
+// if wanting to peek multiple characters forward
+//     e.g., bool got_char = peek(0, &c) && peek(1, &c);
 // to avoid missing the end of the buffer
 bool cmdln_try_peek(uint32_t i, char* c);
-// try to discard n bytes (advance the pointer), return false if end of buffer
-//(should be used with try_peek to confirm before discarding...)
+// try to discard n bytes (advance the read offset)
+// return false if end of buffer is reached
+// (should be used with try_peek to confirm before discarding...)
 bool cmdln_try_discard(uint32_t i);
-// this moves the read pointer to the write pointer,
+// this moves the read offset to the write offset,
 // allowing the next command line to be entered after the previous.
 // this allows the history scroll through the circular buffer
 bool cmdln_next_buf_pos(void);
 
 void cmdln_init(void);
 
+// TODO: rename this API to avoid confusion about pointers / offsets
 bool cmdln_try_peek_pointer(struct _command_pointer* cp, uint32_t i, char* c);
+// TODO: rename this API to avoid confusion about pointers / offsets
 void cmdln_get_command_pointer(struct _command_pointer* cp);
 
 extern struct _command_line cmdln;
