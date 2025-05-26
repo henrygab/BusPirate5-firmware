@@ -90,6 +90,7 @@ bool ui_process_commands(void) {
             return false;
         }
 
+        // Special-case: these prefixes don't require space before the first argument, so only check first character is a match
         switch (cp.command[0]) {
             case '[':
             case '>':
@@ -102,13 +103,16 @@ bool ui_process_commands(void) {
                 return ui_process_macro(); // first character is (, mode macro
                 break;
         }
+
         // process as a command
         char command_string[MAX_COMMAND_LENGTH];
         struct command_result result = result_blank;
         // string 0 is the command
-        //  continue if we don't get anything? could be an empty chained command? should that be error?
+        // continue if we don't get anything? could be an empty chained command? should that be error?
         if (!cmdln_args_string_by_position(0, sizeof(command_string), command_string)) {
-            continue;
+            result.error = false;
+            result.success = true;
+            goto cmd_ok;
         }
 
         enum COMMAND_TYPE {
