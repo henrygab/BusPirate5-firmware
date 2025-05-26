@@ -13,15 +13,19 @@ struct _command_line {
     char buf[UI_CMDBUFFSIZE];
 };
 
-// This structure is used to track a single "command" input.
+// This structure is used to track a single "command" and all options associated with that command.
 // At present, multiple commands can be entered in a single command line,
 // and this structure will define the offsets to a single one of those commands.
+
+// TODO: rename this structure to avoid confusion between pointers / offsets ... maybe `_command_extent`?
 struct _command_pointer {
     uint32_t wptr; // NOT a pointer .. this is an offset into member .buf (a circular buffer)
     uint32_t rptr; // NOT a pointer .. this is an offset into member .buf (a circular buffer)
 };
 
-// 
+// TODO: document the fields in this structure
+// WARNING: the end offset might EXCEED UI_CMDBUFFSIZE?!  Change to be a character count instead of end offset?
+// WARNING: Some fields are modulo'd by UI_CMDBUFFSIZE, others are NOT.  This is just asking for bugs....
 struct _command_info_t {
     uint32_t rptr;     // NOT a pointer .. this is an offset into member .buf (a circular buffer)
     uint32_t wptr;     // NOT a pointer .. this is an offset into member .buf (a circular buffer)
@@ -29,7 +33,7 @@ struct _command_info_t {
     uint32_t endptr;   // NOT a pointer .. this is an offset into member .buf (a circular buffer)
     uint32_t nextptr;  // NOT a pointer .. this is an offset into member .buf (a circular buffer)
     char delimiter;
-    char command[9];   // BUGBUG -- Hard-coded buffer size ...
+    char command[9];   // BUGBUG -- Hard-coded buffer size ... should this be MAX_COMMAND_LENGTH?
 };
 
 typedef struct command_var_struct {

@@ -39,7 +39,7 @@
         E_DEBUG_CAT_ONBOARD_PIXELS   =  2u, // (((uint32_t)1u) <<  2u), // onboard RGB pixels
         E_DEBUG_CAT_ONBOARD_STORAGE  =  3u, // (((uint32_t)1u) <<  3u), // ???
         E_DEBUG_CAT_CMD_COMMENTS     =  4u, // (((uint32_t)1u) <<  4u), // comments entered at command line (e.g., `# this is a comment`)
-        E_DEBUG_CAT_CMDLINE_PARSER   =  4u, // (((uint32_t)1u) <<  4u), // comments entered at command line (e.g., `# this is a comment`)
+        E_DEBUG_CAT_CMDLINE_PARSER   =  5u, // (((uint32_t)1u) <<  4u), // parsing of command line input
         // E_DEBUG_CAT_USB_HID          = XXu, // (((uint32_t)1u) << XXu), // USB based HID interactions
         // E_DEBUG_CAT_USB_CDC          = XXu, // (((uint32_t)1u) << XXu), // USB based serial port
         // E_DEBUG_CAT_USB_MSC          = XXu, // (((uint32_t)1u) << XXu), // USB based mass storage commands

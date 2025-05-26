@@ -151,20 +151,23 @@ static bool cmdln_consume_white_space_ex(uint32_t* rptr, bool non_white_space) {
     // consume white space
     while (true) {
         char c;
-        // all remaining characters were space (or non-space) ... no more characters remain
-        if (!(command_info.endptr >= (command_info.startptr + (*rptr)) &&  // BUGBUG -- NOT pointers, and did NOT do modulo operation, so this will fail when start offset is near end of circular buffer
-              cmdln_try_peek(command_info.startptr + (*rptr), &c))) {
+        // all remaining characters matched ... no more characters remain
+        if (!(
+            command_info.endptr >= (command_info.startptr + (*rptr)) &&  // BUGBUG -- NOT pointers, and did NOT do modulo operation, so this will fail when start offset is near end of circular buffer
+            cmdln_try_peek(command_info.startptr + (*rptr), &c)
+            )) {
             return false;
         }
-        if ((!non_white_space && c == ' ')      // consume white space
-            || (non_white_space && c != ' ')) { // consume non-whitespace
-            // printf("Whitespace at %d\r\n", cp->startptr+rptr);
-            (*rptr)++;
-        } else {
-            break;
+        bool matches =
+               (!non_white_space && c == ' ')     // consume white space --OR--
+            || ( non_white_space && c != ' ');    // consume non-whitespace
+        if (!matches) {
+            // found non-matching character ... so can stop consuming
+            return true;
         }
+        // consume this character and move to next
+        (*rptr)++;
     }
-    return true;
 }
 bool cmdln_consume_white_space(uint32_t* rptr) {
     return cmdln_consume_white_space_ex(rptr, false);
@@ -423,6 +426,7 @@ bool cmdln_args_uint32_by_position(uint32_t pos, uint32_t* value) {
     char c;
     uint32_t rptr = 0;
 // start at beginning of command range
+    PRINT_DEBUG("cmdln_args_uint_by_position(%d, %p)\r\n", pos, value);
 #ifdef UI_CMDLN_ARGS_DEBUG
     printf("Looking for uint in pos %d\r\n", pos);
 #endif
@@ -453,8 +457,9 @@ bool cmdln_args_float_by_position(uint32_t pos, float* value) {
     uint32_t rptr = 0;
     uint32_t ipart = 0, dpart = 0;
 // start at beginning of command range
+    PRINT_DEBUG("cmdln_args_float_by_position(%d, %p)\r\n", pos, value);
 #ifdef UI_CMDLN_ARGS_DEBUG
-    printf("Looking for uint in pos %d\r\n", pos);
+    printf("Looking for float in pos %d\r\n", pos);
 #endif
     for (uint32_t i = 0; i < pos + 1; i++) {
         // consume white space

@@ -1,5 +1,5 @@
 
-#define BP_DEBUG_OVERRIDE_DEFAULT_CATEGORY E_DEBUG_CAT_SCRIPT_COMMENTS
+#define BP_DEBUG_OVERRIDE_DEFAULT_CATEGORY BP_DEBUG_CAT_CMD_COMMENTS
 
 #include "pirate.h"
 #include "cmd_comment.h"
@@ -8,6 +8,8 @@
 #include "string.h"
 
 void cmd_comment_handler(struct command_result* res) {
+
+    PRINT_DEBUG("cmd_comment_handler()\r\n");
 
     // TODO: log the current command line (the comment) into the debug output stream
     // COPY_OF_COMMAND_LINE comment_command_line;
