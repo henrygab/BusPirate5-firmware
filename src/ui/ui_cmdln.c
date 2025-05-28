@@ -564,6 +564,8 @@ bool cmdln_find_next_command(struct _command_info_t* cp) {
                 while (cmdln_try_peek(cp->endptr, &d)) {
                     cp->endptr++;
                 }
+                cp->delimiter = 0; // no continuation by another command for this line
+                cp->nextptr = cp->endptr;
                 goto cmdln_find_next_command_success;
             } else {
                 // any character other than space or `#` means this is not a comment
@@ -612,8 +614,8 @@ cmdln_find_next_command_success:
     //       buffer in cmdln_try_peek(), cmdln_try_peek_pointer(), etc.
     //       using `cmdln_pu(uint32_t offset)`
     PRINT_DEBUG(
-        "cmdln_find_next_command: offset %d .. %d (%d chars)\n",
-        cp->startptr, cp->endptr, cp->endptr - cp->startptr
+        "cmdln_find_next_command: offset %d .. %d (%d chars), cmd `%s`\n",
+        cp->startptr, cp->endptr, cp->endptr - cp->startptr, cp->command
         );
 
     cp->endptr--;
