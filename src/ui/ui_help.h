@@ -1,6 +1,6 @@
 typedef struct ui_help_options {
     uint help;             // should be a section handling designator
-    const char command[9]; // ugh
+    const char command[9]; // ugh -- BUGBUG -- should this be MAX_COMMAND_LENGTH???
     uint description;      // translation key
 } ui_help_options_t;
 
