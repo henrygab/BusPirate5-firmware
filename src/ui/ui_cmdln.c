@@ -44,7 +44,7 @@ void cmdln_init(void) {
     }
     cmdln.write_offset = 0;
     cmdln.read_offset = 0;
-    cmdln.histptr = 0;
+    cmdln.which_history = 0;
     cmdln.cursor_offset = 0;
 }
 // buffer offset update, rolls over
@@ -171,7 +171,7 @@ bool cmdln_try_discard(uint32_t i) {
 bool cmdln_next_buf_pos(void) {
     cmdln.read_offset = cmdln.write_offset;
     cmdln.cursor_offset = cmdln.write_offset;
-    cmdln.histptr = 0;
+    cmdln.which_history = 0;
 }
 
 // These are new functions to ease argument and options parsing

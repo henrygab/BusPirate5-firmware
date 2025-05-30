@@ -558,17 +558,17 @@ void ui_term_cmdln_arrow_keys(char* c) {
             }
             break;
         case 'A': // up
-            cmdln.histptr++;
-            if (!ui_term_cmdln_history(cmdln.histptr)) // on error restore ptr and ring a bell
+            cmdln.which_history++;
+            if (!ui_term_cmdln_history(cmdln.which_history)) // on error restore ptr and ring a bell
             {
-                cmdln.histptr--;
+                cmdln.which_history--;
                 printf("\x07");
             }
             break;
         case 'B': // down
-            cmdln.histptr--;
-            if ((cmdln.histptr < 1) || (!ui_term_cmdln_history(cmdln.histptr))) {
-                cmdln.histptr = 0;
+            cmdln.which_history--;
+            if ((cmdln.which_history < 1) || (!ui_term_cmdln_history(cmdln.which_history))) {
+                cmdln.which_history = 0;
                 printf("\x07");
             }
             break;
@@ -616,6 +616,10 @@ void ui_term_cmdln_arrow_keys(char* c) {
 }
 
 // copies a previous cmd to current position int ui_cmdbuff
+// TODO: make prev / next functions instead, returning
+//       a boolean to indicate success (true) or failure (false)
+//       this will encapsulate the `which_history` logic into a
+//       single function (which is good).
 int ui_term_cmdln_history(int ptr) {
     int i;
     uint32_t temp;

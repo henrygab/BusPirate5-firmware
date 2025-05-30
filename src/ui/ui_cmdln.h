@@ -8,7 +8,7 @@
 struct _command_line {
     uint32_t write_offset;    // NOT a pointer .. this is an offset into member .buf (a circular buffer)
     uint32_t read_offset;    // NOT a pointer .. this is an offset into member .buf (a circular buffer)
-    uint32_t histptr; // NOT a pointer .. this is an offset into member .buf (a circular buffer)
+    uint32_t which_history;        // NOT a pointer .. this is an offset into member .buf (a circular buffer)
     uint32_t cursor_offset; // NOT a pointer .. this is an offset into member .buf (a circular buffer)
     char buf[UI_CMDBUFFSIZE];
 };
