@@ -426,7 +426,7 @@ uint32_t ui_term_get_user_input(void) {
 }
 
 bool ui_term_cmdln_char_insert(char* c) {
-    if (cmdln.cursptr == cmdln.write_offset) // at end of the command line, append new character
+    if (cmdln.cursor_offset == cmdln.write_offset) // at end of the command line, append new character
     {
         if (cmdln_pu(cmdln.write_offset + 1) ==
             cmdln_pu(cmdln.read_offset - 1)) // leave one extra space for final 0x00 command end indicator
@@ -437,48 +437,48 @@ bool ui_term_cmdln_char_insert(char* c) {
         tx_fifo_put(c);
         cmdln.buf[cmdln.write_offset] = (*c);
         cmdln.write_offset = cmdln_pu(cmdln.write_offset + 1);
-        cmdln.cursptr = cmdln.write_offset;
+        cmdln.cursor_offset = cmdln.write_offset;
 
     } else // middle of command line somewhere, insert new character
     {
         uint32_t temp = cmdln_pu(cmdln.write_offset + 1);
-        while (temp != cmdln.cursptr) // move each character ahead one position until we reach the cursor
+        while (temp != cmdln.cursor_offset) // move each character ahead one position until we reach the cursor
         {
             cmdln.buf[temp] = cmdln.buf[cmdln_pu(temp - 1)];
             temp = cmdln_pu(temp - 1);
         }
 
-        cmdln.buf[cmdln.cursptr] = (*c); // insert new character at the position
+        cmdln.buf[cmdln.cursor_offset] = (*c); // insert new character at the position
 
-        temp = cmdln.cursptr; // write out all the characters to the user terminal after the cursor pointer to the write
+        temp = cmdln.cursor_offset; // write out all the characters to the user terminal after the cursor pointer to the write
                               // pointer
         while (temp != cmdln_pu(cmdln.write_offset + 1)) {
             tx_fifo_put(&cmdln.buf[temp]);
             temp = cmdln_pu(temp + 1);
         }
-        cmdln.cursptr = cmdln_pu(cmdln.cursptr + 1);
+        cmdln.cursor_offset = cmdln_pu(cmdln.cursor_offset + 1);
         cmdln.write_offset = cmdln_pu(cmdln.write_offset + 1);
-        printf("\033[%dD", cmdln_pu(cmdln.write_offset - cmdln.cursptr)); // return the cursor to the correct position
+        printf("\033[%dD", cmdln_pu(cmdln.write_offset - cmdln.cursor_offset)); // return the cursor to the correct position
     }
 
     return true;
 }
 
 bool ui_term_cmdln_char_backspace(void) {
-    if ((cmdln.write_offset == cmdln.read_offset) || (cmdln.cursptr == cmdln.read_offset)) // not empty or at beginning?
+    if ((cmdln.write_offset == cmdln.read_offset) || (cmdln.cursor_offset == cmdln.read_offset)) // not empty or at beginning?
     {
         return false;
     }
 
-    if (cmdln.cursptr == cmdln.write_offset) // at end?
+    if (cmdln.cursor_offset == cmdln.write_offset) // at end?
     {
         cmdln.write_offset = cmdln_pu(cmdln.write_offset - 1); // write pointer back one space
-        cmdln.cursptr = cmdln.write_offset;            // cursor pointer also goes back one space
+        cmdln.cursor_offset = cmdln.write_offset;            // cursor pointer also goes back one space
         printf("\x08 \x08");                   // back, space, back again
         // printf("\033[1X");
         cmdln.buf[cmdln.write_offset] = 0x00; // is this really needed?
     } else {
-        uint32_t temp = cmdln.cursptr;
+        uint32_t temp = cmdln.cursor_offset;
         printf("\033[D"); // delete character on terminal
         while (temp != cmdln.write_offset) {
             cmdln.buf[cmdln_pu(temp - 1)] =
@@ -489,20 +489,20 @@ bool ui_term_cmdln_char_backspace(void) {
         printf(" "); // get rid of trailing final character
         cmdln.buf[cmdln.write_offset] = 0x00;
         cmdln.write_offset = cmdln_pu(cmdln.write_offset - 1); // move write and cursor positions back one space
-        cmdln.cursptr = cmdln_pu(cmdln.cursptr - 1);
-        printf("\033[%dD", cmdln_pu(cmdln.write_offset - cmdln.cursptr + 1));
+        cmdln.cursor_offset = cmdln_pu(cmdln.cursor_offset - 1);
+        printf("\033[%dD", cmdln_pu(cmdln.write_offset - cmdln.cursor_offset + 1));
     }
 
     return true;
 }
 
 bool ui_term_cmdln_char_delete(void) {
-    if ((cmdln.write_offset == cmdln.read_offset) || (cmdln.cursptr == cmdln.write_offset)) // empty or at beginning?
+    if ((cmdln.write_offset == cmdln.read_offset) || (cmdln.cursor_offset == cmdln.write_offset)) // empty or at beginning?
     {
         return false;
     }
 
-    uint32_t temp = cmdln.cursptr;
+    uint32_t temp = cmdln.cursor_offset;
     while (temp != cmdln.write_offset) // move each character ahead one position until we reach the cursor
     {
         cmdln.buf[temp] = cmdln.buf[cmdln_pu(temp + 1)];
@@ -540,18 +540,18 @@ void ui_term_cmdln_arrow_keys(char* c) {
     char scrap;
     switch ((*c)) {
         case 'D':
-            if (cmdln.cursptr != cmdln.read_offset) // left
+            if (cmdln.cursor_offset != cmdln.read_offset) // left
             {
-                cmdln.cursptr = cmdln_pu(cmdln.cursptr - 1);
+                cmdln.cursor_offset = cmdln_pu(cmdln.cursor_offset - 1);
                 printf("\033[D");
             } else {
                 printf("\x07");
             }
             break;
         case 'C':
-            if (cmdln.cursptr != cmdln.write_offset) // right
+            if (cmdln.cursor_offset != cmdln.write_offset) // right
             {
-                cmdln.cursptr = cmdln_pu(cmdln.cursptr + 1);
+                cmdln.cursor_offset = cmdln_pu(cmdln.cursor_offset + 1);
                 printf("\033[C");
             } else {
                 printf("\x07");
@@ -588,8 +588,8 @@ void ui_term_cmdln_arrow_keys(char* c) {
                 break;
             }
             // end of cursor
-            while (cmdln.cursptr != cmdln.write_offset) {
-                cmdln.cursptr = cmdln_pu(cmdln.cursptr + 1);
+            while (cmdln.cursor_offset != cmdln.write_offset) {
+                cmdln.cursor_offset = cmdln_pu(cmdln.cursor_offset + 1);
                 printf("\033[C");
             }
             break;
@@ -598,8 +598,8 @@ void ui_term_cmdln_arrow_keys(char* c) {
             rx_fifo_get_blocking(c);
             if (*c == '~') {
                 // home
-                while (cmdln.cursptr != cmdln.read_offset) {
-                    cmdln.cursptr = cmdln_pu(cmdln.cursptr - 1);
+                while (cmdln.cursor_offset != cmdln.read_offset) {
+                    cmdln.cursor_offset = cmdln_pu(cmdln.cursor_offset - 1);
                     printf("\033[D");
                 }
                 break;
@@ -629,15 +629,15 @@ int ui_term_cmdln_history(int ptr) {
 
         if ((ptr == 0) && (cmdln.buf[cmdln_pu(temp + 1)])) // do we want this one?
         {
-            while (cmdln.cursptr != cmdln_pu(cmdln.write_offset)) // clear line to end
+            while (cmdln.cursor_offset != cmdln_pu(cmdln.write_offset)) // clear line to end
             {
                 printf(" ");
-                cmdln.cursptr = cmdln_pu(cmdln.cursptr + 1);
+                cmdln.cursor_offset = cmdln_pu(cmdln.cursor_offset + 1);
             }
-            while (cmdln.cursptr != cmdln.read_offset) // TODO: verify		//move back to start;
+            while (cmdln.cursor_offset != cmdln.read_offset) // TODO: verify		//move back to start;
             {
                 printf("\033[D \033[D");
-                cmdln.cursptr = cmdln_pu(cmdln.cursptr - 1);
+                cmdln.cursor_offset = cmdln_pu(cmdln.cursor_offset - 1);
             }
 
             while (cmdln.buf[cmdln_pu(temp + i)]) {
@@ -646,7 +646,7 @@ int ui_term_cmdln_history(int ptr) {
                 i++;
             }
             cmdln.write_offset = cmdln_pu(cmdln.read_offset + i - 1);
-            cmdln.cursptr = cmdln.write_offset;
+            cmdln.cursor_offset = cmdln.write_offset;
             cmdln.buf[cmdln.write_offset] = 0x00;
             break;
         }
