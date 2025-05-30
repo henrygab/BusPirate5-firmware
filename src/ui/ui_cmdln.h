@@ -5,13 +5,13 @@
 // so it may have multiple command lines stored within.
 // When read and write offsets are equal, the buffer is empty.
 // Read and write offsets should ALWAYS be between 0 and UI_CMDBUFFSIZE-1.
-typedef struct _command_line_t {
-    uint32_t write_offset;   // Offset into command_line_t.buf
-    uint32_t read_offset;    // Offset into command_line_t.buf // This will eventually go away, when current command line is always at zero
-    uint32_t which_history;  // 0: History not used, 1..N: previous command that was copied into current command line
-    uint32_t cursor_offset;  // Offset into command_line_t.buf where the cursor is currently positioned
+typedef struct _command_line_history_t {
+    uint32_t write_offset;    // Offset into command_line_history_t.buf
+    uint32_t read_offset;     // Offset into command_line_history_t.buf // This will eventually go away, when current command line is always at zero
+    uint32_t which_history;   // 0: History not used, 1..N: previous command that was copied into current command line
+    uint32_t cursor_offset;   // Offset into command_line_history_t.buf where the cursor is currently positioned
     char buf[UI_CMDBUFFSIZE]; // Global circular buffer used to store command line input and history
-} command_line_t;
+} command_line_history_t;
 
 // This structure is used to track a single "command" and all options associated with that command.
 // At present, multiple commands can be entered in a single command line,
@@ -36,7 +36,7 @@ typedef struct _command_info_t {
     char command[9];   // BUGBUG -- Hard-coded buffer size ... should this be MAX_COMMAND_LENGTH?
 } command_info_t;
 
-bool cmdline_validate_invariants_command_line(const command_line_t * cmdline);
+bool cmdline_validate_invariants_command_line(const command_line_history_t * cmdline);
 bool cmdline_validate_invariants_command_pointer(const command_pointer_t * cp);
 bool cmdline_validate_invariants_command_info(const command_info_t * cmdinfo);
 
@@ -44,8 +44,8 @@ bool cmdline_validate_invariants_command_info(const command_info_t * cmdinfo);
     _Generic((X),                  \
         command_pointer_t *       : cmdline_validate_invariants_command_pointer(X), \
         const command_pointer_t * : cmdline_validate_invariants_command_pointer(X), \
-        command_line_t *          : cmdline_validate_invariants_command_line(X), \
-        const command_line_t *    : cmdline_validate_invariants_command_line(X), \
+        command_line_history_t *          : cmdline_validate_invariants_command_line(X), \
+        const command_line_history_t *    : cmdline_validate_invariants_command_line(X), \
         command_info_t *          : cmdline_validate_invariants_command_info(X), \
         const command_info_t *    : cmdline_validate_invariants_command_info(X), \
         default                   : static_assert(false, "Unsupported type for cmdline_validate_invariants") \
@@ -100,4 +100,4 @@ bool cmdln_try_peek_pointer(command_pointer_t* cp, uint32_t i, char* c);
 // TODO: rename this API to avoid confusion about pointers / offsets
 void cmdln_get_command_pointer(command_pointer_t* cp);
 
-extern command_line_t cmdln;
+extern command_line_history_t cmdln;

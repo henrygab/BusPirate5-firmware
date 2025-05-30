@@ -19,7 +19,7 @@
 ///        presume that any strings are contiguous, as they may span the
 ///        end / beginning of that circular buffer.
 // TODO: Verify that the offsets are ALWAYS between 0 and UI_CMDBUFFSIZE-1
-command_line_t cmdln;
+command_line_history_t cmdln;
 
 /// @brief When supporting multiple commands in a single line, this structure
 ///        provides offsets (relative to cmdln.buf) to the current command,
@@ -36,23 +36,48 @@ command_info_t command_info;
 
 static const struct prompt_result empty_result = {0}; // BUGBUG -- this appears to be a useless variable ... all it does is zero-initialize?
 
+bool cmdline_validate_invariants_command_line(const command_line_history_t * history)
+{
+    BP_ASSERT(history != NULL);
+    BP_ASSERT(history->write_offset < UI_CMDBUFFSIZE);
+    BP_ASSERT(history->read_offset < UI_CMDBUFFSIZE);
+    BP_ASSERT(history->which_history < UI_CMDBUFFSIZE);
+    BP_ASSERT(history->cursor_offset < UI_CMDBUFFSIZE);
+    return true;
+}
+bool cmdline_validate_invariants_command_pointer(const command_pointer_t * cp)
+{
+    BP_ASSERT(cp != NULL);
+    BP_ASSERT(cp->wptr < UI_CMDBUFFSIZE);
+    BP_ASSERT(cp->rptr < UI_CMDBUFFSIZE);
+    return true;
+}
+bool cmdline_validate_invariants_command_info(const command_info_t * cmdinfo)
+{
+    BP_ASSERT(cmdinfo != NULL);
+    BP_ASSERT(cmdinfo->rptr < UI_CMDBUFFSIZE);
+    BP_ASSERT(cmdinfo->wptr < UI_CMDBUFFSIZE);
+    BP_ASSERT(cmdinfo->startptr < UI_CMDBUFFSIZE);
+    BP_ASSERT(cmdinfo->endptr < UI_CMDBUFFSIZE);
+    BP_ASSERT(cmdinfo->nextptr < UI_CMDBUFFSIZE);
+    BP_ASSERT(
+        (cmdinfo->delimiter == ';') ||
+        (cmdinfo->delimiter == '|') ||
+        (cmdinfo->delimiter == '&') ||
+        (cmdinfo->delimiter ==  0 )
+    );
+    return true;
+}
+
 void cmdln_init(void) {
     PRINT_DEBUG("cmdln_init()\r\n");
-
-    for (uint32_t i = 0; i < UI_CMDBUFFSIZE; i++) {
-        cmdln.buf[i] = 0x00;
-    }
-    cmdln.write_offset = 0;
-    cmdln.read_offset = 0;
-    cmdln.which_history = 0;
-    cmdln.cursor_offset = 0;
+    memset(&cmdln, 0, sizeof(cmdln));
 }
 // buffer offset update, rolls over
 uint32_t cmdln_pu(uint32_t i) {
     // Is there any **_other_** reason why UI_CMDBUFFSIZE is commented as "Must be a power of 2?"
     // If not, remove that restriction and simply (optimizer should result in equivalent code):
-    // return i % UI_CMDBUFFSIZE;
-    return ((i) & (UI_CMDBUFFSIZE - 1));
+    return i % UI_CMDBUFFSIZE;
 }
 static uint32_t cmdln_available_chars(uint32_t rptr, uint32_t wptr) {
     // This is a circular buffer.
