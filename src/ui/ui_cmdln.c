@@ -19,7 +19,7 @@
 ///        presume that any strings are contiguous, as they may span the
 ///        end / beginning of that circular buffer.
 // TODO: Verify that the offsets are ALWAYS between 0 and UI_CMDBUFFSIZE-1
-struct _command_line cmdln;
+command_line_t cmdln;
 
 /// @brief When supporting multiple commands in a single line, this structure
 ///        provides offsets (relative to cmdln.buf) to the current command,
@@ -32,7 +32,7 @@ struct _command_line cmdln;
 // TODO: change so that cmdln always has current input line starting at
 //       offset 0, and all other history lines are valid / safe to strcpy()
 //       to offset 0.
-struct _command_info_t command_info;
+command_info_t command_info;
 
 static const struct prompt_result empty_result = {0}; // BUGBUG -- this appears to be a useless variable ... all it does is zero-initialize?
 
@@ -64,7 +64,7 @@ static uint32_t cmdln_available_chars(uint32_t rptr, uint32_t wptr) {
     return tmp % UI_CMDBUFFSIZE;
 }
 
-void cmdln_get_command_pointer(struct _command_pointer* cp) {
+void cmdln_get_command_pointer(command_pointer_t* cp) {
     cp->wptr = cmdln.write_offset; // These are offsets, NOT pointers
     cp->rptr = cmdln.read_offset; // These are offsets, NOT pointers
 }
@@ -115,7 +115,7 @@ bool cmdln_try_peek(uint32_t i, char* c) {
     return true;
 }
 
-bool cmdln_try_peek_pointer(struct _command_pointer* cp, uint32_t i, char* c) {
+bool cmdln_try_peek_pointer(command_pointer_t* cp, uint32_t i, char* c) {
     uint32_t tmp = cmdln_pu(cp->rptr + i);
     if (tmp == cmdln_pu(cp->wptr)) {
         PRINT_DEBUG("cmdln_try_peek_pointer: Buffer offset 0x%02x (%d) is end of written buffer, no character to peek\n",

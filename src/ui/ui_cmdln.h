@@ -5,28 +5,28 @@
 // so it may have multiple command lines stored within.
 // When read and write offsets are equal, the buffer is empty.
 // Read and write offsets should ALWAYS be between 0 and UI_CMDBUFFSIZE-1.
-struct _command_line {
-    uint32_t write_offset;    // NOT a pointer .. this is an offset into member .buf (a circular buffer)
-    uint32_t read_offset;    // NOT a pointer .. this is an offset into member .buf (a circular buffer)
-    uint32_t which_history;        // NOT a pointer .. this is an offset into member .buf (a circular buffer)
-    uint32_t cursor_offset; // NOT a pointer .. this is an offset into member .buf (a circular buffer)
-    char buf[UI_CMDBUFFSIZE];
-};
+typedef struct _command_line_t {
+    uint32_t write_offset;   // Offset into command_line_t.buf
+    uint32_t read_offset;    // Offset into command_line_t.buf // This will eventually go away, when current command line is always at zero
+    uint32_t which_history;  // 0: History not used, 1..N: previous command that was copied into current command line
+    uint32_t cursor_offset;  // Offset into command_line_t.buf where the cursor is currently positioned
+    char buf[UI_CMDBUFFSIZE]; // Global circular buffer used to store command line input and history
+} command_line_t;
 
 // This structure is used to track a single "command" and all options associated with that command.
 // At present, multiple commands can be entered in a single command line,
 // and this structure will define the offsets to a single one of those commands.
 
 // TODO: rename this structure to avoid confusion between pointers / offsets ... maybe `_command_extent`?
-struct _command_pointer {
+typedef struct _command_pointer_t {
     uint32_t wptr; // NOT a pointer .. this is an offset into member .buf (a circular buffer)
     uint32_t rptr; // NOT a pointer .. this is an offset into member .buf (a circular buffer)
-};
+} command_pointer_t;
 
 // TODO: document the fields in this structure
 // WARNING: the end offset might EXCEED UI_CMDBUFFSIZE?!  Change to be a character count instead of end offset?
 // WARNING: Some fields are modulo'd by UI_CMDBUFFSIZE, others are NOT.  This is just asking for bugs....
-struct _command_info_t {
+typedef struct _command_info_t {
     uint32_t rptr;     // NOT a pointer .. this is an offset into member .buf (a circular buffer)
     uint32_t wptr;     // NOT a pointer .. this is an offset into member .buf (a circular buffer)
     uint32_t startptr; // NOT a pointer .. this is an offset into member .buf (a circular buffer)
@@ -34,7 +34,24 @@ struct _command_info_t {
     uint32_t nextptr;  // NOT a pointer .. this is an offset into member .buf (a circular buffer)
     char delimiter;
     char command[9];   // BUGBUG -- Hard-coded buffer size ... should this be MAX_COMMAND_LENGTH?
-};
+} command_info_t;
+
+bool cmdline_validate_invariants_command_line(const command_line_t * cmdline);
+bool cmdline_validate_invariants_command_pointer(const command_pointer_t * cp);
+bool cmdline_validate_invariants_command_info(const command_info_t * cmdinfo);
+
+#define cmdline_validate_invariants(X) \
+    _Generic((X),                  \
+        command_pointer_t *       : cmdline_validate_invariants_command_pointer(X), \
+        const command_pointer_t * : cmdline_validate_invariants_command_pointer(X), \
+        command_line_t *          : cmdline_validate_invariants_command_line(X), \
+        const command_line_t *    : cmdline_validate_invariants_command_line(X), \
+        command_info_t *          : cmdline_validate_invariants_command_info(X), \
+        const command_info_t *    : cmdline_validate_invariants_command_info(X), \
+        default                   : static_assert(false, "Unsupported type for cmdline_validate_invariants") \
+        )
+
+
 
 typedef struct command_var_struct {
     bool has_arg;
@@ -50,7 +67,7 @@ bool cmdln_args_find_flag_string(char flag, command_var_t* arg, uint32_t max_len
 bool cmdln_args_float_by_position(uint32_t pos, float* value);
 bool cmdln_args_uint32_by_position(uint32_t pos, uint32_t* value);
 bool cmdln_args_string_by_position(uint32_t pos, uint32_t max_len, char* str);
-bool cmdln_find_next_command(struct _command_info_t* cp);
+bool cmdln_find_next_command(command_info_t* cp);
 bool cmdln_info(void);
 bool cmdln_info_uint32(void);
 
@@ -79,8 +96,8 @@ bool cmdln_next_buf_pos(void);
 void cmdln_init(void);
 
 // TODO: rename this API to avoid confusion about pointers / offsets
-bool cmdln_try_peek_pointer(struct _command_pointer* cp, uint32_t i, char* c);
+bool cmdln_try_peek_pointer(command_pointer_t* cp, uint32_t i, char* c);
 // TODO: rename this API to avoid confusion about pointers / offsets
-void cmdln_get_command_pointer(struct _command_pointer* cp);
+void cmdln_get_command_pointer(command_pointer_t* cp);
 
-extern struct _command_line cmdln;
+extern command_line_t cmdln;
