@@ -429,7 +429,7 @@ bool ui_term_cmdln_char_insert(char* c) {
     if (cmdln.cursptr == cmdln.write_offset) // at end of the command line, append new character
     {
         if (cmdln_pu(cmdln.write_offset + 1) ==
-            cmdln_pu(cmdln.rptr - 1)) // leave one extra space for final 0x00 command end indicator
+            cmdln_pu(cmdln.read_offset - 1)) // leave one extra space for final 0x00 command end indicator
         {
             return false;
         }
@@ -465,7 +465,7 @@ bool ui_term_cmdln_char_insert(char* c) {
 }
 
 bool ui_term_cmdln_char_backspace(void) {
-    if ((cmdln.write_offset == cmdln.rptr) || (cmdln.cursptr == cmdln.rptr)) // not empty or at beginning?
+    if ((cmdln.write_offset == cmdln.read_offset) || (cmdln.cursptr == cmdln.read_offset)) // not empty or at beginning?
     {
         return false;
     }
@@ -497,7 +497,7 @@ bool ui_term_cmdln_char_backspace(void) {
 }
 
 bool ui_term_cmdln_char_delete(void) {
-    if ((cmdln.write_offset == cmdln.rptr) || (cmdln.cursptr == cmdln.write_offset)) // empty or at beginning?
+    if ((cmdln.write_offset == cmdln.read_offset) || (cmdln.cursptr == cmdln.write_offset)) // empty or at beginning?
     {
         return false;
     }
@@ -540,7 +540,7 @@ void ui_term_cmdln_arrow_keys(char* c) {
     char scrap;
     switch ((*c)) {
         case 'D':
-            if (cmdln.cursptr != cmdln.rptr) // left
+            if (cmdln.cursptr != cmdln.read_offset) // left
             {
                 cmdln.cursptr = cmdln_pu(cmdln.cursptr - 1);
                 printf("\033[D");
@@ -598,7 +598,7 @@ void ui_term_cmdln_arrow_keys(char* c) {
             rx_fifo_get_blocking(c);
             if (*c == '~') {
                 // home
-                while (cmdln.cursptr != cmdln.rptr) {
+                while (cmdln.cursptr != cmdln.read_offset) {
                     cmdln.cursptr = cmdln_pu(cmdln.cursptr - 1);
                     printf("\033[D");
                 }
@@ -622,7 +622,7 @@ int ui_term_cmdln_history(int ptr) {
 
     i = 1;
 
-    for (temp = cmdln_pu(cmdln.rptr - 2); temp != cmdln.write_offset; temp = cmdln_pu(temp - 1)) {
+    for (temp = cmdln_pu(cmdln.read_offset - 2); temp != cmdln.write_offset; temp = cmdln_pu(temp - 1)) {
         if (!cmdln.buf[temp]) {
             ptr--;
         }
@@ -634,18 +634,18 @@ int ui_term_cmdln_history(int ptr) {
                 printf(" ");
                 cmdln.cursptr = cmdln_pu(cmdln.cursptr + 1);
             }
-            while (cmdln.cursptr != cmdln.rptr) // TODO: verify		//move back to start;
+            while (cmdln.cursptr != cmdln.read_offset) // TODO: verify		//move back to start;
             {
                 printf("\033[D \033[D");
                 cmdln.cursptr = cmdln_pu(cmdln.cursptr - 1);
             }
 
             while (cmdln.buf[cmdln_pu(temp + i)]) {
-                cmdln.buf[cmdln_pu(cmdln.rptr + i - 1)] = cmdln.buf[cmdln_pu(temp + i)];
+                cmdln.buf[cmdln_pu(cmdln.read_offset + i - 1)] = cmdln.buf[cmdln_pu(temp + i)];
                 tx_fifo_put(&cmdln.buf[cmdln_pu(temp + i)]);
                 i++;
             }
-            cmdln.write_offset = cmdln_pu(cmdln.rptr + i - 1);
+            cmdln.write_offset = cmdln_pu(cmdln.read_offset + i - 1);
             cmdln.cursptr = cmdln.write_offset;
             cmdln.buf[cmdln.write_offset] = 0x00;
             break;

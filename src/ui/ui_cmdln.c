@@ -43,7 +43,7 @@ void cmdln_init(void) {
         cmdln.buf[i] = 0x00;
     }
     cmdln.write_offset = 0;
-    cmdln.rptr = 0;
+    cmdln.read_offset = 0;
     cmdln.histptr = 0;
     cmdln.cursptr = 0;
 }
@@ -66,12 +66,12 @@ static uint32_t cmdln_available_chars(uint32_t rptr, uint32_t wptr) {
 
 void cmdln_get_command_pointer(struct _command_pointer* cp) {
     cp->wptr = cmdln.write_offset; // These are offsets, NOT pointers
-    cp->rptr = cmdln.rptr; // These are offsets, NOT pointers
+    cp->rptr = cmdln.read_offset; // These are offsets, NOT pointers
 }
 
 bool cmdln_try_add(char* c) {
     // TODO: leave one space for 0x00 command seperator????
-    if (cmdln_pu(cmdln.write_offset + 1) == cmdln_pu(cmdln.rptr)) {
+    if (cmdln_pu(cmdln.write_offset + 1) == cmdln_pu(cmdln.read_offset)) {
         PRINT_WARNING("cmdln_try_add: Buffer full, could not add '%c'", *c);
         return false;
     }
@@ -81,25 +81,25 @@ bool cmdln_try_add(char* c) {
 }
 
 bool cmdln_try_remove(char* c) {
-    uint32_t tmp_read_offset = cmdln_pu(cmdln.rptr);
+    uint32_t tmp_read_offset = cmdln_pu(cmdln.read_offset);
     uint32_t tmp_write_offset = cmdln_pu(cmdln.write_offset);
-    if (cmdln_pu(cmdln.rptr) == cmdln_pu(cmdln.write_offset)) {
+    if (cmdln_pu(cmdln.read_offset) == cmdln_pu(cmdln.write_offset)) {
         // this is not a warning, as it's a normal occurrence
         PRINT_DEBUG("cmdln_try_remove: Buffer empty, could not remove character");
         return false;
     }
     if (cmdln.buf[tmp_read_offset] == 0x00) {
         PRINT_DEBUG("cmdln_try_remove: Buffer offset 0x%02x (%d) stored null char, nothing to remove\n",
-                    cmdln.rptr, cmdln.rptr);
+                    cmdln.read_offset, cmdln.read_offset);
         return false;
     }
     (*c) = cmdln.buf[tmp_read_offset];
-    cmdln.rptr = cmdln_pu(tmp_read_offset + 1);
+    cmdln.read_offset = cmdln_pu(tmp_read_offset + 1);
     return true;
 }
 
 bool cmdln_try_peek(uint32_t i, char* c) {
-    uint32_t tmp = cmdln_pu(cmdln.rptr + i);
+    uint32_t tmp = cmdln_pu(cmdln.read_offset + i);
     if (tmp == cmdln_pu(cmdln.write_offset)) {
         PRINT_DEBUG("cmdln_try_peek: Buffer offset 0x%02x (%d) is end of written buffer, no character to peek\n",
                     tmp, tmp);
@@ -139,7 +139,7 @@ bool cmdln_try_discard(uint32_t i) {
     // BUGBUG -- this will increment the read offset, even if the read offset
     //           says there's nothing to discard (i.e., rptr == wptr)
 
-    uint32_t available_chars = cmdln_available_chars(cmdln.rptr, cmdln.write_offset);
+    uint32_t available_chars = cmdln_available_chars(cmdln.read_offset, cmdln.write_offset);
     
     // When this was indiscriminately going past the end of the buffer,
     // stuff was in undefined behavior land.
@@ -155,21 +155,21 @@ bool cmdln_try_discard(uint32_t i) {
         if (!result) {
             PRINT_WARNING("cmdln_try_discard: requested to discard %d characters, only %d discarded (no more remain)", i, to_discard);
         } else if (to_discard == 1) {
-            char c = cmdln.buf[cmdln.rptr];
+            char c = cmdln.buf[cmdln.read_offset];
             PRINT_DEBUG("cmdln_try_discard: discarding single character %c (0x%02x) characters", c, c);
         } else {
             PRINT_DEBUG(
                 "cmdln_try_discard: discarding %d characters by adjusting cmdln.rptr from %d to %d",
-                to_discard, cmdln.rptr, cmdln_pu(cmdln.rptr + to_discard)
+                to_discard, cmdln.read_offset, cmdln_pu(cmdln.read_offset + to_discard)
             );
         }
-        cmdln.rptr = cmdln_pu(cmdln.rptr + to_discard);
+        cmdln.read_offset = cmdln_pu(cmdln.read_offset + to_discard);
     }
     return result;
 }
 
 bool cmdln_next_buf_pos(void) {
-    cmdln.rptr = cmdln.write_offset;
+    cmdln.read_offset = cmdln.write_offset;
     cmdln.cursptr = cmdln.write_offset;
     cmdln.histptr = 0;
 }
@@ -663,11 +663,11 @@ cmdln_find_next_command_success:
 //  shows all commands and all detected positions
 bool cmdln_info(void) {
 
-    PRINT_DEBUG("cmdln_info(): start: %d  end: %d  length: %d", cmdln.rptr, cmdln.write_offset, cmdln_available_chars(cmdln.rptr, cmdln.write_offset));
+    PRINT_DEBUG("cmdln_info(): start: %d  end: %d  length: %d", cmdln.read_offset, cmdln.write_offset, cmdln_available_chars(cmdln.read_offset, cmdln.write_offset));
     // start and end point?
-    printf("Input start: %d, end %d\r\n", cmdln.rptr, cmdln.write_offset);
+    printf("Input start: %d, end %d\r\n", cmdln.read_offset, cmdln.write_offset);
     // how many characters?
-    printf("Input length: %d\r\n", cmdln_available_chars(cmdln.rptr, cmdln.write_offset));
+    printf("Input length: %d\r\n", cmdln_available_chars(cmdln.read_offset, cmdln.write_offset));
 
     // loop through and display all commands in this command line
     uint32_t i = 0;
@@ -699,11 +699,11 @@ bool cmdln_info(void) {
 // function for debugging the command line arguments parsers
 //  shows all integers and all detected positions
 bool cmdln_info_uint32(void) {
-    PRINT_DEBUG("cmdln_info_uint32(): start: %d  end: %d  length: %d", cmdln.rptr, cmdln.write_offset, cmdln_available_chars(cmdln.rptr, cmdln.write_offset));
+    PRINT_DEBUG("cmdln_info_uint32(): start: %d  end: %d  length: %d", cmdln.read_offset, cmdln.write_offset, cmdln_available_chars(cmdln.read_offset, cmdln.write_offset));
     // start and end point?
-    printf("Input start: %d, end %d\r\n", cmdln.rptr, cmdln.write_offset);
+    printf("Input start: %d, end %d\r\n", cmdln.read_offset, cmdln.write_offset);
     // how many characters?
-    printf("Input length: %d\r\n", cmdln_available_chars(cmdln.rptr, cmdln.write_offset));
+    printf("Input length: %d\r\n", cmdln_available_chars(cmdln.read_offset, cmdln.write_offset));
     uint32_t i = 0;
     struct _command_info_t cp;
     cp.nextptr = 0;

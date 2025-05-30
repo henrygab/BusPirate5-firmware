@@ -148,8 +148,8 @@ bool ui_parse_get_string(struct prompt_result* result, char* str, uint8_t* size)
 
 // eats up the spaces and comma's from the cmdline
 void ui_parse_consume_whitespace(void) {
-    while ((cmdln.rptr != cmdln.write_offset) && ((cmdln.buf[cmdln.rptr] == ' ') || (cmdln.buf[cmdln.rptr] == ','))) {
-        cmdln.rptr = cmdln_pu(cmdln.rptr + 1);
+    while ((cmdln.read_offset != cmdln.write_offset) && ((cmdln.buf[cmdln.read_offset] == ' ') || (cmdln.buf[cmdln.read_offset] == ','))) {
+        cmdln.read_offset = cmdln_pu(cmdln.read_offset + 1);
     }
 }
 
