@@ -1,5 +1,5 @@
 #pragma once
 
-#include "command_struct.h"
+#include <stdint.h>
 
-void cmd_comment_handler(struct command_result* res);
+void cmd_comment_handler(uint32_t start_offset, uint32_t end_offset);

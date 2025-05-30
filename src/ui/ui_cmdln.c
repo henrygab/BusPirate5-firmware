@@ -12,10 +12,29 @@
 #include "ui/ui_prompt.h"
 #include "ui/ui_cmdln.h"
 
-// the command line struct with buffer and several pointers
-struct _command_line cmdln;          // everything the user entered before <enter>
-struct _command_info_t command_info; // the current command and position in the buffer
-static const struct prompt_result empty_result;
+// the command line struct with buffer and several offsets
+
+/// @brief start/end offsets here correspond to one entire line of input 
+///        Note that the buffer is a circular buffer, so it's not safe to
+///        presume that any strings are contiguous, as they may span the
+///        end / beginning of that circular buffer.
+// TODO: Verify that the offsets are ALWAYS between 0 and UI_CMDBUFFSIZE-1
+struct _command_line cmdln;
+
+/// @brief When supporting multiple commands in a single line, this structure
+///        provides offsets (relative to cmdln.buf) to the current command,
+///        much like cmdln provides offsets to the entire line of input.
+///        Therefore, for the same reasons, it is not safe to presume that
+///        any strings are contiguous, as they may span the end / beginning
+///        of that circular buffer.
+// TODO: Check whether the offsets in this structure are permitted to
+//       exceed UI_CMDBUFFSIZE?
+// TODO: change so that cmdln always has current input line starting at
+//       offset 0, and all other history lines are valid / safe to strcpy()
+//       to offset 0.
+struct _command_info_t command_info;
+
+static const struct prompt_result empty_result = {0}; // BUGBUG -- this appears to be a useless variable ... all it does is zero-initialize?
 
 void cmdln_init(void) {
     PRINT_DEBUG("cmdln_init()\r\n");
@@ -62,14 +81,20 @@ bool cmdln_try_add(char* c) {
 }
 
 bool cmdln_try_remove(char* c) {
+    uint32_t tmp_read_offset = cmdln_pu(cmdln.rptr);
+    uint32_t tmp_write_offset = cmdln_pu(cmdln.wptr);
     if (cmdln_pu(cmdln.rptr) == cmdln_pu(cmdln.wptr)) {
         // this is not a warning, as it's a normal occurrence
         PRINT_DEBUG("cmdln_try_remove: Buffer empty, could not remove character");
         return false;
     }
-
-    (*c) = cmdln.buf[cmdln.rptr];
-    cmdln.rptr = cmdln_pu(cmdln.rptr + 1);
+    if (cmdln.buf[tmp_read_offset] == 0x00) {
+        PRINT_DEBUG("cmdln_try_remove: Buffer offset 0x%02x (%d) stored null char, nothing to remove\n",
+                    cmdln.rptr, cmdln.rptr);
+        return false;
+    }
+    (*c) = cmdln.buf[tmp_read_offset];
+    cmdln.rptr = cmdln_pu(tmp_read_offset + 1);
     return true;
 }
 
@@ -129,6 +154,14 @@ bool cmdln_try_discard(uint32_t i) {
     if (to_discard != 0) {
         if (!result) {
             PRINT_WARNING("cmdln_try_discard: requested to discard %d characters, only %d discarded (no more remain)", i, to_discard);
+        } else if (to_discard == 1) {
+            char c = cmdln.buf[cmdln.rptr];
+            PRINT_DEBUG("cmdln_try_discard: discarding single character %c (0x%02x) characters", c, c);
+        } else {
+            PRINT_DEBUG(
+                "cmdln_try_discard: discarding %d characters by adjusting cmdln.rptr from %d to %d",
+                to_discard, cmdln.rptr, cmdln_pu(cmdln.rptr + to_discard)
+            );
         }
         cmdln.rptr = cmdln_pu(cmdln.rptr + to_discard);
     }
@@ -386,12 +419,13 @@ bool cmdln_args_find_flag(char flag) {
     return true;
 }
 
+// NOTE: pos is the white-space based token from the current command (not entire command line)
 bool cmdln_args_string_by_position(uint32_t pos, uint32_t max_len, char* str) {
     char c;
     uint32_t rptr = 0;
+    PRINT_DEBUG("cmdln_args_string_by_position(%d, %d, %p)\r\n", pos, max_len, str);
     memset(str, 0x00, max_len);
 // start at beginning of command range
-    PRINT_DEBUG("cmdln_args_string_by_position(%d, %d, %p)\r\n", pos, max_len, str);
 #ifdef UI_CMDLN_ARGS_DEBUG
     printf("Looking for string in pos %d\r\n", pos);
 #endif
@@ -564,6 +598,7 @@ bool cmdln_find_next_command(struct _command_info_t* cp) {
                 while (cmdln_try_peek(cp->endptr, &d)) {
                     cp->endptr++;
                 }
+                cp->command[0] = '#';
                 cp->delimiter = 0; // no continuation by another command for this line
                 cp->nextptr = cp->endptr;
                 goto cmdln_find_next_command_success;

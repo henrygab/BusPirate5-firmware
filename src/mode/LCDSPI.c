@@ -16,29 +16,31 @@ static uint32_t currentdisplay;
 
 // subset of the protocol
 typedef struct _display {
-    uint32_t (*display_send)(uint32_t); // send max 32 bit
-    uint32_t (*display_read)(void);     // read max 32 bit (is thsi actually used?)
-    void (*display_macro)(uint32_t);    // macro
-    void (*display_setup)(void);        // setup UI
-    void (*display_cleanup)(void);      // cleanup for HiZ
-    char name[10];
+    uint32_t ( *display_send    )(uint32_t); // send max 32 bit
+    uint32_t ( *display_read    )(void);     // read max 32 bit (is thsi actually used?)
+    void     ( *display_macro   )(uint32_t); // macro
+    void     ( *display_setup   )(void);     // setup UI
+    void     ( *display_cleanup )(void);     // cleanup for HiZ
+    char name[10]; // TODO: maybe make this `const char*`???
 } display;
 
 static struct _display displays[2] = {
     // HD44780 is mandatory
-    { HD44780_write,
-      nullfunc3, // read is not used
-      HD44780_macro,
-      HD44780_setup,
-      HD44780_cleanup,
-      "HD44780" },
+    { .display_send    = HD44780_write,
+      .display_read    = nullfunc3, // read is not used
+      .display_macro   = HD44780_macro,
+      .display_setup   = HD44780_setup,
+      .display_cleanup = HD44780_cleanup,
+      .name            = "HD44780",
+    },
 #ifdef DISPLAY_USE_ST7735
-    { ST7735_send,
-      nullfunc3, // read is not used
-      ST7735_macro,
-      ST7735_setup,
-      ST7735_cleanup,
-      "ST7735D/R" },
+    { .display_send    = ST7735_send,
+      .display_read    = nullfunc3, // read is not used
+      .display_macro   = ST7735_macro,
+      .display_setup   = ST7735_setup,
+      .display_cleanup = ST7735_cleanup,
+      .name            = "ST7735D/R",
+    },
 #endif
 };
 

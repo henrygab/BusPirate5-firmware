@@ -158,22 +158,22 @@ typedef struct _CPIXEL_COLOR {
     // pad to 32-bits to ensure compiler can optimize away conversion
     // from constexpr uint32_t colors (0x00RRGGBB format) into this
     // type into a noop (same underlying data in little-endian)
-    union {
+    union { // blue
         uint8_t blue;
         uint8_t b;
     };
-    union {
+    union { // green
         uint8_t green;
         uint8_t g;
     };
-    union {
+    union { // red
         uint8_t red;
         uint8_t r;
     };
-    uint8_t _unused;
+    uint8_t _unused; // for optimizing conversions to/from uint32_t
 } CPIXEL_COLOR;
 
-CPIXEL_COLOR pixels[COUNT_OF_PIXELS]; // store as RGB ... as it's the common format
+CPIXEL_COLOR pixels[COUNT_OF_PIXELS]; // store as 0x00RRGGBB ... as it's the common format
 
 // C23 would allow this to be `constexpr`
 // here, `static const` relies on compiler to optimize this away to a literal `((uint32_t)0u)`
@@ -184,23 +184,33 @@ static CPIXEL_COLOR color_from_rgb(uint8_t r, uint8_t g, uint8_t b) {
     return c;
 }
 static CPIXEL_COLOR color_from_uint32(uint32_t c) {
+    // clang-format off
     CPIXEL_COLOR result = {
-        ._unused = (c >> 24) & 0xff, // carry the input data, to allow compiler to optimization this to a noop
-        .r = (c >> 16) & 0xff,
-        .g = (c >> 8) & 0xff,
-        .b = (c >> 0) & 0xff,
+        ._unused = (c >> 24) & 0xff, // by including ._unused, the compiler should be able to optimize this to a noop
+        .r       = (c >> 16) & 0xff,
+        .g       = (c >>  8) & 0xff,
+        .b       = (c >>  0) & 0xff,
     };
+    // clang-format on
     return result;
 }
 static uint32_t color_as_uint32(CPIXEL_COLOR c) {
-    return (c.r << 16) | (c.g << 8) | c.b;
+    // clang-format off
+    return
+        (c._unused << 24) | // by including ._unused, the compiler should be able to optimize this to a noop
+        (c.r       << 16) |
+        (c.g       <<  8) |
+        (c.b       <<  0) ;
+    // clang-format on
 }
 static CPIXEL_COLOR reduce_brightness(CPIXEL_COLOR c, uint8_t numerator, uint8_t divisor) {
+    // clang-format off
     CPIXEL_COLOR r = {
         .r = c.r * numerator / divisor,
         .g = c.g * numerator / divisor,
         .b = c.b * numerator / divisor,
     };
+    // clang-format on
     return r;
 }
 
@@ -316,8 +326,22 @@ static const uint32_t groups_center_clockwise[] = {
 #endif
 #pragma endregion // Legacy pixel animation groups
 
-struct rgb_dma_t{
-    uint32_t buffer[COUNT_OF_PIXELS];
+typedef struct _PIXEL_DATA_FORMAT_PIO_WS2812 {
+    union {
+        uint32_t raw_00GGRRBB;
+        struct {
+            uint8_t b;       // blue
+            uint8_t r;       // red
+            uint8_t g;       // green
+            uint8_t _unused; // padding but want to ensure can manually set to zero
+        };
+    };
+ } PIXEL_DATA_FORMAT_PIO_WS2812;
+ static_assert(sizeof(PIXEL_DATA_FORMAT_PIO_WS2812) == sizeof(uint32_t), "PIXEL_DATA_FORMAT_PIO_WS2812 must be 32 bits wide");
+
+struct rgb_dma_t {
+    // TODO: change this to an array of PIXEL_DATA_FORMAT_PIO_WS2812
+    uint32_t buffer[COUNT_OF_PIXELS]; // NOTE: This buffer is in 0x00GGRRBB format ...
     dma_channel_config config;
     int chan;
 };
@@ -326,7 +350,6 @@ static struct rgb_dma_t rgb_dma;
 
 static inline void update_pixels(void) {
     for (int i = 0; i < COUNT_OF_PIXELS; i++) {
-
         // little-endian, so 0x00GGRRBB  is stored as 0xBB 0xRR 0xGG 0x00
         // Shifting it left by 8 bits will give bytes 0x00 0xBB 0xRR 0xGG
         // which allows the PIO to unshift the bytes in the correct order
@@ -341,6 +364,9 @@ static inline void update_pixels(void) {
         //       e.g., #define WS2812_SM   3
         //pio_sm_put_blocking(pio_config.pio, pio_config.sm, toSend);
     }
+
+    // BUGBUG: As a final step before updating pixels, validate estimated power consumption is within limits
+
     if(!dma_channel_is_busy(rgb_dma.chan)){
         //dma_channel_configure(dma_chan, &c, &pio_config.pio->txf[pio_config.sm], dma_buffer, COUNT_OF_PIXELS, true);
         dma_channel_set_read_addr(rgb_dma.chan, rgb_dma.buffer, true);
@@ -704,7 +730,7 @@ static bool pixel_timer_callback(struct repeating_timer* t) {
             assign_pixel_color(PIXEL_MASK_ALL, PIXEL_COLOR_BLACK);
             update_pixels();  
             break;          
-        case LED_EFFECT_SOLID:; // semicolon is required for ... reasons
+        case LED_EFFECT_SOLID:; // semicolon is required for ... reasons (cannot define local variables right after case label until C23)
             CPIXEL_COLOR color = color_from_uint32(system_config.led_color);
             assign_pixel_color(PIXEL_MASK_ALL, color);
             update_pixels();
