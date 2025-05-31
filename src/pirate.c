@@ -579,7 +579,7 @@ static void core0_infinite_loop(void) {
                 uint8_t key_pressed = (uint8_t)ui_term_get_user_input();
                 
                 //all keys deal with screensaver
-                if(key_pressed) { //0x01 is a key press, 0xff is enter
+                if (key_pressed) { //0x01 is a key press, 0xff is enter
                     lcd_screensaver_alarm_reset();
                 }
 
@@ -588,7 +588,7 @@ static void core0_infinite_loop(void) {
                     bp_state = BP_SM_PROCESS_COMMAND;
                     button_irq_disable(0); 
                 }
-
+                
                 enum button_codes press_code = button_check_press(0);
                 if (press_code != BP_BUTT_NO_PRESS) {
                     button_irq_disable(0);

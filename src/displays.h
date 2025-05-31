@@ -11,15 +11,17 @@ enum {
 };
 
 typedef struct _display {
-    void (*display_periodic)(void);                             // regularly polled for events (byte arrival, etc.)
-    uint32_t (*display_setup)(void);                            // setup UI
-    uint32_t (*display_setup_exc)(void);                        // real setup
-    void (*display_cleanup)(void);                              // cleanup for HiZ
-    void (*display_settings)(void);                             // display settings
-    void (*display_help)(void);                                 // display protocol specific help
-    char display_name[10];                                      // friendly name (promptname)
-    uint32_t (*display_command)(struct command_result* result); // per mode command parser - ignored if 0
-    void (*display_lcd_update)(uint32_t flags);                 // replacement for ui_lcd_update if non-0
+    // clang-format off
+    void     (*display_periodic  )(void);                          // regularly polled for events (byte arrival, etc.)
+    uint32_t (*display_setup     )(void);                          // setup UI
+    uint32_t (*display_setup_exc )(void);                          // real setup
+    void     (*display_cleanup   )(void);                          // cleanup for HiZ
+    void     (*display_settings  )(void);                          // display settings
+    void     (*display_help      )(void);                          // display protocol specific help
+    char       display_name      [10];                             // friendly name (promptname)
+    uint32_t (*display_command   )(struct command_result* result); // per mode command parser - ignored if nullptr
+    void     (*display_lcd_update)(uint32_t flags);                // replacement for ui_lcd_update if non-nullptr
+    // clang-format on
 } _display;
 
 extern struct _display displays[MAXDISPLAY];
