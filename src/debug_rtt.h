@@ -188,6 +188,7 @@ static inline bool bp_debug_should_print(bp_debug_level_t level, bp_debug_catego
 #define PRINT_INFO(...)
 #define PRINT_VERBOSE(...)
 #define PRINT_DEBUG(...)
+#define PRINT_NEVER(...)
 
 #else
 
@@ -197,6 +198,7 @@ static inline bool bp_debug_should_print(bp_debug_level_t level, bp_debug_catego
 #define PRINT_INFO(...)    BP_DEBUG_PRINT(BP_DEBUG_LEVEL_INFO,    BP_DEBUG_DEFAULT_CATEGORY, __VA_ARGS__)
 #define PRINT_VERBOSE(...) BP_DEBUG_PRINT(BP_DEBUG_LEVEL_VERBOSE, BP_DEBUG_DEFAULT_CATEGORY, __VA_ARGS__)
 #define PRINT_DEBUG(...)   BP_DEBUG_PRINT(BP_DEBUG_LEVEL_DEBUG,   BP_DEBUG_DEFAULT_CATEGORY, __VA_ARGS__)
+#define PRINT_NEVER(...)
 
 #endif
 

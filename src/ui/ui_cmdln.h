@@ -40,16 +40,16 @@ bool cmdline_validate_invariants_command_line(const command_line_history_t * cmd
 bool cmdline_validate_invariants_command_pointer(const command_pointer_t * cp);
 bool cmdline_validate_invariants_command_info(const command_info_t * cmdinfo);
 
+// Yes, this is syntactic sugar.
 #define cmdline_validate_invariants(X) \
     _Generic((X),                  \
-        command_pointer_t *       : cmdline_validate_invariants_command_pointer(X), \
-        const command_pointer_t * : cmdline_validate_invariants_command_pointer(X), \
-        command_line_history_t *          : cmdline_validate_invariants_command_line(X), \
-        const command_line_history_t *    : cmdline_validate_invariants_command_line(X), \
-        command_info_t *          : cmdline_validate_invariants_command_info(X), \
-        const command_info_t *    : cmdline_validate_invariants_command_info(X), \
-        default                   : static_assert(false, "Unsupported type for cmdline_validate_invariants") \
-        )
+        command_pointer_t *       : cmdline_validate_invariants_command_pointer, \
+        const command_pointer_t * : cmdline_validate_invariants_command_pointer, \
+        command_line_history_t *          : cmdline_validate_invariants_command_line, \
+        const command_line_history_t *    : cmdline_validate_invariants_command_line, \
+        command_info_t *          : cmdline_validate_invariants_command_info, \
+        const command_info_t *    : cmdline_validate_invariants_command_info  \
+        )(X)
 
 
 

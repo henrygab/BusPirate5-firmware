@@ -72,6 +72,10 @@ bool cmdline_validate_invariants_command_info(const command_info_t * cmdinfo)
 void cmdln_init(void) {
     PRINT_DEBUG("cmdln_init()\r\n");
     memset(&cmdln, 0, sizeof(cmdln));
+    memset(&command_info, 0, sizeof(command_info));
+    // C11 supports generics!
+    cmdline_validate_invariants(&cmdln);
+    cmdline_validate_invariants(&command_info);
 }
 // buffer offset update, rolls over
 uint32_t cmdln_pu(uint32_t i) {
@@ -90,11 +94,14 @@ static uint32_t cmdln_available_chars(uint32_t rptr, uint32_t wptr) {
 }
 
 void cmdln_get_command_pointer(command_pointer_t* cp) {
+    cmdline_validate_invariants(&cmdln);
     cp->wptr = cmdln.write_offset; // These are offsets, NOT pointers
     cp->rptr = cmdln.read_offset; // These are offsets, NOT pointers
+    cmdline_validate_invariants(cp);
 }
 
 bool cmdln_try_add(char* c) {
+    cmdline_validate_invariants(&cmdln);
     // TODO: leave one space for 0x00 command seperator????
     if (cmdln_pu(cmdln.write_offset + 1) == cmdln_pu(cmdln.read_offset)) {
         PRINT_WARNING("cmdln_try_add: Buffer full, could not add '%c'", *c);
@@ -102,10 +109,12 @@ bool cmdln_try_add(char* c) {
     }
     cmdln.buf[cmdln.write_offset] = (*c);
     cmdln.write_offset = cmdln_pu(cmdln.write_offset + 1);
+    cmdline_validate_invariants(&cmdln);
     return true;
 }
 
 bool cmdln_try_remove(char* c) {
+    cmdline_validate_invariants(&cmdln);
     uint32_t tmp_read_offset = cmdln_pu(cmdln.read_offset);
     uint32_t tmp_write_offset = cmdln_pu(cmdln.write_offset);
     if (cmdln_pu(cmdln.read_offset) == cmdln_pu(cmdln.write_offset)) {
@@ -120,20 +129,22 @@ bool cmdln_try_remove(char* c) {
     }
     (*c) = cmdln.buf[tmp_read_offset];
     cmdln.read_offset = cmdln_pu(tmp_read_offset + 1);
+    cmdline_validate_invariants(&cmdln);
     return true;
 }
 
 bool cmdln_try_peek(uint32_t i, char* c) {
+    cmdline_validate_invariants(&cmdln);
     uint32_t tmp = cmdln_pu(cmdln.read_offset + i);
     if (tmp == cmdln_pu(cmdln.write_offset)) {
-        PRINT_DEBUG("cmdln_try_peek: Buffer offset 0x%02x (%d) is end of written buffer, no character to peek\n",
+        PRINT_NEVER("cmdln_try_peek: Buffer offset 0x%02x (%d) is end of written buffer, no character to peek\n",
                     tmp, tmp);
         return false;
     }
 
     (*c) = cmdln.buf[tmp];
     if ((*c) == 0x00) {
-        PRINT_DEBUG("cmdln_try_peek: Buffer offset 0x%02x (%d) stored null char\n", tmp, tmp);
+        PRINT_NEVER("cmdln_try_peek: Buffer offset 0x%02x (%d) stored null char\n", tmp, tmp);
         return false;
     }
 
@@ -141,6 +152,9 @@ bool cmdln_try_peek(uint32_t i, char* c) {
 }
 
 bool cmdln_try_peek_pointer(command_pointer_t* cp, uint32_t i, char* c) {
+    cmdline_validate_invariants(&cmdln);
+    cmdline_validate_invariants(cp);
+
     uint32_t tmp = cmdln_pu(cp->rptr + i);
     if (tmp == cmdln_pu(cp->wptr)) {
         PRINT_DEBUG("cmdln_try_peek_pointer: Buffer offset 0x%02x (%d) is end of written buffer, no character to peek\n",
@@ -154,12 +168,12 @@ bool cmdln_try_peek_pointer(command_pointer_t* cp, uint32_t i, char* c) {
         // BUGBUG -- Unlike cmdln_try_peek(), this does not return false if the character is 0x00?
         // return false;
     }
-
-
     return true;
 }
 
 bool cmdln_try_discard(uint32_t i) {
+
+    cmdline_validate_invariants(&cmdln);
 
     // BUGBUG -- this will increment the read offset, even if the read offset
     //           says there's nothing to discard (i.e., rptr == wptr)
@@ -190,13 +204,18 @@ bool cmdln_try_discard(uint32_t i) {
         }
         cmdln.read_offset = cmdln_pu(cmdln.read_offset + to_discard);
     }
+
+    cmdline_validate_invariants(&cmdln);
     return result;
 }
 
 bool cmdln_next_buf_pos(void) {
+    // TODO: This may be a good spot to rotate the command history buffer....
+    cmdline_validate_invariants(&cmdln);
     cmdln.read_offset = cmdln.write_offset;
     cmdln.cursor_offset = cmdln.write_offset;
     cmdln.which_history = 0;
+    cmdline_validate_invariants(&cmdln);
 }
 
 // These are new functions to ease argument and options parsing
@@ -206,6 +225,11 @@ bool cmdln_next_buf_pos(void) {
 // consume white space (0x20, space)
 //  non_white_space = true, consume non-white space characters (not space)
 static bool cmdln_consume_white_space_ex(uint32_t* rptr, bool non_white_space) {
+
+    cmdline_validate_invariants(&cmdln);
+    cmdline_validate_invariants(&command_info);
+
+
     // consume white space
     while (true) {
         char c;
@@ -237,6 +261,10 @@ bool cmdln_consume_non_white_space(uint32_t* rptr) {
 // internal function to take copy string from start position to next space or end of buffer
 // notice, we do not pass rptr by reference, so it is not updated
 bool cmdln_args_get_string(uint32_t rptr, uint32_t max_len, char* string) {
+
+    cmdline_validate_invariants(&cmdln);
+    cmdline_validate_invariants(&command_info);
+
     char c;
     for (uint32_t i = 0; i < max_len; i++) {
         // no more characters
@@ -261,6 +289,10 @@ bool cmdln_args_get_string(uint32_t rptr, uint32_t max_len, char* string) {
 // parse a hex value from the first digit
 // notice, we do not pass rptr by reference, so it is not updated
 bool cmdln_args_get_hex(uint32_t* rptr, struct prompt_result* result, uint32_t* value) {
+
+    cmdline_validate_invariants(&cmdln);
+    cmdline_validate_invariants(&command_info);
+
     char c;
 
     //*result=empty_result;
@@ -289,6 +321,10 @@ bool cmdln_args_get_hex(uint32_t* rptr, struct prompt_result* result, uint32_t* 
 // parse a bin value from the first digit
 // notice, we do not pass rptr by reference, so it is not updated
 bool cmdln_args_get_bin(uint32_t* rptr, struct prompt_result* result, uint32_t* value) {
+
+    cmdline_validate_invariants(&cmdln);
+    cmdline_validate_invariants(&command_info);
+
     char c;
     //*result=empty_result;
     result->no_value = true;
@@ -312,6 +348,10 @@ bool cmdln_args_get_bin(uint32_t* rptr, struct prompt_result* result, uint32_t* 
 // parse a decimal value from the first digit
 // notice, we do not pass rptr by reference, so it is not updated
 bool cmdln_args_get_dec(uint32_t* rptr, struct prompt_result* result, uint32_t* value) {
+
+    cmdline_validate_invariants(&cmdln);
+    cmdline_validate_invariants(&command_info);
+
     char c;
     //*result=empty_result;
     result->no_value = true;
@@ -338,6 +378,10 @@ bool cmdln_args_get_dec(uint32_t* rptr, struct prompt_result* result, uint32_t* 
 // 0xXXXX hexadecimal
 // 0bXXXX bin
 bool cmdln_args_get_int(uint32_t* rptr, struct prompt_result* result, uint32_t* value) {
+
+    cmdline_validate_invariants(&cmdln);
+    cmdline_validate_invariants(&command_info);
+
     bool r1, r2;
     char p1, p2;
 
@@ -365,6 +409,10 @@ bool cmdln_args_get_int(uint32_t* rptr, struct prompt_result* result, uint32_t* 
 }
 
 bool cmdln_args_find_flag_internal(char flag, command_var_t* arg) {
+
+    cmdline_validate_invariants(&cmdln);
+    cmdline_validate_invariants(&command_info);
+
     uint32_t rptr = 0;
     char flag_c;
     char dash_c;
@@ -378,18 +426,18 @@ bool cmdln_args_find_flag_internal(char flag, command_var_t* arg) {
                 || (!cmdln_consume_white_space(&rptr)) // move past spaces. @end of buffer, next flag, or value
                 || (cmdln_try_peek(rptr, &dash_c) && dash_c == '-')) // next argument, no value
             {
-                // printf("No value for flag %c\r\n", flag);
+                PRINT_NEVER("cmdln_args_find_flag_internal: Flag %c found, no value\r\n", flag);
                 arg->has_value = false;
                 return true;
             }
-            // printf("Value for flag %c\r\n", flag);
+            PRINT_NEVER("cmdln_args_find_flag_internal: Flag %c found, value offset %d\r\n", flag, rptr);
             arg->has_value = true;
             arg->value_pos = rptr;
             return true;
         }
         rptr++;
     }
-    // printf("Flag %c not found\r\n", flag);
+    PRINT_NEVER("cmdln_args_find_flag_internal: Flag %c not found\r\n", flag);
     return false;
 }
 
@@ -397,6 +445,10 @@ bool cmdln_args_find_flag_internal(char flag, command_var_t* arg) {
 //  returns true if flag is present AND has a string value
 //  use cmdln_args_find_flag to see if a flag was present with no string value
 bool cmdln_args_find_flag_uint32(char flag, command_var_t* arg, uint32_t* value) {
+
+    cmdline_validate_invariants(&cmdln);
+    cmdline_validate_invariants(&command_info);
+
     if (!cmdln_args_find_flag_internal(flag, arg)) {
         return false;
     }
@@ -418,6 +470,10 @@ bool cmdln_args_find_flag_uint32(char flag, command_var_t* arg, uint32_t* value)
 //  returns true if flag is present AND has a integer value
 //  use cmdln_args_find_flag to see if a flag was present with no integer value
 bool cmdln_args_find_flag_string(char flag, command_var_t* arg, uint32_t max_len, char* str) {
+
+    cmdline_validate_invariants(&cmdln);
+    cmdline_validate_invariants(&command_info);
+
     if (!cmdln_args_find_flag_internal(flag, arg)) {
         return false;
     }
@@ -437,6 +493,10 @@ bool cmdln_args_find_flag_string(char flag, command_var_t* arg, uint32_t max_len
 // check if a -f(lag) is present. Value is don't care.
 // returns true if flag is present
 bool cmdln_args_find_flag(char flag) {
+
+    cmdline_validate_invariants(&cmdln);
+    cmdline_validate_invariants(&command_info);
+
     command_var_t arg;
     if (!cmdln_args_find_flag_internal(flag, &arg)) {
         return false;
@@ -446,14 +506,15 @@ bool cmdln_args_find_flag(char flag) {
 
 // NOTE: pos is the white-space based token from the current command (not entire command line)
 bool cmdln_args_string_by_position(uint32_t pos, uint32_t max_len, char* str) {
+
+    cmdline_validate_invariants(&cmdln);
+    cmdline_validate_invariants(&command_info);
+
     char c;
     uint32_t rptr = 0;
-    PRINT_DEBUG("cmdln_args_string_by_position(%d, %d, %p)\r\n", pos, max_len, str);
+    PRINT_NEVER("cmdln_args_string_by_position(%d, %d)\r\n", pos, max_len);
     memset(str, 0x00, max_len);
-// start at beginning of command range
-#ifdef UI_CMDLN_ARGS_DEBUG
-    printf("Looking for string in pos %d\r\n", pos);
-#endif
+    // start at beginning of command range
     for (uint32_t i = 0; i < pos + 1; i++) {
         // consume white space
         if (!cmdln_consume_white_space(&rptr)) {
@@ -482,13 +543,14 @@ bool cmdln_args_string_by_position(uint32_t pos, uint32_t max_len, char* str) {
 }
 
 bool cmdln_args_uint32_by_position(uint32_t pos, uint32_t* value) {
+
+    cmdline_validate_invariants(&cmdln);
+    cmdline_validate_invariants(&command_info);
+
     char c;
     uint32_t rptr = 0;
-// start at beginning of command range
-    PRINT_DEBUG("cmdln_args_uint_by_position(%d, %p)\r\n", pos, value);
-#ifdef UI_CMDLN_ARGS_DEBUG
-    printf("Looking for uint in pos %d\r\n", pos);
-#endif
+    // start at beginning of command range
+    PRINT_NEVER("cmdln_args_uint32_by_position(%d)\r\n", pos);
     for (uint32_t i = 0; i < pos + 1; i++) {
         // consume white space
         if (!cmdln_consume_white_space(&rptr)) {
@@ -512,14 +574,15 @@ bool cmdln_args_uint32_by_position(uint32_t pos, uint32_t* value) {
 }
 
 bool cmdln_args_float_by_position(uint32_t pos, float* value) {
+
+    cmdline_validate_invariants(&cmdln);
+    cmdline_validate_invariants(&command_info);
+
     char c;
     uint32_t rptr = 0;
     uint32_t ipart = 0, dpart = 0;
-// start at beginning of command range
-    PRINT_DEBUG("cmdln_args_float_by_position(%d, %p)\r\n", pos, value);
-#ifdef UI_CMDLN_ARGS_DEBUG
-    printf("Looking for float in pos %d\r\n", pos);
-#endif
+    // start at beginning of command range
+    PRINT_NEVER("cmdln_args_float_by_position(%d)\r\n", pos);
     for (uint32_t i = 0; i < pos + 1; i++) {
         // consume white space
         if (!cmdln_consume_white_space(&rptr)) {
@@ -566,13 +629,18 @@ bool cmdln_args_float_by_position(uint32_t pos, float* value) {
     return false;
 }
 
-// finds the next command in user input
+// finds the next command in current line of user input
 // could be the comment indicator `#` ... in which case entire string ending in 0x00 is considered the comment
 // could be a single command ending in 0x00
 // could be multiple commands chained with ; || &&
 // sets the internal current command pointers to avoid reading into the next or previous commands
 // returns true if a command is found
 bool cmdln_find_next_command(struct _command_info_t* cp) {
+
+    cmdline_validate_invariants(&cmdln);
+    cmdline_validate_invariants(&command_info);
+    cmdline_validate_invariants(cp);
+
     uint32_t i = 0;
     char c;
     char d;
@@ -580,13 +648,10 @@ bool cmdln_find_next_command(struct _command_info_t* cp) {
     cp->startptr = cp->nextptr; // should be zero on first call, use previous value for subsequent calls
     cp->endptr   = cp->nextptr; // should be zero on first call, use previous value for subsequent calls
 
-    PRINT_DEBUG("cmdln_find_next_command: startptr=%d\r\n", cp->startptr);
+    PRINT_NEVER("cmdln_find_next_command: startptr=%d\r\n", cp->startptr);
 
     if (!cmdln_try_peek(cp->endptr, &c)) {
-        PRINT_DEBUG("cmdln_find_next_command: No command found, endptr=%d\r\n", cp->endptr);
-#ifdef UI_CMDLN_ARGS_DEBUG
-        printf("End of command line input at %d\r\n", cp->endptr);
-#endif
+        PRINT_NEVER("cmdln_find_next_command: No command found, endptr=%d\r\n", cp->endptr);
         cp->delimiter = false; // 0 = end of command input
         return false;
     }
@@ -635,26 +700,17 @@ bool cmdln_find_next_command(struct _command_info_t* cp) {
         
         bool got_pos2 = cmdln_try_peek(cp->endptr + 1, &d);
         if (!got_pos1) {
-            PRINT_DEBUG("cmdln_find_next_command: Found last/only command with end offset: %d\r\n", cp->endptr);
-#ifdef UI_CMDLN_ARGS_DEBUG
-            printf("Last/only command line input: pos1=%d, c=%d\r\n", got_pos1, c);
-#endif
+            PRINT_NEVER("cmdln_find_next_command: Found last/only command with end offset: %d\r\n", cp->endptr);
             cp->delimiter = false; // 0 = end of command input
             cp->nextptr = cp->endptr;
             goto cmdln_find_next_command_success;
         } else if (c == ';') {
-            PRINT_DEBUG("cmdln_find_next_command: Found ';' end offset: %d\r\n", cp->endptr);
-#ifdef UI_CMDLN_ARGS_DEBUG
-            printf("Got end of command: ; position: %d, \r\n", cp->endptr);
-#endif
+            PRINT_NEVER("cmdln_find_next_command: Found ';' end offset: %d\r\n", cp->endptr);
             cp->delimiter = ';';
             cp->nextptr = cp->endptr + 1;
             goto cmdln_find_next_command_success;
         } else if (got_pos2 && ((c == '|' && d == '|') || (c == '&' && d == '&'))) {
-            PRINT_DEBUG("cmdln_find_next_command: Found '%c%c' end offset: %d\r\n", c, d, cp->endptr);
-#ifdef UI_CMDLN_ARGS_DEBUG
-            printf("Got end of command: %c position: %d, \r\n", c, cp->endptr);
-#endif
+            PRINT_NEVER("cmdln_find_next_command: Found '%c%c' end offset: %d\r\n", c, d, cp->endptr);
             cp->delimiter = c;
             cp->nextptr = cp->endptr + 2;
             goto cmdln_find_next_command_success;
@@ -673,7 +729,7 @@ cmdln_find_next_command_success:
     //       Moreover, they are automagically WRAPPED around the circular
     //       buffer in cmdln_try_peek(), cmdln_try_peek_pointer(), etc.
     //       using `cmdln_pu(uint32_t offset)`
-    PRINT_DEBUG(
+    PRINT_NEVER(
         "cmdln_find_next_command: offset %d .. %d (%d chars), cmd `%s`\n",
         cp->startptr, cp->endptr, cp->endptr - cp->startptr, cp->command
         );
@@ -688,6 +744,9 @@ cmdln_find_next_command_success:
 //  shows all commands and all detected positions
 bool cmdln_info(void) {
 
+    cmdline_validate_invariants(&cmdln);
+    cmdline_validate_invariants(&command_info);
+
     PRINT_DEBUG("cmdln_info(): start: %d  end: %d  length: %d", cmdln.read_offset, cmdln.write_offset, cmdln_available_chars(cmdln.read_offset, cmdln.write_offset));
     // start and end point?
     printf("Input start: %d, end %d\r\n", cmdln.read_offset, cmdln.write_offset);
@@ -696,7 +755,7 @@ bool cmdln_info(void) {
 
     // loop through and display all commands in this command line
     uint32_t i = 0;
-    struct _command_info_t cp;
+    command_info_t cp;
     cp.nextptr = 0;
     while (cmdln_find_next_command(&cp)) {
         if (cp.delimiter == 0) {
@@ -724,13 +783,17 @@ bool cmdln_info(void) {
 // function for debugging the command line arguments parsers
 //  shows all integers and all detected positions
 bool cmdln_info_uint32(void) {
+
+    cmdline_validate_invariants(&cmdln);
+    cmdline_validate_invariants(&command_info);
+
     PRINT_DEBUG("cmdln_info_uint32(): start: %d  end: %d  length: %d", cmdln.read_offset, cmdln.write_offset, cmdln_available_chars(cmdln.read_offset, cmdln.write_offset));
     // start and end point?
     printf("Input start: %d, end %d\r\n", cmdln.read_offset, cmdln.write_offset);
     // how many characters?
     printf("Input length: %d\r\n", cmdln_available_chars(cmdln.read_offset, cmdln.write_offset));
     uint32_t i = 0;
-    struct _command_info_t cp;
+    command_info_t cp;
     cp.nextptr = 0;
     while (cmdln_find_next_command(&cp)) {
         if (cp.delimiter == 0) {
