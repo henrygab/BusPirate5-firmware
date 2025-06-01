@@ -115,16 +115,16 @@ static uint32_t cmdln_available_chars(uint32_t rptr, uint32_t wptr) {
     return tmp % UI_CMDBUFFSIZE;
 }
 
-bool cmdln_try_add(char* c) {
-    cmdline_validate_invariants(&cmdln);
+bool cmdln_try_add_ex(command_line_history_t * history, char* c) {
+    cmdline_validate_invariants(history);
     // TODO: leave one space for 0x00 command seperator????
-    if (cmdln_pu(cmdln.write_offset + 1) == cmdln_pu(cmdln.read_offset)) {
+    if (cmdln_pu(history->write_offset + 1) == cmdln_pu(history->read_offset)) {
         PRINT_WARNING("cmdln_try_add: Buffer full, could not add '%c'", *c);
         return false;
     }
-    cmdln.buf[cmdln.write_offset] = (*c);
-    cmdln.write_offset = cmdln_pu(cmdln.write_offset + 1);
-    cmdline_validate_invariants(&cmdln);
+    history->buf[history->write_offset] = (*c);
+    history->write_offset = cmdln_pu(history->write_offset + 1);
+    cmdline_validate_invariants(history);
     return true;
 }
 
