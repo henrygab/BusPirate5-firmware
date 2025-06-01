@@ -112,11 +112,13 @@ static bool exec_macro_id(const char* id) {
     }
     m++;
 
-    // FIXME: injecting the bus syntax into cmd line (i.e. simulating
+    // BUGBUG -- injecting the bus syntax into cmd line (i.e. simulating
     // user input) is probably not the best solution... :-/
     // printf("Inject cmd\r\n");
     // TODO: there is a way to advance through the cmdln queue that leaves a history pointer so up and down work
     // I think instead of of reading to end, we need to advance to the next buffer position
+    // BETTER SOLUTION: `ui_process_syntax()` should be passed a pointer to the buffer to parse as a command line.
+    // Then, there's no need to interact with the cmdln queue at all.
     char c;
     while (cmdln_try_remove(&c))
         ;
