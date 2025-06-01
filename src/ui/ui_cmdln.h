@@ -12,6 +12,7 @@ typedef struct _command_line_history_t {
     uint32_t cursor_offset;   // Offset into command_line_history_t.buf where the cursor is currently positioned
     char buf[UI_CMDBUFFSIZE]; // Global circular buffer used to store command line input and history
 } command_line_history_t;
+extern command_line_history_t cmdln;
 
 // This structure is used to track a single "command" and all options associated with that command.
 // At present, multiple commands can be entered in a single command line,
@@ -70,11 +71,13 @@ bool cmdline_validate_invariants_command_info(const command_info_t * cmdinfo);
 
 
 typedef struct command_var_struct {
-    bool has_arg;
-    bool has_value;
+    // clang-format off
+    bool     has_arg;
+    bool     has_value;
     uint32_t value_pos;
-    bool error;
-    uint8_t number_format;
+    bool     error;
+    uint8_t  number_format;
+    // clang-format on
 } command_var_t;
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -89,15 +92,24 @@ bool cmdln_args_string_by_position_ex(command_info_t* cp, uint32_t pos, uint32_t
 
 bool cmdln_try_add_ex(command_line_history_t * command_line_history, char* c);
 bool cmdln_try_remove_ex(command_line_history_t * command_line_history, char* c);
+
+// try to peek 0+n bytes (no offsets updated)
+// returns false if at the end of the buffer
+// this should always be used sequentially from zero,
+// if wanting to peek multiple characters forward
+//     e.g., bool got_char = peek(0, &c) && peek(1, &c);
+// to avoid missing the end of the buffer
 bool cmdln_try_peek_ex(command_line_history_t const * command_line_history, uint32_t i, char* c);
 bool cmdln_try_discard_ex(command_line_history_t* command_history_buffer, uint32_t i);
 bool cmdln_next_buf_pos_ex(command_line_history_t* command_history_buffer);
 
-// this one is already OK, once we track the .history field
-// bool cmdln_try_peek_pointer(command_pointer_t* cp, uint32_t i, char* c);
+// peek at offset from a specific command_pointer_t
+bool cmdln_try_peek_pointer(command_pointer_t* cp, uint32_t i, char* c);
 
 bool cmdln_info_ex(command_line_history_t* command_history_buffer);
 bool cmdln_info_uint32_ex(command_line_history_t* command_history_buffer);
+
+
 
 
 
@@ -127,13 +139,7 @@ uint32_t cmdln_pu(uint32_t i);
 bool cmdln_try_add(char* c);
 // try to get a byte, return false if buffer empty
 bool cmdln_try_remove(char* c);
-// try to peek 0+n bytes (no offsets updated)
-// returns false if at the end of the buffer
-// this should always be used sequentially from zero,
-// if wanting to peek multiple characters forward
-//     e.g., bool got_char = peek(0, &c) && peek(1, &c);
-// to avoid missing the end of the buffer
-bool cmdln_try_peek(uint32_t i, char* c);
+inline bool cmdln_try_peek(uint32_t i, char* c) { return cmdln_try_peek_ex(&cmdln, i, c);}
 // try to discard n bytes (advance the read offset)
 // return false if end of buffer is reached
 // (should be used with try_peek to confirm before discarding...)
@@ -144,6 +150,4 @@ bool cmdln_try_discard(uint32_t i);
 bool cmdln_next_buf_pos(); // TODO: Rename this API to more clearly indicate its purpose
 
 
-bool cmdln_try_peek_pointer(command_pointer_t* cp, uint32_t i, char* c);
 
-extern command_line_history_t cmdln;

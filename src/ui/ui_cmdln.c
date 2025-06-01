@@ -148,16 +148,16 @@ bool cmdln_try_remove(char* c) {
     return true;
 }
 
-bool cmdln_try_peek(uint32_t i, char* c) {
-    cmdline_validate_invariants(&cmdln);
-    uint32_t tmp = cmdln_pu(cmdln.read_offset + i);
-    if (tmp == cmdln_pu(cmdln.write_offset)) {
+bool cmdln_try_peek_ex(command_line_history_t const * history, uint32_t i, char* c) {
+    cmdline_validate_invariants(history);
+    uint32_t tmp = cmdln_pu(history->read_offset + i);
+    if (tmp == cmdln_pu(history->write_offset)) {
         PRINT_NEVER("cmdln_try_peek: Buffer offset 0x%02x (%d) is end of written buffer, no character to peek\n",
                     tmp, tmp);
         return false;
     }
 
-    (*c) = cmdln.buf[tmp];
+    (*c) = history->buf[tmp];
     if ((*c) == 0x00) {
         PRINT_NEVER("cmdln_try_peek: Buffer offset 0x%02x (%d) stored null char\n", tmp, tmp);
         return false;
