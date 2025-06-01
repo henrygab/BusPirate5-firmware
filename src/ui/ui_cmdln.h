@@ -36,6 +36,9 @@ typedef struct _command_info_t {
     char command[9];   // BUGBUG -- Hard-coded buffer size ... should this be MAX_COMMAND_LENGTH?
 } command_info_t;
 
+void cmdln_init(command_line_history_t* out_cmdln);
+void cmdln_init_command_info(command_info_t* out_cmdinfo);
+
 bool cmdline_validate_invariants_command_line(const command_line_history_t * cmdline);
 bool cmdline_validate_invariants_command_pointer(const command_pointer_t * cp);
 bool cmdline_validate_invariants_command_info(const command_info_t * cmdinfo);
@@ -93,11 +96,9 @@ bool cmdln_try_discard(uint32_t i);
 // this allows the history scroll through the circular buffer
 bool cmdln_next_buf_pos(void);
 
-void cmdln_init(void);
-
 // TODO: rename this API to avoid confusion about pointers / offsets
 bool cmdln_try_peek_pointer(command_pointer_t* cp, uint32_t i, char* c);
 // TODO: rename this API to avoid confusion about pointers / offsets
-void cmdln_get_command_pointer(command_pointer_t* cp);
+void cmdln_get_command_pointer(command_line_history_t const * command_line_history, command_pointer_t* cp);
 
 extern command_line_history_t cmdln;

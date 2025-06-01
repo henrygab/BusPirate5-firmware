@@ -69,16 +69,24 @@ bool cmdline_validate_invariants_command_info(const command_info_t * cmdinfo)
     return true;
 }
 
-void cmdln_init(void) {
+void cmdln_init(command_line_history_t* out_cmdln) {
     PRINT_DEBUG("cmdln_init()\r\n");
-    memset(&cmdln, 0, sizeof(cmdln));
-    memset(&command_info, 0, sizeof(command_info));
+    // currently, this is just setting to all-zero, but this is not necessarily the case in the future
+    memset(out_cmdln, 0, sizeof(command_line_history_t));
     // C11 supports generics!
-    cmdline_validate_invariants(&cmdln);
-    cmdline_validate_invariants(&command_info);
+    cmdline_validate_invariants(out_cmdln);
 }
+void cmdln_init_command_info(command_info_t* out_cmdinfo) {
+    PRINT_DEBUG("cmdln_init_command_info()\r\n");
+    // currently, this is just setting to all-zero, but this is not necessarily the case in the future
+    memset(out_cmdinfo, 0, sizeof(command_info_t));
+    // C11 supports generics!
+    cmdline_validate_invariants(out_cmdinfo);
+}
+
 // buffer offset update, rolls over
 uint32_t cmdln_pu(uint32_t i) {
+    // TODO: Remove this function entirely after `rotate` of the buffer is implemented.
     // Is there any **_other_** reason why UI_CMDBUFFSIZE is commented as "Must be a power of 2?"
     // If not, remove that restriction and simply (optimizer should result in equivalent code):
     return i % UI_CMDBUFFSIZE;
@@ -93,11 +101,11 @@ static uint32_t cmdln_available_chars(uint32_t rptr, uint32_t wptr) {
     return tmp % UI_CMDBUFFSIZE;
 }
 
-void cmdln_get_command_pointer(command_pointer_t* cp) {
-    cmdline_validate_invariants(&cmdln);
-    cp->wptr = cmdln.write_offset; // These are offsets, NOT pointers
-    cp->rptr = cmdln.read_offset; // These are offsets, NOT pointers
-    cmdline_validate_invariants(cp);
+void cmdln_get_command_pointer(command_line_history_t const * command_line_history, command_pointer_t* cp) {
+    cmdline_validate_invariants(command_line_history);
+    cp->wptr = command_line_history->write_offset; // These are offsets, NOT pointers
+    cp->rptr = command_line_history->read_offset; // These are offsets, NOT pointers
+    cmdline_validate_invariants(command_line_history);
 }
 
 bool cmdln_try_add(char* c) {
