@@ -106,8 +106,8 @@ bool cmdln_next_buf_pos_ex(command_line_history_t* command_history_buffer);
 // peek at offset from a specific command_pointer_t
 bool cmdln_try_peek_pointer(command_pointer_t* cp, uint32_t i, char* c);
 
+// Debug function ... dump parsing of current line of input to debugger
 bool cmdln_info_ex(command_line_history_t* command_history_buffer);
-bool cmdln_info_uint32_ex(command_line_history_t* command_history_buffer);
 
 
 
@@ -127,9 +127,6 @@ bool cmdln_args_string_by_position(uint32_t pos, uint32_t max_len, char* str);
 // Finds the next command (if any) in the current single line of command input
 bool cmdln_find_next_command(command_info_t* cp);
 
-// Debug functions to dump state to debugger
-bool cmdln_info(void);
-bool cmdln_info_uint32(void);
 
 // TODO: Remove this once rotate operation implemented
 uint32_t cmdln_pu(uint32_t i);

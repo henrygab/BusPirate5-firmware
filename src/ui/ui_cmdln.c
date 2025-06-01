@@ -819,21 +819,21 @@ cmdln_find_next_command_success:
 
 // function for debugging the command line arguments parsers
 //  shows all commands and all detected positions
-bool cmdln_info(void) {
+bool cmdln_info_ex(command_line_history_t * history) {
 
-    cmdline_validate_invariants(&cmdln);
-    cmdline_validate_invariants(&command_info);
+    cmdline_validate_invariants(history);
 
-    PRINT_DEBUG("cmdln_info(): start: %d  end: %d  length: %d", cmdln.read_offset, cmdln.write_offset, cmdln_available_chars(cmdln.read_offset, cmdln.write_offset));
-    // start and end point?
-    printf("Input start: %d, end %d\r\n", cmdln.read_offset, cmdln.write_offset);
-    // how many characters?
-    printf("Input length: %d\r\n", cmdln_available_chars(cmdln.read_offset, cmdln.write_offset));
+    PRINT_DEBUG(
+        "cmdln_info(): start: %d  end: %d  length: %d",
+        history->read_offset,
+        history->write_offset,
+        cmdln_available_chars(history->read_offset, history->write_offset)
+    );
 
     // loop through and display all commands in this command line
     uint32_t i = 0;
     command_info_t cp;
-    cp.nextptr = 0;
+    cmdln_init_command_info(history, &cp);
     while (cmdln_find_next_command(&cp)) {
         if (cp.delimiter == 0) {
             PRINT_DEBUG("cmdln_info:        Command %s <end of commands>\n", cp.command);
@@ -842,49 +842,55 @@ bool cmdln_info(void) {
         }
         printf("Command: %s, delimiter: %c\r\n", cp.command, cp.delimiter);
 
-        // show all the arguments for this command
-        uint32_t pos = 0;
-        char str[9];
+
         // BUGBUG ... this is O(n^2) complexity, because cmdln_arg_string_by_position()
         //            iterates through the command line from the start each time.
         //            May be able to ignore this, as maximum buffer is 512 bytes, and
         //            512*512 = 262144 iterations, greatly limiting impact.
-        while (cmdln_args_string_by_position(pos, 9, str)) { // BUGBUG -- hardcoded, based on size of local array `str`
-            PRINT_DEBUG("cmdln_info:            Pos %d, value: %s\n", pos, str);
-            printf("String pos: %d, value: %s\r\n", pos, str);
-            pos++;
+        bool expect_more_argumnets = true;
+        for (uint32_t pos = 0; expect_more_argumnets; pos++) {
+            // show all the arguments for this command
+            uint32_t pos = 0;
+            char str[10];
+            float vf = 0.0f;
+            char vfs[20] = {0};
+            uint32_t vi = 0;
+            char vs[6] = {0};
+            bool bf = cmdln_args_float_by_position(pos, &vf);
+            bool bi = cmdln_args_uint32_by_position(pos, &vi);
+            bool bs = cmdln_args_string_by_position(pos, 6, &vs[0]);
+            if (bf) {
+                // RTT does not output float....
+                int written_chars = snprintf(&vfs[0], 20, "%f", vf);
+                if (written_chars >= 20) {
+                    vfs[0] = 'e';
+                    vfs[1] = 'r';
+                    vfs[2] = 'r';
+                    vfs[19] = 0x00; // null-terminate
+                }
+            }
+
+            if (!bf && !bi && !bs) {
+                expect_more_argumnets = false;
+                break;
+            } else if (pos == 0) {
+                PRINT_DEBUG( "                   arg | UFS | uint32                | Float  | String\r\n");
+                PRINT_DEBUG( "                   ----|-----|-----------------------|--------|--------\r\n");
+            }
+
+            // ( "                     1 | UFS | 4294967295 / F7E6D5C4 | 10.374 |  xxxxx\r\n");
+            PRINT_DEBUG(
+                "                   %3d | %c%c%c | %10d / %8X | %20s  |  %s\r\n",
+                pos,
+                bi ? 'U' : '.',
+                bf ? 'F' : '.',
+                bs ? 'S' : '.',
+                bi ? vi : 0,
+                bi ? vi : 0,
+                bf ? vfs : "",
+                bs ? &vs[0] : ""
+            );
         }
     }
 }
 
-// function for debugging the command line arguments parsers
-//  shows all integers and all detected positions
-bool cmdln_info_uint32(void) {
-
-    cmdline_validate_invariants(&cmdln);
-    cmdline_validate_invariants(&command_info);
-
-    PRINT_DEBUG("cmdln_info_uint32(): start: %d  end: %d  length: %d", cmdln.read_offset, cmdln.write_offset, cmdln_available_chars(cmdln.read_offset, cmdln.write_offset));
-    // start and end point?
-    printf("Input start: %d, end %d\r\n", cmdln.read_offset, cmdln.write_offset);
-    // how many characters?
-    printf("Input length: %d\r\n", cmdln_available_chars(cmdln.read_offset, cmdln.write_offset));
-    uint32_t i = 0;
-    command_info_t cp;
-    cp.nextptr = 0;
-    while (cmdln_find_next_command(&cp)) {
-        if (cp.delimiter == 0) {
-            PRINT_DEBUG("cmdln_info_uint32:        Command %s <end of commands>\n", cp.command);
-        } else {
-            PRINT_DEBUG("cmdln_info_uint32:        Command %s, delimiter %c\n", cp.command, cp.delimiter);
-        }
-        printf("Command: %s, delimiter: %c\r\n", cp.command, cp.delimiter);
-        uint32_t pos = 0;
-        uint32_t value = 0;
-        while (cmdln_args_uint32_by_position(pos, &value)) {
-            PRINT_DEBUG("cmdln_info_uint32:            Pos %d, value: %d\n", pos, value);
-            printf("Integer pos: %d, value: %d\r\n", pos, value);
-            pos++;
-        }
-    }
-}
