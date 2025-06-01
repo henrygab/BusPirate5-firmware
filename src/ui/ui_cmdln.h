@@ -80,19 +80,10 @@ typedef struct command_var_struct {
     // clang-format on
 } command_var_t;
 
-////////////////////////////////////////////////////////////////////////////////////////
-// TODO: update to use these new versions of the functions
-////////////////////////////////////////////////////////////////////////////////////////
-bool cmdln_args_find_flag_ex(command_info_t* cp, char flag);
-bool cmdln_args_find_flag_uint32_ex(command_info_t* cp, char flag, command_var_t* arg, uint32_t* value);
-bool cmdln_args_find_flag_string_ex(command_info_t* cp, char flag, command_var_t* arg, uint32_t max_len, char* str);
-bool cmdln_args_float_by_position_ex(command_info_t* cp, uint32_t pos, float* value);
-bool cmdln_args_uint32_by_position_ex(command_info_t* cp, uint32_t pos, uint32_t* value);
-bool cmdln_args_string_by_position_ex(command_info_t* cp, uint32_t pos, uint32_t max_len, char* str);
+#pragma region    // Updated ..._ex() functions to exist and use parameter -- Phase 1
 
 bool cmdln_try_add_ex(command_line_history_t * command_line_history, char* c);
 bool cmdln_try_remove_ex(command_line_history_t * command_line_history, char* c);
-
 // try to peek 0+n bytes (no offsets updated)
 // returns false if at the end of the buffer
 // this should always be used sequentially from zero,
@@ -101,36 +92,24 @@ bool cmdln_try_remove_ex(command_line_history_t * command_line_history, char* c)
 // to avoid missing the end of the buffer
 bool cmdln_try_peek_ex(command_line_history_t const * command_line_history, uint32_t i, char* c);
 bool cmdln_try_discard_ex(command_line_history_t* command_history_buffer, uint32_t i);
-bool cmdln_next_buf_pos_ex(command_line_history_t* command_history_buffer);
 
-// peek at offset from a specific command_pointer_t
-bool cmdln_try_peek_pointer(command_pointer_t* cp, uint32_t i, char* c);
+bool cmdln_next_buf_pos_ex(command_line_history_t* command_history_buffer); // TODO: Rename this API to more clearly indicate its purpose
 
 // Debug function ... dump parsing of current line of input to debugger
 bool cmdln_info_ex(command_line_history_t* command_history_buffer);
 
 
-
-
-
-////////////////////////////////////////////////////////////////////////////////////////
-// TODO: update these to be inline functions for the ...ex() versions
-////////////////////////////////////////////////////////////////////////////////////////
-bool cmdln_args_find_flag(char flag);
-bool cmdln_args_find_flag_uint32(char flag, command_var_t* arg, uint32_t* value);
-bool cmdln_args_find_flag_string(char flag, command_var_t* arg, uint32_t max_len, char* str);
-bool cmdln_args_float_by_position(uint32_t pos, float* value);
-bool cmdln_args_uint32_by_position(uint32_t pos, uint32_t* value);
-bool cmdln_args_string_by_position(uint32_t pos, uint32_t max_len, char* str);
-
-
 // Finds the next command (if any) in the current single line of command input
 bool cmdln_find_next_command(command_info_t* cp);
+// peek at offset from a specific command_pointer_t
+bool cmdln_try_peek_pointer(command_pointer_t* cp, uint32_t i, char* c);
 
 
-// TODO: Remove this once rotate operation implemented
-uint32_t cmdln_pu(uint32_t i);
+#pragma endregion // Updated ..._ex() functions to exist and use parameter -- Phase 1
 
+#pragma region    // TO BE DEPRECATED AND/OR REMOVED -- Phase 2
+
+// These should all be inline functions that call the ..._ex() version
 
 // try to add a byte to the command line buffer, return false if buffer full
 inline bool cmdln_try_add(char* c) { return cmdln_try_add_ex(&cmdln, c); }
@@ -144,7 +123,34 @@ inline bool cmdln_try_discard(uint32_t i) { return cmdln_try_discard_ex(&cmdln, 
 // this moves the read offset to the write offset,
 // allowing the next command line to be entered after the previous.
 // this allows the history scroll through the circular buffer
-bool cmdln_next_buf_pos(); // TODO: Rename this API to more clearly indicate its purpose
+inline bool cmdln_next_buf_pos() { return cmdln_next_buf_pos_ex(&cmdln); } 
+#pragma endregion // TO BE DEPRECATED AND/OR REMOVED -- Phase 2
+
+
+bool cmdln_args_find_flag_ex(command_info_t* cp, char flag);
+bool cmdln_args_find_flag_uint32_ex(command_info_t* cp, char flag, command_var_t* arg, uint32_t* value);
+bool cmdln_args_find_flag_string_ex(command_info_t* cp, char flag, command_var_t* arg, uint32_t max_len, char* str);
+bool cmdln_args_float_by_position_ex(command_info_t* cp, uint32_t pos, float* value);
+bool cmdln_args_uint32_by_position_ex(command_info_t* cp, uint32_t pos, uint32_t* value);
+bool cmdln_args_string_by_position_ex(command_info_t* cp, uint32_t pos, uint32_t max_len, char* str);
+bool cmdln_find_next_command(command_info_t* cp);
+
+////////////////////////////////////////////////////////////////////////////////////////
+// TODO: update these to be inline functions for the ...ex() versions
+////////////////////////////////////////////////////////////////////////////////////////
+bool cmdln_args_find_flag(char flag);
+bool cmdln_args_find_flag_uint32(char flag, command_var_t* arg, uint32_t* value);
+bool cmdln_args_find_flag_string(char flag, command_var_t* arg, uint32_t max_len, char* str);
+bool cmdln_args_float_by_position(uint32_t pos, float* value);
+bool cmdln_args_uint32_by_position(uint32_t pos, uint32_t* value);
+bool cmdln_args_string_by_position(uint32_t pos, uint32_t max_len, char* str);
+
+
+
+// TODO: Remove this once rotate operation implemented
+uint32_t cmdln_pu(uint32_t i);
+
+
 
 
 

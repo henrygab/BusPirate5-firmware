@@ -225,13 +225,13 @@ bool cmdln_try_discard_ex(command_line_history_t * history, uint32_t i) {
     return result;
 }
 
-bool cmdln_next_buf_pos(void) {
+bool cmdln_next_buf_pos_ex(command_line_history_t * history) {
     // TODO: This may be a good spot to rotate the command history buffer....
-    cmdline_validate_invariants(&cmdln);
-    cmdln.read_offset = cmdln.write_offset;
-    cmdln.cursor_offset = cmdln.write_offset;
-    cmdln.which_history = 0;
-    cmdline_validate_invariants(&cmdln);
+    cmdline_validate_invariants(history);
+    history->read_offset = history->write_offset;
+    history->cursor_offset = history->write_offset;
+    history->which_history = 0;
+    cmdline_validate_invariants(history);
 }
 
 // These are new functions to ease argument and options parsing
@@ -240,19 +240,16 @@ bool cmdln_next_buf_pos(void) {
 
 // consume white space (0x20, space)
 //  non_white_space = true, consume non-white space characters (not space)
-static bool cmdln_consume_white_space_ex(uint32_t* rptr, bool non_white_space) {
+static bool cmdln_consume_white_space_ex_impl(command_info_t const * ci, uint32_t* rptr, bool non_white_space) {
 
-    cmdline_validate_invariants(&cmdln);
-    cmdline_validate_invariants(&command_info);
-
-
+    cmdline_validate_invariants(ci);
     // consume white space
     while (true) {
         char c;
         // all remaining characters matched ... no more characters remain
         if (!(
-            command_info.endptr >= (command_info.startptr + (*rptr)) &&  // BUGBUG -- NOT pointers, and did NOT do modulo operation, so this will fail when start offset is near end of circular buffer
-            cmdln_try_peek(command_info.startptr + (*rptr), &c)
+            ci->endptr >= (ci->startptr + (*rptr)) &&  // BUGBUG -- NOT pointers, and did NOT do modulo operation, so this will fail when start offset is near end of circular buffer
+            cmdln_try_peek(ci->startptr + (*rptr), &c)
             )) {
             return false;
         }
@@ -267,11 +264,17 @@ static bool cmdln_consume_white_space_ex(uint32_t* rptr, bool non_white_space) {
         (*rptr)++;
     }
 }
-bool cmdln_consume_white_space(uint32_t* rptr) {
-    return cmdln_consume_white_space_ex(rptr, false);
+bool cmdln_consume_white_space_ex(command_info_t const * ci, uint32_t* rptr) {
+    return cmdln_consume_white_space_ex_impl(ci, rptr, false);
 }
-bool cmdln_consume_non_white_space(uint32_t* rptr) {
-    return cmdln_consume_white_space_ex(rptr, true);
+bool cmdln_consume_non_white_space_ex(command_info_t const * ci, uint32_t* rptr) {
+    return cmdln_consume_white_space_ex_impl(ci, rptr, true);
+}
+inline bool cmdln_consume_white_space(uint32_t* rptr) {
+    return cmdln_consume_white_space_ex(&command_info, rptr);
+}
+inline bool cmdln_consume_non_white_space(uint32_t* rptr) {
+    return cmdln_consume_non_white_space_ex(&command_info, rptr);
 }
 
 // internal function to take copy string from start position to next space or end of buffer
