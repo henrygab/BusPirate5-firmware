@@ -135,7 +135,7 @@ uint32_t cmdln_pu(uint32_t i);
 // try to add a byte to the command line buffer, return false if buffer full
 inline bool cmdln_try_add(char* c) { return cmdln_try_add_ex(&cmdln, c); }
 // try to get a byte, return false if buffer empty
-bool cmdln_try_remove(char* c);
+inline bool cmdln_try_remove(char* c) { return cmdln_try_remove_ex(&cmdln, c); }
 inline bool cmdln_try_peek(uint32_t i, char* c) { return cmdln_try_peek_ex(&cmdln, i, c); }
 // try to discard n bytes (advance the read offset)
 // return false if end of buffer is reached

@@ -128,23 +128,23 @@ bool cmdln_try_add_ex(command_line_history_t * history, char* c) {
     return true;
 }
 
-bool cmdln_try_remove(char* c) {
-    cmdline_validate_invariants(&cmdln);
-    uint32_t tmp_read_offset = cmdln_pu(cmdln.read_offset);
-    uint32_t tmp_write_offset = cmdln_pu(cmdln.write_offset);
-    if (cmdln_pu(cmdln.read_offset) == cmdln_pu(cmdln.write_offset)) {
+bool cmdln_try_remove_ex(command_line_history_t * history, char* c) {
+    cmdline_validate_invariants(history);
+    uint32_t tmp_read_offset = cmdln_pu(history->read_offset);
+    uint32_t tmp_write_offset = cmdln_pu(history->write_offset);
+    if (cmdln_pu(history->read_offset) == cmdln_pu(history->write_offset)) {
         // this is not a warning, as it's a normal occurrence
         PRINT_DEBUG("cmdln_try_remove: Buffer empty, could not remove character");
         return false;
     }
-    if (cmdln.buf[tmp_read_offset] == 0x00) {
+    if (history->buf[tmp_read_offset] == 0x00) {
         PRINT_DEBUG("cmdln_try_remove: Buffer offset 0x%02x (%d) stored null char, nothing to remove\n",
-                    cmdln.read_offset, cmdln.read_offset);
+                    history->read_offset, history->read_offset);
         return false;
     }
-    (*c) = cmdln.buf[tmp_read_offset];
-    cmdln.read_offset = cmdln_pu(tmp_read_offset + 1);
-    cmdline_validate_invariants(&cmdln);
+    (*c) = history->buf[tmp_read_offset];
+    history->read_offset = cmdln_pu(tmp_read_offset + 1);
+    cmdline_validate_invariants(history);
     return true;
 }
 
