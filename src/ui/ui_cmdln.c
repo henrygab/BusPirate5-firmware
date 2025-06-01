@@ -36,7 +36,7 @@ command_info_t command_info;
 
 static const struct prompt_result empty_result = {0}; // BUGBUG -- this appears to be a useless variable ... all it does is zero-initialize?
 
-bool cmdline_validate_invariants_command_line(const command_line_history_t * history)
+bool cmdline_validate_invariants_command_line_history(const command_line_history_t * history)
 {
     BP_ASSERT(history != NULL);
     BP_ASSERT(history->write_offset < UI_CMDBUFFSIZE);
@@ -50,6 +50,8 @@ bool cmdline_validate_invariants_command_pointer(const command_pointer_t * cp)
     BP_ASSERT(cp != NULL);
     BP_ASSERT(cp->wptr < UI_CMDBUFFSIZE);
     BP_ASSERT(cp->rptr < UI_CMDBUFFSIZE);
+    BP_ASSERT(cp->history != NULL);
+    cmdline_validate_invariants_command_line_history(cp->history);
     return true;
 }
 bool cmdline_validate_invariants_command_info(const command_info_t * cmdinfo)
@@ -66,6 +68,8 @@ bool cmdline_validate_invariants_command_info(const command_info_t * cmdinfo)
         (cmdinfo->delimiter == '&') ||
         (cmdinfo->delimiter ==  0 )
     );
+    BP_ASSERT(cmdinfo->history != NULL);
+    cmdline_validate_invariants_command_line_history(cmdinfo->history);
     return true;
 }
 
@@ -76,10 +80,11 @@ void cmdln_init(command_line_history_t* out_cmdln) {
     // C11 supports generics!
     cmdline_validate_invariants(out_cmdln);
 }
-void cmdln_init_command_info(command_info_t* out_cmdinfo) {
+void cmdln_init_command_info(command_line_history_t* command_line_history, command_info_t* out_cmdinfo) {
     PRINT_DEBUG("cmdln_init_command_info()\r\n");
     // currently, this is just setting to all-zero, but this is not necessarily the case in the future
     memset(out_cmdinfo, 0, sizeof(command_info_t));
+    out_cmdinfo->history = command_line_history; // Set the history pointer to the command line history
     // C11 supports generics!
     cmdline_validate_invariants(out_cmdinfo);
 }

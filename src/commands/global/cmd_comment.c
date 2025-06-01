@@ -137,7 +137,7 @@ static void hack_to_help_validate_command_line_parsing(uint32_t start_offset, ui
 }
 
 void cmd_comment_handler(uint32_t start_offset, uint32_t end_offset) {
-    cmdline_validate_invariants_command_line(&cmdln);
+    cmdline_validate_invariants(&cmdln);
 
     start_offset = cmdln_pu(start_offset + cmdln.read_offset);
     end_offset = cmdln_pu(end_offset + cmdln.read_offset);
