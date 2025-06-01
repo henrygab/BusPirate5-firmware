@@ -187,9 +187,9 @@ bool cmdln_try_peek_pointer(command_pointer_t* cp, uint32_t i, char* c) {
     return true;
 }
 
-bool cmdln_try_discard(uint32_t i) {
+bool cmdln_try_discard_ex(command_line_history_t * history, uint32_t i) {
 
-    cmdline_validate_invariants(&cmdln);
+    cmdline_validate_invariants(history);
 
     // BUGBUG -- this will increment the read offset, even if the read offset
     //           says there's nothing to discard (i.e., rptr == wptr)
@@ -210,18 +210,18 @@ bool cmdln_try_discard(uint32_t i) {
         if (!result) {
             PRINT_WARNING("cmdln_try_discard: requested to discard %d characters, only %d discarded (no more remain)", i, to_discard);
         } else if (to_discard == 1) {
-            char c = cmdln.buf[cmdln.read_offset];
+            char c = history->buf[history->read_offset];
             PRINT_DEBUG("cmdln_try_discard: discarding single character %c (0x%02x) characters", c, c);
         } else {
             PRINT_DEBUG(
                 "cmdln_try_discard: discarding %d characters by adjusting cmdln.rptr from %d to %d",
-                to_discard, cmdln.read_offset, cmdln_pu(cmdln.read_offset + to_discard)
+                to_discard, history->read_offset, cmdln_pu(history->read_offset + to_discard)
             );
         }
-        cmdln.read_offset = cmdln_pu(cmdln.read_offset + to_discard);
+        history->read_offset = cmdln_pu(history->read_offset + to_discard);
     }
 
-    cmdline_validate_invariants(&cmdln);
+    cmdline_validate_invariants(history);
     return result;
 }
 

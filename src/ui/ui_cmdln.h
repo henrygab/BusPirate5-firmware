@@ -140,7 +140,7 @@ inline bool cmdln_try_peek(uint32_t i, char* c) { return cmdln_try_peek_ex(&cmdl
 // try to discard n bytes (advance the read offset)
 // return false if end of buffer is reached
 // (should be used with try_peek to confirm before discarding...)
-bool cmdln_try_discard(uint32_t i);
+inline bool cmdln_try_discard(uint32_t i) { return cmdln_try_discard_ex(&cmdln, i); }
 // this moves the read offset to the write offset,
 // allowing the next command line to be entered after the previous.
 // this allows the history scroll through the circular buffer
