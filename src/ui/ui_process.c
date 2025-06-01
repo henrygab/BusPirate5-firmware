@@ -88,8 +88,8 @@ bool ui_process_macro(void) {
 
 //returns error = true or false
 bool ui_process_commands(void) {
-    struct _command_info_t cp = {0};
-    cp.nextptr = 0;
+    command_info_t cp;
+    cmdln_init_command_info(&cmdln, &cp);
 
     while (true) {
         if (!cmdln_find_next_command(&cp)) {
@@ -251,7 +251,7 @@ bool ui_process_commands(void) {
 // return TRUE if command was processed, and should
 // consider chaining
 // TODO: Split this into functions for each type: global, mode, display, 
-bool ui_process_single_command_impl(struct _command_info_t const * cp, struct command_result * result) {
+bool ui_process_single_command_impl(command_info_t const * cp, struct command_result * result) {
 
     memcpy(&result, &result_blank, sizeof(struct command_result));
 
@@ -390,8 +390,8 @@ bool ui_process_single_command_impl(struct _command_info_t const * cp, struct co
 
 }
 bool ui_process_commands_new(void) {
-    struct _command_info_t cp = {0};
-    cp.nextptr = 0;
+    command_info_t cp;
+    cmdln_init_command_info(&cmdln, &cp);
 
     while (true) {
         if (!cmdln_find_next_command(&cp)) {

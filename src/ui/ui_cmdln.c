@@ -82,11 +82,20 @@ void cmdln_init(command_line_history_t* out_cmdln) {
 }
 void cmdln_init_command_info(command_line_history_t* command_line_history, command_info_t* out_cmdinfo) {
     PRINT_DEBUG("cmdln_init_command_info()\r\n");
-    // currently, this is just setting to all-zero, but this is not necessarily the case in the future
+    cmdline_validate_invariants(command_line_history);
     memset(out_cmdinfo, 0, sizeof(command_info_t));
     out_cmdinfo->history = command_line_history; // Set the history pointer to the command line history
-    // C11 supports generics!
     cmdline_validate_invariants(out_cmdinfo);
+}
+void cmdln_init_command_pointer(command_line_history_t* command_line_history, command_pointer_t* out_cp) {
+    PRINT_DEBUG("cmdln_init_command_pointer()\r\n");
+    cmdline_validate_invariants(command_line_history);
+    memset(out_cp, 0, sizeof(command_pointer_t));
+    out_cp->rptr = command_line_history->read_offset; // Initialize read pointer to read offset
+    out_cp->wptr = command_line_history->write_offset; // Initialize write pointer to write offset
+    out_cp->history = command_line_history; // Set the history pointer to the command line history
+    // C11 supports generics!
+    cmdline_validate_invariants(out_cp);
 }
 
 // buffer offset update, rolls over
@@ -104,13 +113,6 @@ static uint32_t cmdln_available_chars(uint32_t rptr, uint32_t wptr) {
     // will remove this addition.
     uint32_t tmp = wptr + UI_CMDBUFFSIZE - rptr;
     return tmp % UI_CMDBUFFSIZE;
-}
-
-void cmdln_get_command_pointer(command_line_history_t const * command_line_history, command_pointer_t* cp) {
-    cmdline_validate_invariants(command_line_history);
-    cp->wptr = command_line_history->write_offset; // These are offsets, NOT pointers
-    cp->rptr = command_line_history->read_offset; // These are offsets, NOT pointers
-    cmdline_validate_invariants(command_line_history);
 }
 
 bool cmdln_try_add(char* c) {
@@ -165,7 +167,6 @@ bool cmdln_try_peek(uint32_t i, char* c) {
 }
 
 bool cmdln_try_peek_pointer(command_pointer_t* cp, uint32_t i, char* c) {
-    cmdline_validate_invariants(&cmdln);
     cmdline_validate_invariants(cp);
 
     uint32_t tmp = cmdln_pu(cp->rptr + i);
@@ -175,7 +176,9 @@ bool cmdln_try_peek_pointer(command_pointer_t* cp, uint32_t i, char* c) {
         return false;
     }
 
-    (*c) = cmdln.buf[cmdln_pu(cp->rptr + i)];
+    auto history = cp->history;
+
+    (*c) = history->buf[cmdln_pu(cp->rptr + i)];
     if ((*c) == 0x00) {
         PRINT_DEBUG("cmdln_try_peek_pointer: Buffer offset 0x%02x (%d) stored null char\n", tmp, tmp);
         // BUGBUG -- Unlike cmdln_try_peek(), this does not return false if the character is 0x00?
@@ -711,10 +714,8 @@ bool cmdln_args_float_by_position(uint32_t pos, float* value) {
 // could be multiple commands chained with ; || &&
 // sets the internal current command pointers to avoid reading into the next or previous commands
 // returns true if a command is found
-bool cmdln_find_next_command(struct _command_info_t* cp) {
+bool cmdln_find_next_command(command_info_t* cp) {
 
-    cmdline_validate_invariants(&cmdln);
-    cmdline_validate_invariants(&command_info);
     cmdline_validate_invariants(cp);
 
     uint32_t i = 0;
