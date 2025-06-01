@@ -260,7 +260,7 @@ bool cmdln_consume_non_white_space(uint32_t* rptr) {
 
 // internal function to take copy string from start position to next space or end of buffer
 // notice, we do not pass rptr by reference, so it is not updated
-bool cmdln_args_get_string(uint32_t rptr, uint32_t max_len, char* string) {
+static bool cmdln_args_get_string_old(uint32_t rptr, uint32_t max_len, char* string) {
 
     cmdline_validate_invariants(&cmdln);
     cmdline_validate_invariants(&command_info);
@@ -282,6 +282,69 @@ bool cmdln_args_get_string(uint32_t rptr, uint32_t max_len, char* string) {
         rptr++;
     }
 }
+
+static bool cmdln_args_get_string_new(uint32_t read_offset, uint32_t max_len, char* string) {
+    cmdline_validate_invariants(&cmdln);
+    cmdline_validate_invariants(&command_info);
+    memset(string, 0x00, max_len); // clear the string buffer
+
+    for (uint32_t i = 0; i < max_len; i++) {
+        // BUGBUG -- The below check does not appear correct if
+        //           the string being retrieved spans the end
+        //           of the circular buffer.
+
+        if (command_info.endptr < command_info.startptr + read_offset) {
+            string[i] = 0x00; // reached end of current command
+            return i != 0;
+        }
+        char c;
+        if (!cmdln_try_peek(command_info.startptr + read_offset, &c)) {
+            // how can this happen?
+            PRINT_FATAL("Peek() failed in cmdln_args_get_string, read_offset=%d, startptr=%d, endptr=%d, i=%d",
+                        read_offset, command_info.startptr, command_info.endptr, i);
+            string[i] = 0x00;
+            return i != 0;
+        }
+        if (c == ' ') {
+            string[i] = 0x00;
+            return i != 0;
+        }
+        // got a character ... make sure we can null-terminate the string
+        if (i == max_len - 1) {
+            memset(string, 0x00, max_len);
+            return false;
+        }
+        string[i] = c;
+        read_offset++;
+    }
+}
+
+bool cmdln_args_get_string(uint32_t rptr, uint32_t max_len, char* string) {
+
+    char * string_old = string;
+
+    char string_new[max_len]; // GCC extension: VLA ... for testing purposes validating old vs. new code
+    memset(string_new, 0x00, max_len);
+
+    bool result_old = cmdln_args_get_string_old(rptr, max_len, string_old);
+    bool result_new = cmdln_args_get_string_new(rptr, max_len, string_new);
+
+    bool result_is_same = (result_old == result_new);
+    if (!result_is_same) {
+        PRINT_WARNING("cmdln_args_get_string: (%d) Old and new code returned different results: %d vs %d", rptr, result_old, result_new);
+    }
+    size_t strlen_old = strnlen(string_old, max_len);
+    size_t strlen_new = strnlen(string_new, max_len);
+    size_t strlen_min = (strlen_old < strlen_new) ? strlen_old : strlen_new;
+    size_t strlen_max = (strlen_old < strlen_new) ? strlen_new : strlen_old;
+    if (strlen_old != strlen_new) {
+        PRINT_WARNING("cmdln_args_get_string: (%d) Old and new code returned different string lengths: %d vs %d ('%s' vs '%s')", rptr, (int)strlen_old, (int)strlen_new, string_old, string_new);
+    } else if (memcmp(string_old, string_new, strlen_old) != 0) {
+        PRINT_WARNING("cmdln_args_get_string: (%d) Old and new code returned different strings: '%s' vs '%s'", rptr, string_old, string_new);
+    }
+    return result_old;
+}
+
 
 // TODO: add support for C23-style numeric literal separator '
 //       e.g., 0x0001'3054   0b1101'1011'0111'1111   24'444'444.848'22
