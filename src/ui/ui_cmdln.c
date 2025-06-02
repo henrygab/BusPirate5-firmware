@@ -560,16 +560,15 @@ bool cmdln_args_find_flag(char flag) { // BUGBUG -- deprecate this function
     return cmdln_args_find_flag_ex(&command_info, flag);
 }
 
-//bool cmdln_args_find_flag_uint32_ex(command_info_t* cp, char flag, command_var_t* arg, uint32_t* value);
+
 // check if a flag is present and get the integer value
 //  returns true if flag is present AND has a string value
 //  use cmdln_args_find_flag to see if a flag was present with no string value
-bool cmdln_args_find_flag_uint32(char flag, command_var_t* arg, uint32_t* value) {
+bool cmdln_args_find_flag_uint32_ex(command_info_t* ci, char flag, command_var_t* arg, uint32_t* value) {
 
-    cmdline_validate_invariants(&cmdln);
-    cmdline_validate_invariants(&command_info);
+    cmdline_validate_invariants(ci);
 
-    if (!cmdln_args_find_flag_internal(flag, arg)) {
+    if (!cmdln_args_find_flag_internal_ex(ci, flag, arg)) {
         return false;
     }
 
@@ -578,12 +577,15 @@ bool cmdln_args_find_flag_uint32(char flag, command_var_t* arg, uint32_t* value)
     }
 
     struct prompt_result result;
-    if (!cmdln_args_get_int(&arg->value_pos, &result, value)) {
+    if (!cmdln_args_get_int_ex(ci, &arg->value_pos, &result, value)) {
         arg->error = true;
         return false;
     }
 
     return true;
+}
+bool cmdln_args_find_flag_uint32(char flag, command_var_t* arg, uint32_t* value) { // BUGBUG -- deprecate this function
+    return cmdln_args_find_flag_uint32_ex(&command_info, flag, arg, value);
 }
 
 //bool cmdln_args_find_flag_string_ex(command_info_t* cp, char flag, command_var_t* arg, uint32_t max_len, char* str);
