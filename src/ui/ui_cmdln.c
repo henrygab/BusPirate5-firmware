@@ -544,19 +544,20 @@ bool cmdln_args_find_flag_internal(char flag, command_var_t* arg) { // BUGBUG --
 }
 
 
-//bool cmdln_args_find_flag_ex(command_info_t* cp, char flag);
 // check if a -f(lag) is present. Value is don't care.
 // returns true if flag is present
-bool cmdln_args_find_flag(char flag) {
+bool cmdln_args_find_flag_ex(command_info_t* ci, char flag) {
 
-    cmdline_validate_invariants(&cmdln);
-    cmdline_validate_invariants(&command_info);
+    cmdline_validate_invariants(ci);
 
     command_var_t arg;
-    if (!cmdln_args_find_flag_internal(flag, &arg)) {
+    if (!cmdln_args_find_flag_internal_ex(ci, flag, &arg)) {
         return false;
     }
     return true;
+}
+bool cmdln_args_find_flag(char flag) { // BUGBUG -- deprecate this function
+    return cmdln_args_find_flag_ex(&command_info, flag);
 }
 
 //bool cmdln_args_find_flag_uint32_ex(command_info_t* cp, char flag, command_var_t* arg, uint32_t* value);

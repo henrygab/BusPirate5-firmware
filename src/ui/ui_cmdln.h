@@ -98,6 +98,9 @@ bool cmdln_next_buf_pos_ex(command_line_history_t* command_history_buffer); // T
 // Debug function ... dump parsing of current line of input to debugger
 bool cmdln_info_ex(command_line_history_t* command_history_buffer);
 
+bool cmdln_args_find_flag_ex(command_info_t* cp, char flag);
+
+
 
 // Finds the next command (if any) in the current single line of command input
 bool cmdln_find_next_command(command_info_t* cp);
@@ -124,10 +127,11 @@ inline bool cmdln_try_discard(uint32_t i) { return cmdln_try_discard_ex(&cmdln, 
 // this allows the history scroll through the circular buffer
 inline bool cmdln_next_buf_pos() { return cmdln_next_buf_pos_ex(&cmdln); } 
 
+bool cmdln_args_find_flag(char flag);
+
 #pragma endregion // TO BE DEPRECATED AND/OR REMOVED -- Phase 2
 
 
-bool cmdln_args_find_flag_ex(command_info_t* cp, char flag);
 bool cmdln_args_find_flag_uint32_ex(command_info_t* cp, char flag, command_var_t* arg, uint32_t* value);
 bool cmdln_args_find_flag_string_ex(command_info_t* cp, char flag, command_var_t* arg, uint32_t max_len, char* str);
 bool cmdln_args_float_by_position_ex(command_info_t* cp, uint32_t pos, float* value);
@@ -137,7 +141,6 @@ bool cmdln_args_string_by_position_ex(command_info_t* cp, uint32_t pos, uint32_t
 ////////////////////////////////////////////////////////////////////////////////////////
 // TODO: update these to be inline functions for the ...ex() versions
 ////////////////////////////////////////////////////////////////////////////////////////
-bool cmdln_args_find_flag(char flag);
 bool cmdln_args_find_flag_uint32(char flag, command_var_t* arg, uint32_t* value);
 bool cmdln_args_find_flag_string(char flag, command_var_t* arg, uint32_t max_len, char* str);
 bool cmdln_args_float_by_position(uint32_t pos, float* value);
