@@ -102,6 +102,7 @@ bool cmdln_args_find_flag_ex(command_info_t* ci, char flag);
 bool cmdln_args_find_flag_uint32_ex(command_info_t* ci, char flag, command_var_t* arg, uint32_t* value);
 bool cmdln_args_find_flag_string_ex(command_info_t* ci, char flag, command_var_t* arg, uint32_t max_len, char* str);
 
+bool cmdln_args_float_by_position_ex(command_info_t* ci, uint32_t pos, float* value);
 
 
 // Finds the next command (if any) in the current single line of command input
@@ -133,17 +134,17 @@ bool cmdln_args_find_flag(char flag);
 bool cmdln_args_find_flag_uint32(char flag, command_var_t* arg, uint32_t* value);
 bool cmdln_args_find_flag_string(char flag, command_var_t* arg, uint32_t max_len, char* str);
 
+bool cmdln_args_float_by_position(uint32_t pos, float* value);
+
 #pragma endregion // TO BE DEPRECATED AND/OR REMOVED -- Phase 2
 
 
-bool cmdln_args_float_by_position_ex(command_info_t* ci, uint32_t pos, float* value);
 bool cmdln_args_uint32_by_position_ex(command_info_t* ci, uint32_t pos, uint32_t* value);
 bool cmdln_args_string_by_position_ex(command_info_t* ci, uint32_t pos, uint32_t max_len, char* str);
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // TODO: update these to be inline functions for the ...ex() versions
 ////////////////////////////////////////////////////////////////////////////////////////
-bool cmdln_args_float_by_position(uint32_t pos, float* value);
 bool cmdln_args_uint32_by_position(uint32_t pos, uint32_t* value);
 bool cmdln_args_string_by_position(uint32_t pos, uint32_t max_len, char* str);
 

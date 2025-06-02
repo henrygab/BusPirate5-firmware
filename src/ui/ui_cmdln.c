@@ -615,48 +615,47 @@ bool cmdln_args_find_flag_string(char flag, command_var_t* arg, uint32_t max_len
     return cmdln_args_find_flag_string_ex(&command_info, flag, arg, max_len, str);
 }   
 
-//bool cmdln_args_float_by_position_ex(command_info_t* cp, uint32_t pos, float* value);
-bool cmdln_args_float_by_position(uint32_t pos, float* value) {
+bool cmdln_args_float_by_position_ex(command_info_t* ci, uint32_t pos, float* value) {
 
-    cmdline_validate_invariants(&cmdln);
-    cmdline_validate_invariants(&command_info);
+    cmdline_validate_invariants(ci);
 
     char c;
     uint32_t rptr = 0;
-    uint32_t ipart = 0, dpart = 0;
+    uint32_t ipart = 0;
+    uint32_t dpart = 0;
     // start at beginning of command range
     PRINT_NEVER("cmdln_args_float_by_position(%d)\r\n", pos);
     for (uint32_t i = 0; i < pos + 1; i++) {
         // consume white space
-        if (!cmdln_consume_white_space(&rptr)) {
+        if (!cmdln_consume_white_space_ex(ci, &rptr)) {
             return false;
         }
         // consume non-white space
         if (i != pos) {
-            if (!cmdln_consume_non_white_space(&rptr)) { // consume non-white space
+            if (!cmdln_consume_non_white_space_ex(ci, &rptr)) { // consume non-white space
                 return false;
             }
         } else {
             // before decimal
-            if (!cmdln_try_peek(rptr, &c)) {
+            if (!cmdln_try_peek_ex(ci->history, rptr, &c)) {
                 return false;
             }
             if ((c >= '0') && (c <= '9')) // first part of decimal
             {
                 struct prompt_result result;
-                if (!cmdln_args_get_int(&rptr, &result, &ipart)) {
+                if (!cmdln_args_get_int_ex(ci, &rptr, &result, &ipart)) {
                     return false;
                 }
                 // printf("ipart: %d\r\n", ipart);
             }
 
             uint32_t dpart_len = 0;
-            if (cmdln_try_peek(rptr, &c)) {
+            if (cmdln_try_peek_ex(ci->history, rptr, &c)) {
                 if (c == '.' || c == ',') { // second part of decimal
                     rptr++;                 // discard
                     dpart_len = rptr;       // track digits
                     struct prompt_result result;
-                    if (!cmdln_args_get_int(&rptr, &result, &dpart)) {
+                    if (!cmdln_args_get_int_ex(ci, &rptr, &result, &dpart)) {
                         // printf("No decimal part found\r\n");
                     }
                     dpart_len = rptr - dpart_len;
@@ -671,8 +670,11 @@ bool cmdln_args_float_by_position(uint32_t pos, float* value) {
     }
     return false;
 }
+bool cmdln_args_float_by_position(uint32_t pos, float* value) { // BUGBUG -- deprecate this function
+    return cmdln_args_float_by_position_ex(&command_info, pos, value);
+}
 
-//bool cmdln_args_uint32_by_position_ex(command_info_t* cp, uint32_t pos, uint32_t* value);
+//bool cmdln_args_uint32_by_position_ex(command_info_t* ci, uint32_t pos, uint32_t* value);
 bool cmdln_args_uint32_by_position(uint32_t pos, uint32_t* value) {
 
     cmdline_validate_invariants(&cmdln);
@@ -704,7 +706,7 @@ bool cmdln_args_uint32_by_position(uint32_t pos, uint32_t* value) {
     return false;
 }
 
-//bool cmdln_args_string_by_position_ex(command_info_t* cp, uint32_t pos, uint32_t max_len, char* str);
+//bool cmdln_args_string_by_position_ex(command_info_t* ci, uint32_t pos, uint32_t max_len, char* str);
 // NOTE: pos is the white-space based token from the current command (not entire command line)
 bool cmdln_args_string_by_position(uint32_t pos, uint32_t max_len, char* str) {
 
