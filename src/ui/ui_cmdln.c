@@ -491,23 +491,24 @@ bool cmdln_args_get_int(uint32_t* rptr, struct prompt_result* result, uint32_t* 
     return result->success;
 }
 
-bool cmdln_args_find_flag_internal(char flag, command_var_t* arg) {
+bool cmdln_args_find_flag_internal_ex(command_info_t * ci, char flag, command_var_t* arg) {
 
-    cmdline_validate_invariants(&cmdln);
-    cmdline_validate_invariants(&command_info);
+    cmdline_validate_invariants(ci);
 
     uint32_t rptr = 0;
-    char flag_c;
-    char dash_c;
+    char flag_c = 0;
+    char dash_c = 0;
     arg->error = false;
     arg->has_arg = false;
-    while (command_info.endptr >= (command_info.startptr + rptr + 1) && cmdln_try_peek(rptr, &dash_c) &&
-           cmdln_try_peek(rptr + 1, &flag_c)) {
+    while (ci->endptr >= (ci->startptr + rptr + 1)
+        && cmdln_try_peek(rptr, &dash_c)
+        && cmdln_try_peek(rptr + 1, &flag_c)
+    ) {
         if (dash_c == '-' && flag_c == flag) {
             arg->has_arg = true;
-            if ((!cmdln_consume_non_white_space(&rptr))     // move past the flag characters
-                || (!cmdln_consume_white_space(&rptr)) // move past spaces. @end of buffer, next flag, or value
-                || (cmdln_try_peek(rptr, &dash_c) && dash_c == '-')) // next argument, no value
+            if ((!cmdln_consume_non_white_space_ex(ci, &rptr))     // move past the flag characters
+            ||  (!cmdln_consume_white_space_ex(ci, &rptr)) // move past spaces. @end of buffer, next flag, or value
+            ||  (cmdln_try_peek_ex(ci->history, rptr, &dash_c) && dash_c == '-')) // next argument, no value
             {
                 PRINT_NEVER("cmdln_args_find_flag_internal: Flag %c found, no value\r\n", flag);
                 arg->has_value = false;
@@ -523,6 +524,11 @@ bool cmdln_args_find_flag_internal(char flag, command_var_t* arg) {
     PRINT_NEVER("cmdln_args_find_flag_internal: Flag %c not found\r\n", flag);
     return false;
 }
+bool cmdln_args_find_flag_internal(char flag, command_var_t* arg) {
+    return cmdln_args_find_flag_internal_ex(&command_info, flag, arg);
+}
+
+
 
 // check if a flag is present and get the integer value
 //  returns true if flag is present AND has a string value
