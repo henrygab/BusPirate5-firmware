@@ -408,19 +408,18 @@ inline bool cmdln_args_get_hex(uint32_t* rptr, prompt_result* result, uint32_t* 
 }
 
 // parse a bin value from the first digit
-// notice, we do not pass rptr by reference, so it is not updated
-bool cmdln_args_get_bin(uint32_t* rptr, struct prompt_result* result, uint32_t* value) {
+bool cmdln_args_get_bin_ex(command_info_t * ci, uint32_t* rptr, struct prompt_result* result, uint32_t* value) {
 
-    cmdline_validate_invariants(&cmdln);
-    cmdline_validate_invariants(&command_info);
+    cmdline_validate_invariants(ci);
 
     char c;
     //*result=empty_result;
     result->no_value = true;
     (*value) = 0;
 
-    while (command_info.endptr >= command_info.startptr + (*rptr) &&
-           cmdln_try_peek(command_info.startptr + (*rptr), &c)) {
+    while (ci->endptr >= ci->startptr + (*rptr) &&
+           cmdln_try_peek_ex(ci->history, ci->startptr + (*rptr), &c)
+        ) {
         if ((c < '0') || (c > '1')) {
             break;
         }
@@ -433,6 +432,11 @@ bool cmdln_args_get_bin(uint32_t* rptr, struct prompt_result* result, uint32_t* 
 
     return result->success;
 }
+bool cmdln_args_get_bin(uint32_t* rptr, struct prompt_result* result, uint32_t* value) { // BUGBUG -- deprecate this function
+    return cmdln_args_get_bin_ex(&command_info, rptr, result, value);
+}
+
+
 
 // parse a decimal value from the first digit
 // notice, we do not pass rptr by reference, so it is not updated
