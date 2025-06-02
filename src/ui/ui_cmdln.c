@@ -240,11 +240,14 @@ bool cmdln_next_buf_pos_ex(command_line_history_t * history) {
 
 // consume white space (0x20, space)
 //  non_white_space = true, consume non-white space characters (not space)
+// modifies the rptr parameter to be the offset of next non-matching character
+// returns false if ci->endptr is reached.
 static bool cmdln_consume_white_space_ex_impl(command_info_t const * ci, uint32_t* rptr, bool non_white_space) {
 
     cmdline_validate_invariants(ci);
+
     // consume white space
-    while (true) {
+    do {
         char c;
         // all remaining characters matched ... no more characters remain
         if (!(
@@ -262,7 +265,7 @@ static bool cmdln_consume_white_space_ex_impl(command_info_t const * ci, uint32_
         }
         // consume this character and move to next
         (*rptr)++;
-    }
+    } while (true);
 }
 bool cmdln_consume_white_space_ex(command_info_t const * ci, uint32_t* rptr) {
     return cmdln_consume_white_space_ex_impl(ci, rptr, false);
@@ -270,10 +273,10 @@ bool cmdln_consume_white_space_ex(command_info_t const * ci, uint32_t* rptr) {
 bool cmdln_consume_non_white_space_ex(command_info_t const * ci, uint32_t* rptr) {
     return cmdln_consume_white_space_ex_impl(ci, rptr, true);
 }
-inline bool cmdln_consume_white_space(uint32_t* rptr) {
+inline bool cmdln_consume_white_space(uint32_t* rptr) { // TODO: Deprecate this function
     return cmdln_consume_white_space_ex(&command_info, rptr);
 }
-inline bool cmdln_consume_non_white_space(uint32_t* rptr) {
+inline bool cmdln_consume_non_white_space(uint32_t* rptr) { // TODO: Deprecate this function
     return cmdln_consume_non_white_space_ex(&command_info, rptr);
 }
 
@@ -336,6 +339,11 @@ static bool cmdln_args_get_string_new_ex(command_info_t const * ci, uint32_t rea
     }
 }
 
+// This function gets the string at ci->history->buf[rptr], copying it into user-supplied buffer,
+// and ensuring the string is null-terminated.
+// Returns false if no string found.
+// Returns false if max_len was too small for the entire string + terminating null character
+// Else returns true because string was found and fully copied.
 bool cmdln_args_get_string_ex(command_info_t const * ci, uint32_t rptr, uint32_t max_len, char* string) {
 
     char * string_old = string;
