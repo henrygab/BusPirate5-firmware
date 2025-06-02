@@ -545,6 +545,7 @@ bool cmdln_args_find_flag_internal(char flag, command_var_t* arg) { // BUGBUG --
 
 
 
+//bool cmdln_args_find_flag_uint32_ex(command_info_t* cp, char flag, command_var_t* arg, uint32_t* value);
 // check if a flag is present and get the integer value
 //  returns true if flag is present AND has a string value
 //  use cmdln_args_find_flag to see if a flag was present with no string value
@@ -570,6 +571,7 @@ bool cmdln_args_find_flag_uint32(char flag, command_var_t* arg, uint32_t* value)
     return true;
 }
 
+//bool cmdln_args_find_flag_string_ex(command_info_t* cp, char flag, command_var_t* arg, uint32_t max_len, char* str);
 // check if a flag is present and get the integer value
 //  returns true if flag is present AND has a integer value
 //  use cmdln_args_find_flag to see if a flag was present with no integer value
@@ -594,6 +596,7 @@ bool cmdln_args_find_flag_string(char flag, command_var_t* arg, uint32_t max_len
     return true;
 }
 
+//bool cmdln_args_find_flag_ex(command_info_t* cp, char flag);
 // check if a -f(lag) is present. Value is don't care.
 // returns true if flag is present
 bool cmdln_args_find_flag(char flag) {
@@ -608,6 +611,7 @@ bool cmdln_args_find_flag(char flag) {
     return true;
 }
 
+//bool cmdln_args_string_by_position_ex(command_info_t* cp, uint32_t pos, uint32_t max_len, char* str);
 // NOTE: pos is the white-space based token from the current command (not entire command line)
 bool cmdln_args_string_by_position(uint32_t pos, uint32_t max_len, char* str) {
 
@@ -646,6 +650,7 @@ bool cmdln_args_string_by_position(uint32_t pos, uint32_t max_len, char* str) {
     return false;
 }
 
+//bool cmdln_args_uint32_by_position_ex(command_info_t* cp, uint32_t pos, uint32_t* value);
 bool cmdln_args_uint32_by_position(uint32_t pos, uint32_t* value) {
 
     cmdline_validate_invariants(&cmdln);
@@ -677,6 +682,7 @@ bool cmdln_args_uint32_by_position(uint32_t pos, uint32_t* value) {
     return false;
 }
 
+//bool cmdln_args_float_by_position_ex(command_info_t* cp, uint32_t pos, float* value);
 bool cmdln_args_float_by_position(uint32_t pos, float* value) {
 
     cmdline_validate_invariants(&cmdln);

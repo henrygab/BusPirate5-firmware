@@ -104,7 +104,6 @@ bool cmdln_find_next_command(command_info_t* cp);
 // peek at offset from a specific command_pointer_t
 bool cmdln_try_peek_pointer(command_pointer_t* cp, uint32_t i, char* c);
 
-
 #pragma endregion // Updated ..._ex() functions to exist and use parameter -- Phase 1
 
 #pragma region    // TO BE DEPRECATED AND/OR REMOVED -- Phase 2
@@ -124,6 +123,7 @@ inline bool cmdln_try_discard(uint32_t i) { return cmdln_try_discard_ex(&cmdln, 
 // allowing the next command line to be entered after the previous.
 // this allows the history scroll through the circular buffer
 inline bool cmdln_next_buf_pos() { return cmdln_next_buf_pos_ex(&cmdln); } 
+
 #pragma endregion // TO BE DEPRECATED AND/OR REMOVED -- Phase 2
 
 
@@ -133,7 +133,6 @@ bool cmdln_args_find_flag_string_ex(command_info_t* cp, char flag, command_var_t
 bool cmdln_args_float_by_position_ex(command_info_t* cp, uint32_t pos, float* value);
 bool cmdln_args_uint32_by_position_ex(command_info_t* cp, uint32_t pos, uint32_t* value);
 bool cmdln_args_string_by_position_ex(command_info_t* cp, uint32_t pos, uint32_t max_len, char* str);
-bool cmdln_find_next_command(command_info_t* cp);
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // TODO: update these to be inline functions for the ...ex() versions
