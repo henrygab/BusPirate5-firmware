@@ -440,7 +440,7 @@ bool cmdln_args_get_bin(uint32_t* rptr, struct prompt_result* result, uint32_t* 
 
 // parse a decimal value from the first digit
 // notice, we do not pass rptr by reference, so it is not updated
-bool cmdln_args_get_dec_ex(command_info_t * ci, uint32_t* rptr, struct prompt_result* result, uint32_t* value) { // BUGBUG -- deprecate this function
+bool cmdln_args_get_dec_ex(command_info_t * ci, uint32_t* rptr, struct prompt_result* result, uint32_t* value) {
 
     cmdline_validate_invariants(ci);
 
@@ -464,25 +464,25 @@ bool cmdln_args_get_dec_ex(command_info_t * ci, uint32_t* rptr, struct prompt_re
     }
     return result->success;
 }
-bool cmdln_args_get_dec(uint32_t* rptr, struct prompt_result* result, uint32_t* value) {
+bool cmdln_args_get_dec(uint32_t* rptr, struct prompt_result* result, uint32_t* value) { // BUGBUG -- deprecate this function
     return cmdln_args_get_dec_ex(&command_info, rptr, result, value);
 }
+
 
 // decodes value from the cmdline
 // XXXXXX integer
 // 0xXXXX hexadecimal
 // 0bXXXX bin
-bool cmdln_args_get_int(uint32_t* rptr, struct prompt_result* result, uint32_t* value) { // BUGBUG -- deprecate this function
+bool cmdln_args_get_int_ex(command_info_t * ci, uint32_t* rptr, struct prompt_result* result, uint32_t* value) {
 
-    cmdline_validate_invariants(&cmdln);
-    cmdline_validate_invariants(&command_info);
+    cmdline_validate_invariants(ci);
 
     bool r1, r2;
     char p1, p2;
 
     *result = empty_result;
-    r1 = cmdln_try_peek(command_info.startptr + (*rptr), &p1);
-    r2 = cmdln_try_peek(command_info.startptr + (*rptr) + 1, &p2);
+    r1 = cmdln_try_peek_ex(ci->history, ci->startptr + (*rptr), &p1);
+    r2 = cmdln_try_peek_ex(ci->history, ci->startptr + (*rptr) + 1, &p2);
     if (!r1 || (p1 == 0x00)) { // no data, end of data, or no value entered on prompt
         result->no_value = true;
         return false;
@@ -490,17 +490,20 @@ bool cmdln_args_get_int(uint32_t* rptr, struct prompt_result* result, uint32_t* 
 
     if (r2 && (p2 | 0x20) == 'x') { // HEX
         (*rptr) += 2;
-        cmdln_args_get_hex(rptr, result, value);
+        cmdln_args_get_hex_ex(ci, rptr, result, value);
         result->number_format = df_hex;    // whatever from ui_const
     } else if (r2 && (p2 | 0x20) == 'b') { // BIN
         (*rptr) += 2;
-        cmdln_args_get_bin(rptr, result, value);
+        cmdln_args_get_bin_ex(ci, rptr, result, value);
         result->number_format = df_bin; // whatever from ui_const
     } else {                            // DEC
-        cmdln_args_get_dec(rptr, result, value);
+        cmdln_args_get_dec_ex(ci, rptr, result, value);
         result->number_format = df_dec; // whatever from ui_const
     }
     return result->success;
+}
+bool cmdln_args_get_int(uint32_t* rptr, struct prompt_result* result, uint32_t* value) { // BUGBUG -- deprecate this function
+    return cmdln_args_get_int_ex(&command_info, rptr, result, value);
 }
 
 bool cmdln_args_find_flag_internal_ex(command_info_t * ci, char flag, command_var_t* arg) {
