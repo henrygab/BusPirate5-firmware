@@ -707,12 +707,11 @@ bool cmdln_args_uint32_by_position(uint32_t pos, uint32_t* value) { // BUGBUG --
     return cmdln_args_uint32_by_position_ex(&command_info, pos, value);
 }
 
-//bool cmdln_args_string_by_position_ex(command_info_t* ci, uint32_t pos, uint32_t max_len, char* str);
-// NOTE: pos is the white-space based token from the current command (not entire command line)
-bool cmdln_args_string_by_position(uint32_t pos, uint32_t max_len, char* str) {
 
-    cmdline_validate_invariants(&cmdln);
-    cmdline_validate_invariants(&command_info);
+// NOTE: pos is the white-space based token from the current command (not entire command line)
+bool cmdln_args_string_by_position_ex(command_info_t* ci, uint32_t pos, uint32_t max_len, char* str) {
+
+    cmdline_validate_invariants(ci);
 
     char c;
     uint32_t rptr = 0;
@@ -721,22 +720,22 @@ bool cmdln_args_string_by_position(uint32_t pos, uint32_t max_len, char* str) {
     // start at beginning of command range
     for (uint32_t i = 0; i < pos + 1; i++) {
         // consume white space
-        if (!cmdln_consume_white_space(&rptr)) {
+        if (!cmdln_consume_white_space_ex(ci, &rptr)) {
             return false;
         }
         // consume non-white space
         if (i != pos) {
-            if (!cmdln_consume_non_white_space(&rptr)) { // consume non-white space
+            if (!cmdln_consume_non_white_space_ex(ci, &rptr)) { // consume non-white space
                 return false;
             }
         } else {
-            cmdln_try_peek(command_info.startptr + (rptr), &c);
+            cmdln_try_peek_ex(ci->history, ci->startptr + (rptr), &c);
             //see if this is a argument or a flag, reject flags
             if (c=='-') {
                 return false;
             }
             struct prompt_result result;
-            if (cmdln_args_get_string(rptr, max_len, str)) {
+            if (cmdln_args_get_string_ex(ci, rptr, max_len, str)) {
                 return true;
             } else {
                 return false;
@@ -745,7 +744,9 @@ bool cmdln_args_string_by_position(uint32_t pos, uint32_t max_len, char* str) {
     }
     return false;
 }
-
+bool cmdln_args_string_by_position(uint32_t pos, uint32_t max_len, char* str) { // BUGBUG -- deprecate this function
+    return cmdln_args_string_by_position_ex(&command_info, pos, max_len, str);
+}
 
 // finds the next command in current line of user input
 // could be the comment indicator `#` ... in which case entire string ending in 0x00 is considered the comment
