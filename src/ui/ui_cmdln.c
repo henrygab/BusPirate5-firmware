@@ -279,16 +279,15 @@ inline bool cmdln_consume_non_white_space(uint32_t* rptr) {
 
 // internal function to take copy string from start position to next space or end of buffer
 // notice, we do not pass rptr by reference, so it is not updated
-static bool cmdln_args_get_string_old(uint32_t rptr, uint32_t max_len, char* string) {
+static bool cmdln_args_get_string_old_ex(command_info_t const * ci, uint32_t rptr, uint32_t max_len, char* string) {
 
-    cmdline_validate_invariants(&cmdln);
-    cmdline_validate_invariants(&command_info);
+    cmdline_validate_invariants(ci);
 
     char c;
     for (uint32_t i = 0; i < max_len; i++) {
         // no more characters
-        if ((!(command_info.endptr >= command_info.startptr + rptr &&
-               cmdln_try_peek(command_info.startptr + rptr, &c))) ||
+        if ((!(ci->endptr >= ci->startptr + rptr &&
+               cmdln_try_peek_ex(ci->history, ci->startptr + rptr, &c))) ||
             c == ' ' || i == (max_len - 1)) {
             string[i] = 0x00;
             if (i == 0) {
@@ -302,9 +301,8 @@ static bool cmdln_args_get_string_old(uint32_t rptr, uint32_t max_len, char* str
     }
 }
 
-static bool cmdln_args_get_string_new(uint32_t read_offset, uint32_t max_len, char* string) {
-    cmdline_validate_invariants(&cmdln);
-    cmdline_validate_invariants(&command_info);
+static bool cmdln_args_get_string_new_ex(command_info_t const * ci, uint32_t read_offset, uint32_t max_len, char* string) {
+    cmdline_validate_invariants(ci);
     memset(string, 0x00, max_len); // clear the string buffer
 
     for (uint32_t i = 0; i < max_len; i++) {
@@ -312,12 +310,12 @@ static bool cmdln_args_get_string_new(uint32_t read_offset, uint32_t max_len, ch
         //           the string being retrieved spans the end
         //           of the circular buffer.
 
-        if (command_info.endptr < command_info.startptr + read_offset) {
+        if (ci->endptr < ci->startptr + read_offset) {
             string[i] = 0x00; // reached end of current command
             return i != 0;
         }
         char c;
-        if (!cmdln_try_peek(command_info.startptr + read_offset, &c)) {
+        if (!cmdln_try_peek_ex(ci->history, ci->startptr + read_offset, &c)) {
             // how can this happen?
             PRINT_FATAL("Peek() failed in cmdln_args_get_string, read_offset=%d, startptr=%d, endptr=%d, i=%d",
                         read_offset, command_info.startptr, command_info.endptr, i);
@@ -338,19 +336,19 @@ static bool cmdln_args_get_string_new(uint32_t read_offset, uint32_t max_len, ch
     }
 }
 
-bool cmdln_args_get_string(uint32_t rptr, uint32_t max_len, char* string) {
+bool cmdln_args_get_string_ex(command_info_t const * ci, uint32_t rptr, uint32_t max_len, char* string) {
 
     char * string_old = string;
 
     char string_new[max_len]; // GCC extension: VLA ... for testing purposes validating old vs. new code
     memset(string_new, 0x00, max_len);
 
-    bool result_old = cmdln_args_get_string_old(rptr, max_len, string_old);
-    bool result_new = cmdln_args_get_string_new(rptr, max_len, string_new);
+    bool result_old = cmdln_args_get_string_old_ex(ci, rptr, max_len, string_old);
+    bool result_new = cmdln_args_get_string_new_ex(ci, rptr, max_len, string_new);
 
     bool result_is_same = (result_old == result_new);
     if (!result_is_same) {
-        PRINT_WARNING("cmdln_args_get_string: (%d) Old and new code returned different results: %d vs %d", rptr, result_old, result_new);
+        PRINT_WARNING("cmdln_args_get_string_ex: (%d) Old and new code returned different results: %d vs %d", rptr, result_old, result_new);
     }
     size_t strlen_old = strnlen(string_old, max_len);
     size_t strlen_new = strnlen(string_new, max_len);
@@ -364,6 +362,9 @@ bool cmdln_args_get_string(uint32_t rptr, uint32_t max_len, char* string) {
     return result_old;
 }
 
+inline bool cmdln_args_get_string(uint32_t rptr, uint32_t max_len, char* string) { // BUGBUG -- deprecate this function
+    return cmdln_args_get_string_ex(&command_info, rptr, max_len, string);
+}
 
 // TODO: add support for C23-style numeric literal separator '
 //       e.g., 0x0001'3054   0b1101'1011'0111'1111   24'444'444.848'22
