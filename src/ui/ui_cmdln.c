@@ -544,6 +544,20 @@ bool cmdln_args_find_flag_internal(char flag, command_var_t* arg) { // BUGBUG --
 }
 
 
+//bool cmdln_args_find_flag_ex(command_info_t* cp, char flag);
+// check if a -f(lag) is present. Value is don't care.
+// returns true if flag is present
+bool cmdln_args_find_flag(char flag) {
+
+    cmdline_validate_invariants(&cmdln);
+    cmdline_validate_invariants(&command_info);
+
+    command_var_t arg;
+    if (!cmdln_args_find_flag_internal(flag, &arg)) {
+        return false;
+    }
+    return true;
+}
 
 //bool cmdln_args_find_flag_uint32_ex(command_info_t* cp, char flag, command_var_t* arg, uint32_t* value);
 // check if a flag is present and get the integer value
@@ -596,91 +610,6 @@ bool cmdln_args_find_flag_string(char flag, command_var_t* arg, uint32_t max_len
     return true;
 }
 
-//bool cmdln_args_find_flag_ex(command_info_t* cp, char flag);
-// check if a -f(lag) is present. Value is don't care.
-// returns true if flag is present
-bool cmdln_args_find_flag(char flag) {
-
-    cmdline_validate_invariants(&cmdln);
-    cmdline_validate_invariants(&command_info);
-
-    command_var_t arg;
-    if (!cmdln_args_find_flag_internal(flag, &arg)) {
-        return false;
-    }
-    return true;
-}
-
-//bool cmdln_args_string_by_position_ex(command_info_t* cp, uint32_t pos, uint32_t max_len, char* str);
-// NOTE: pos is the white-space based token from the current command (not entire command line)
-bool cmdln_args_string_by_position(uint32_t pos, uint32_t max_len, char* str) {
-
-    cmdline_validate_invariants(&cmdln);
-    cmdline_validate_invariants(&command_info);
-
-    char c;
-    uint32_t rptr = 0;
-    PRINT_NEVER("cmdln_args_string_by_position(%d, %d)\r\n", pos, max_len);
-    memset(str, 0x00, max_len);
-    // start at beginning of command range
-    for (uint32_t i = 0; i < pos + 1; i++) {
-        // consume white space
-        if (!cmdln_consume_white_space(&rptr)) {
-            return false;
-        }
-        // consume non-white space
-        if (i != pos) {
-            if (!cmdln_consume_non_white_space(&rptr)) { // consume non-white space
-                return false;
-            }
-        } else {
-            cmdln_try_peek(command_info.startptr + (rptr), &c);
-            //see if this is a argument or a flag, reject flags
-            if (c=='-') {
-                return false;
-            }
-            struct prompt_result result;
-            if (cmdln_args_get_string(rptr, max_len, str)) {
-                return true;
-            } else {
-                return false;
-            }
-        }
-    }
-    return false;
-}
-
-//bool cmdln_args_uint32_by_position_ex(command_info_t* cp, uint32_t pos, uint32_t* value);
-bool cmdln_args_uint32_by_position(uint32_t pos, uint32_t* value) {
-
-    cmdline_validate_invariants(&cmdln);
-    cmdline_validate_invariants(&command_info);
-
-    char c;
-    uint32_t rptr = 0;
-    // start at beginning of command range
-    PRINT_NEVER("cmdln_args_uint32_by_position(%d)\r\n", pos);
-    for (uint32_t i = 0; i < pos + 1; i++) {
-        // consume white space
-        if (!cmdln_consume_white_space(&rptr)) {
-            return false;
-        }
-        // consume non-white space
-        if (i != pos) {
-            if (!cmdln_consume_non_white_space(&rptr)) { // consume non-white space
-                return false;
-            }
-        } else {
-            struct prompt_result result;
-            if (cmdln_args_get_int(&rptr, &result, value)) {
-                return true;
-            } else {
-                return false;
-            }
-        }
-    }
-    return false;
-}
 
 //bool cmdln_args_float_by_position_ex(command_info_t* cp, uint32_t pos, float* value);
 bool cmdln_args_float_by_position(uint32_t pos, float* value) {
@@ -738,6 +667,78 @@ bool cmdln_args_float_by_position(uint32_t pos, float* value) {
     }
     return false;
 }
+
+//bool cmdln_args_uint32_by_position_ex(command_info_t* cp, uint32_t pos, uint32_t* value);
+bool cmdln_args_uint32_by_position(uint32_t pos, uint32_t* value) {
+
+    cmdline_validate_invariants(&cmdln);
+    cmdline_validate_invariants(&command_info);
+
+    char c;
+    uint32_t rptr = 0;
+    // start at beginning of command range
+    PRINT_NEVER("cmdln_args_uint32_by_position(%d)\r\n", pos);
+    for (uint32_t i = 0; i < pos + 1; i++) {
+        // consume white space
+        if (!cmdln_consume_white_space(&rptr)) {
+            return false;
+        }
+        // consume non-white space
+        if (i != pos) {
+            if (!cmdln_consume_non_white_space(&rptr)) { // consume non-white space
+                return false;
+            }
+        } else {
+            struct prompt_result result;
+            if (cmdln_args_get_int(&rptr, &result, value)) {
+                return true;
+            } else {
+                return false;
+            }
+        }
+    }
+    return false;
+}
+
+//bool cmdln_args_string_by_position_ex(command_info_t* cp, uint32_t pos, uint32_t max_len, char* str);
+// NOTE: pos is the white-space based token from the current command (not entire command line)
+bool cmdln_args_string_by_position(uint32_t pos, uint32_t max_len, char* str) {
+
+    cmdline_validate_invariants(&cmdln);
+    cmdline_validate_invariants(&command_info);
+
+    char c;
+    uint32_t rptr = 0;
+    PRINT_NEVER("cmdln_args_string_by_position(%d, %d)\r\n", pos, max_len);
+    memset(str, 0x00, max_len);
+    // start at beginning of command range
+    for (uint32_t i = 0; i < pos + 1; i++) {
+        // consume white space
+        if (!cmdln_consume_white_space(&rptr)) {
+            return false;
+        }
+        // consume non-white space
+        if (i != pos) {
+            if (!cmdln_consume_non_white_space(&rptr)) { // consume non-white space
+                return false;
+            }
+        } else {
+            cmdln_try_peek(command_info.startptr + (rptr), &c);
+            //see if this is a argument or a flag, reject flags
+            if (c=='-') {
+                return false;
+            }
+            struct prompt_result result;
+            if (cmdln_args_get_string(rptr, max_len, str)) {
+                return true;
+            } else {
+                return false;
+            }
+        }
+    }
+    return false;
+}
+
 
 // finds the next command in current line of user input
 // could be the comment indicator `#` ... in which case entire string ending in 0x00 is considered the comment
