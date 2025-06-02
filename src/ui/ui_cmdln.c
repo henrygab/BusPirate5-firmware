@@ -516,8 +516,8 @@ bool cmdln_args_find_flag_internal_ex(command_info_t * ci, char flag, command_va
     arg->error = false;
     arg->has_arg = false;
     while (ci->endptr >= (ci->startptr + rptr + 1)
-        && cmdln_try_peek(rptr, &dash_c)
-        && cmdln_try_peek(rptr + 1, &flag_c)
+        && cmdln_try_peek_ex(ci->history, rptr, &dash_c)
+        && cmdln_try_peek_ex(ci->history, rptr + 1, &flag_c)
     ) {
         if (dash_c == '-' && flag_c == flag) {
             arg->has_arg = true;
@@ -539,7 +539,7 @@ bool cmdln_args_find_flag_internal_ex(command_info_t * ci, char flag, command_va
     PRINT_NEVER("cmdln_args_find_flag_internal: Flag %c not found\r\n", flag);
     return false;
 }
-bool cmdln_args_find_flag_internal(char flag, command_var_t* arg) {
+bool cmdln_args_find_flag_internal(char flag, command_var_t* arg) { // BUGBUG -- deprecate this function
     return cmdln_args_find_flag_internal_ex(&command_info, flag, arg);
 }
 
