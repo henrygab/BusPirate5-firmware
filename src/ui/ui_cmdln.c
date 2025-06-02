@@ -374,15 +374,10 @@ inline bool cmdln_args_get_string(uint32_t rptr, uint32_t max_len, char* string)
     return cmdln_args_get_string_ex(&command_info, rptr, max_len, string);
 }
 
-// TODO: add support for C23-style numeric literal separator '
-//       e.g., 0x0001'3054   0b1101'1011'0111'1111   24'444'444.848'22
-
 // parse a hex value from the first digit
-// notice, we do not pass rptr by reference, so it is not updated
-bool cmdln_args_get_hex(uint32_t* rptr, struct prompt_result* result, uint32_t* value) {
+bool cmdln_args_get_hex_ex(command_info_t * ci, uint32_t * rptr, struct prompt_result* result, uint32_t* value) {
 
-    cmdline_validate_invariants(&cmdln);
-    cmdline_validate_invariants(&command_info);
+    cmdline_validate_invariants(ci);
 
     char c;
 
@@ -390,8 +385,8 @@ bool cmdln_args_get_hex(uint32_t* rptr, struct prompt_result* result, uint32_t* 
     result->no_value = true;
     (*value) = 0;
 
-    while (command_info.endptr >= command_info.startptr + (*rptr) &&
-           cmdln_try_peek(command_info.startptr + (*rptr), &c)) { // peek at next char
+    while (ci->endptr >= ci->startptr + (*rptr) &&
+           cmdln_try_peek_ex(ci->history, ci->startptr + (*rptr), &c)) { // peek at next char
         if (((c >= '0') && (c <= '9'))) {
             (*value) <<= 4;
             (*value) += (c - 0x30);
@@ -407,6 +402,9 @@ bool cmdln_args_get_hex(uint32_t* rptr, struct prompt_result* result, uint32_t* 
         result->no_value = false;
     }
     return result->success;
+}
+inline bool cmdln_args_get_hex(uint32_t* rptr, prompt_result* result, uint32_t* value) { // BUGBUG -- deprecate this function
+    return cmdln_args_get_hex_ex(&command_info, rptr, result, value);
 }
 
 // parse a bin value from the first digit
