@@ -13,29 +13,31 @@
 #endif
 
 struct _display displays[MAXDISPLAY] = {
+    // clang-format off
     {
-        noperiodic,              // service to regular poll whether a byte ahs arrived
-        disp_default_setup,      // setup UI
-        disp_default_setup_exc,  // real setup
-        disp_default_cleanup,    // cleanup for HiZ
-        disp_default_settings,   // display settings
-        0,                       // display small help about the protocol
-        "Default",               // friendly name (promptname)
-        0,                       // scope specific commands
-        disp_default_lcd_update, // screen write
+        .display_periodic   = noperiodic,              // service to regular poll whether a byte ahs arrived
+        .display_setup      = disp_default_setup,      // setup UI
+        .display_setup_exc  = disp_default_setup_exc,  // real setup
+        .display_cleanup    = disp_default_cleanup,    // cleanup for HiZ
+        .display_settings   = disp_default_settings,   // display settings
+        .display_help       = 0,                       // display small help about the protocol
+        .display_name       = "Default",               // friendly name (promptname)
+        .display_command    = 0,                       // scope specific commands
+        .display_lcd_update = disp_default_lcd_update, // screen write
     },
 #ifdef BP_USE_SCOPE
     {
-        scope_periodic,   // service to regular poll whether a byte ahs arrived
-        scope_setup,      // setup UI
-        scope_setup_exc,  // real setup
-        scope_cleanup,    // cleanup for HiZ
-        scope_settings,   // display settings
-        scope_help,       // display small help about the protocol
-        "Scope",          // friendly name (promptname)
-        scope_commands,   // scope specific commands
-        scope_lcd_update, // scope screen write
+        .display_periodic   = scope_periodic,   // service to regular poll whether a byte ahs arrived
+        .display_setup      = scope_setup,      // setup UI
+        .display_setup_exc  = scope_setup_exc,  // real setup
+        .display_cleanup    = scope_cleanup,    // cleanup for HiZ
+        .display_settings   = scope_settings,   // display settings
+        .display_help       = scope_help,       // display small help about the protocol
+        .display_name       = "Scope",          // friendly name (promptname)
+        .display_command    = scope_commands,   // scope specific commands
+        .display_lcd_update = scope_lcd_update, // scope screen write
     },
+    // clang-format on
 #endif
 };
 /* For Emacs:

@@ -91,39 +91,48 @@ void macro_handler(struct command_result* res) {
 }
 
 static bool exec_macro_id(const char* id) {
-    char line[512];
+
+    command_line_history_t macro_history;
+    cmdln_init_command_history(&macro_history);
+
     printf("Exec macro id: %s\r\n", id);
 
-    disk_get_line_id(macro_file, id, line, sizeof(line));
-    if (!line[0]) {
+    disk_get_line_id(macro_file, id, &macro_history.buf[0], sizeof(macro_history.buf));
+    if (!macro_history.buf[0]) {
         printf("Macro not fund\r\n");
         return true;
     }
 
-    char* m = line;
+    // The macro line format is: <id>:<bus syntax>
+    // find the offset to the first character after the id and separator ':'
+    size_t starting_offset = 0;
+
     // Skip id and separator
     // 123:MACRO
-    while (*m && *m != ':') {
-        m++;
+    while (macro_history.buf[starting_offset] && macro_history.buf[starting_offset] != ':') {
+        starting_offset++;
+        if (starting_offset >= sizeof(macro_history.buf)-1) {
+            printf("Macro line too long\r\n");
+            return true; // BUGBUG -- should this return false, when the macro format is incorrect?  I think so!
+        }
     }
-    if (*m != ':') {
+    if (macro_history.buf[starting_offset] != ':') {
         printf("Wrong macro line format\r\n");
-        return true;
+        return true; // BUGBUG -- should this return false, when the macro format is incorrect?  I think so!
     }
-    m++;
+    starting_offset++; // skip the ':'
 
-    // FIXME: injecting the bus syntax into cmd line (i.e. simulating
-    // user input) is probably not the best solution... :-/
-    // printf("Inject cmd\r\n");
-    // TODO: there is a way to advance through the cmdln queue that leaves a history pointer so up and down work
-    // I think instead of of reading to end, we need to advance to the next buffer position
-    char c;
-    while (cmdln_try_remove(&c))
-        ;
-    while (*m && cmdln_try_add(m)) {
-        m++;
+    uint32_t macro_len = strlen(&macro_history.buf[starting_offset]);
+    if (macro_len == 0) {
+        printf("Macro line empty\r\n");
+        return true; // BUGBUG -- should this return false, when the macro format is incorrect?  I think so!
     }
-    cmdln_try_add('\0');
+
+    // move that one string to the beginning of the buffer
+    memmove(&macro_history.buf[0], &macro_history.buf[starting_offset], macro_len);
+    // and then null-terminate the remainder
+    memset(&macro_history.buf[macro_len], 0, sizeof(macro_history.buf) - macro_len);
+    macro_history.write_offset = macro_len;
     // printf("Process syntax\r\n");
     return ui_process_syntax(); // I think we're going to run into issues with the ui_process loop if &&||; are used....
 }

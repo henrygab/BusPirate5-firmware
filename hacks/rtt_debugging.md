@@ -100,18 +100,12 @@ This requires a pre-release version of OpenOCD 0.12.0
 <details><summary>As a single script...</summary><P/>
 
 ```
-reset halt
-rtt stop
-program /home/henrygab/bp5/build_rp2350/src/bus_pirate6.elf
-reset halt
-rp2350.dap.core1 arp_reset assert 0
-rp2350.dap.core0 arp_reset assert 0
-sleep 500
-rtt setup 0x20000000 0x100000 "SEGGER RTT"
-rtt start
+reset halt; program /home/henrygab/bp5/build_rp2350/src/bus_pirate6.elf
+reset halt; rp2350.dap.core1 arp_reset assert 0; rp2350.dap.core0 arp_reset assert 0; sleep 500; rtt setup 0x20000000 0x100000 "SEGGER RTT"; rtt start; rtt server start 4321 0
 
-rtt server start 4321 0
 
+reset halt; rtt stop; program /home/henrygab/bp5/build_rp2350/src/bus_pirate6.elf
+reset halt; rp2350.dap.core1 arp_reset assert 0; rp2350.dap.core0 arp_reset assert 0; sleep 500; rtt setup 0x20000000 0x100000 "SEGGER RTT"; rtt start
 ```
 
 </details>

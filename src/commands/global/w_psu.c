@@ -15,11 +15,11 @@
 
 const char* const psucmd_usage[] = {
     "w|W\t<v> <i>",
-    "Disable: w",
-    "Enable, with menu: W",
-    "Enable 5v, 50mA limit: W 5 50",
-    "Enable 3.3v, 300mA default limit: W 3.3",
-    "Enable 3.3v, no limit: W 3.3 0",
+    "Disable:                           w",
+    "Enable, with prompts:              W",
+    "Enable 5v, 50mA limit:             W 5 50",
+    "Enable 3.3v, 300mA default limit:  W 3.3",
+    "Enable 3.3v, no limit:             W 3.3 0",
 };
 
 const struct ui_help_options psucmd_options[] = {
