@@ -12,5 +12,5 @@
 
 // initializes the ui variables
 void ui_init(void) {
-    cmdln_init(&cmdln);
+    cmdln_init_command_history(&cmdln);
 }

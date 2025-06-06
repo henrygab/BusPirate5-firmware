@@ -32,7 +32,7 @@ command_line_history_t cmdln;
 // TODO: change so that cmdln always has current input line starting at
 //       offset 0, and all other history lines are valid / safe to strcpy()
 //       to offset 0.
-command_info_t command_info;
+command_info_t g_legacy_command_info;
 
 static const struct prompt_result empty_result = {0}; // BUGBUG -- this appears to be a useless variable ... all it does is zero-initialize?
 
@@ -73,10 +73,14 @@ bool cmdline_validate_invariants_command_info(const command_info_t * cmdinfo)
     return true;
 }
 
-void cmdln_init(command_line_history_t* out_cmdln) {
+void cmdln_init_command_history(command_line_history_t* out_cmdln) {
     PRINT_DEBUG("cmdln_init()\r\n");
     // currently, this is just setting to all-zero, but this is not necessarily the case in the future
     memset(out_cmdln, 0, sizeof(command_line_history_t));
+    if (out_cmdln == &cmdln) {
+        // HACK ... need to find where this is actually allocated.
+        cmdln_init_command_info(out_cmdln, &g_legacy_command_info);
+    }
     // C11 supports generics!
     cmdline_validate_invariants(out_cmdln);
 }
@@ -187,6 +191,7 @@ bool cmdln_try_peek_pointer(command_pointer_t* cp, uint32_t i, char* c) {
     return true;
 }
 
+// this doesn't actually discard anything ... it just advances the read pointer
 bool cmdln_try_discard_ex(command_line_history_t * history, uint32_t i) {
 
     cmdline_validate_invariants(history);
@@ -274,10 +279,10 @@ bool cmdln_consume_non_white_space_ex(command_info_t const * ci, uint32_t* rptr)
     return cmdln_consume_white_space_ex_impl(ci, rptr, true);
 }
 inline bool cmdln_consume_white_space(uint32_t* rptr) { // TODO: Deprecate this function
-    return cmdln_consume_white_space_ex(&command_info, rptr);
+    return cmdln_consume_white_space_ex(&g_legacy_command_info, rptr);
 }
 inline bool cmdln_consume_non_white_space(uint32_t* rptr) { // TODO: Deprecate this function
-    return cmdln_consume_non_white_space_ex(&command_info, rptr);
+    return cmdln_consume_non_white_space_ex(&g_legacy_command_info, rptr);
 }
 
 // internal function to take copy string from start position to next space or end of buffer
@@ -321,7 +326,7 @@ static bool cmdln_args_get_string_new_ex(command_info_t const * ci, uint32_t rea
         if (!cmdln_try_peek_ex(ci->history, ci->startptr + read_offset, &c)) {
             // how can this happen?
             PRINT_FATAL("Peek() failed in cmdln_args_get_string, read_offset=%d, startptr=%d, endptr=%d, i=%d",
-                        read_offset, command_info.startptr, command_info.endptr, i);
+                        read_offset, ci->startptr, ci->endptr, i);
             string[i] = 0x00;
             return i != 0;
         }
@@ -371,7 +376,7 @@ bool cmdln_args_get_string_ex(command_info_t const * ci, uint32_t rptr, uint32_t
 }
 
 inline bool cmdln_args_get_string(uint32_t rptr, uint32_t max_len, char* string) { // BUGBUG -- deprecate this function
-    return cmdln_args_get_string_ex(&command_info, rptr, max_len, string);
+    return cmdln_args_get_string_ex(&g_legacy_command_info, rptr, max_len, string);
 }
 
 // parse a hex value from the first digit
@@ -404,7 +409,7 @@ bool cmdln_args_get_hex_ex(command_info_t * ci, uint32_t * rptr, struct prompt_r
     return result->success;
 }
 inline bool cmdln_args_get_hex(uint32_t* rptr, prompt_result* result, uint32_t* value) { // BUGBUG -- deprecate this function
-    return cmdln_args_get_hex_ex(&command_info, rptr, result, value);
+    return cmdln_args_get_hex_ex(&g_legacy_command_info, rptr, result, value);
 }
 
 // parse a bin value from the first digit
@@ -433,7 +438,7 @@ bool cmdln_args_get_bin_ex(command_info_t * ci, uint32_t* rptr, struct prompt_re
     return result->success;
 }
 bool cmdln_args_get_bin(uint32_t* rptr, struct prompt_result* result, uint32_t* value) { // BUGBUG -- deprecate this function
-    return cmdln_args_get_bin_ex(&command_info, rptr, result, value);
+    return cmdln_args_get_bin_ex(&g_legacy_command_info, rptr, result, value);
 }
 
 
@@ -465,7 +470,7 @@ bool cmdln_args_get_dec_ex(command_info_t * ci, uint32_t* rptr, struct prompt_re
     return result->success;
 }
 bool cmdln_args_get_dec(uint32_t* rptr, struct prompt_result* result, uint32_t* value) { // BUGBUG -- deprecate this function
-    return cmdln_args_get_dec_ex(&command_info, rptr, result, value);
+    return cmdln_args_get_dec_ex(&g_legacy_command_info, rptr, result, value);
 }
 
 
@@ -503,7 +508,7 @@ bool cmdln_args_get_int_ex(command_info_t * ci, uint32_t* rptr, struct prompt_re
     return result->success;
 }
 bool cmdln_args_get_int(uint32_t* rptr, struct prompt_result* result, uint32_t* value) { // BUGBUG -- deprecate this function
-    return cmdln_args_get_int_ex(&command_info, rptr, result, value);
+    return cmdln_args_get_int_ex(&g_legacy_command_info, rptr, result, value);
 }
 
 bool cmdln_args_find_flag_internal_ex(command_info_t * ci, char flag, command_var_t* arg) {
@@ -540,7 +545,7 @@ bool cmdln_args_find_flag_internal_ex(command_info_t * ci, char flag, command_va
     return false;
 }
 bool cmdln_args_find_flag_internal(char flag, command_var_t* arg) { // BUGBUG -- deprecate this function
-    return cmdln_args_find_flag_internal_ex(&command_info, flag, arg);
+    return cmdln_args_find_flag_internal_ex(&g_legacy_command_info, flag, arg);
 }
 
 
@@ -557,7 +562,7 @@ bool cmdln_args_find_flag_ex(command_info_t* ci, char flag) {
     return true;
 }
 bool cmdln_args_find_flag(char flag) { // BUGBUG -- deprecate this function
-    return cmdln_args_find_flag_ex(&command_info, flag);
+    return cmdln_args_find_flag_ex(&g_legacy_command_info, flag);
 }
 
 
@@ -585,7 +590,7 @@ bool cmdln_args_find_flag_uint32_ex(command_info_t* ci, char flag, command_var_t
     return true;
 }
 bool cmdln_args_find_flag_uint32(char flag, command_var_t* arg, uint32_t* value) { // BUGBUG -- deprecate this function
-    return cmdln_args_find_flag_uint32_ex(&command_info, flag, arg, value);
+    return cmdln_args_find_flag_uint32_ex(&g_legacy_command_info, flag, arg, value);
 }
 
 
@@ -612,7 +617,7 @@ bool cmdln_args_find_flag_string_ex(command_info_t* ci, char flag, command_var_t
     return true;
 }
 bool cmdln_args_find_flag_string(char flag, command_var_t* arg, uint32_t max_len, char* str) { // BUGBUG -- deprecate this function
-    return cmdln_args_find_flag_string_ex(&command_info, flag, arg, max_len, str);
+    return cmdln_args_find_flag_string_ex(&g_legacy_command_info, flag, arg, max_len, str);
 }   
 
 bool cmdln_args_float_by_position_ex(command_info_t* ci, uint32_t pos, float* value) {
@@ -671,7 +676,7 @@ bool cmdln_args_float_by_position_ex(command_info_t* ci, uint32_t pos, float* va
     return false;
 }
 bool cmdln_args_float_by_position(uint32_t pos, float* value) { // BUGBUG -- deprecate this function
-    return cmdln_args_float_by_position_ex(&command_info, pos, value);
+    return cmdln_args_float_by_position_ex(&g_legacy_command_info, pos, value);
 }
 
 bool cmdln_args_uint32_by_position_ex(command_info_t* ci, uint32_t pos, uint32_t* value) {
@@ -704,7 +709,7 @@ bool cmdln_args_uint32_by_position_ex(command_info_t* ci, uint32_t pos, uint32_t
     return false;
 }
 bool cmdln_args_uint32_by_position(uint32_t pos, uint32_t* value) { // BUGBUG -- deprecate this function
-    return cmdln_args_uint32_by_position_ex(&command_info, pos, value);
+    return cmdln_args_uint32_by_position_ex(&g_legacy_command_info, pos, value);
 }
 
 
@@ -745,7 +750,7 @@ bool cmdln_args_string_by_position_ex(command_info_t* ci, uint32_t pos, uint32_t
     return false;
 }
 bool cmdln_args_string_by_position(uint32_t pos, uint32_t max_len, char* str) { // BUGBUG -- deprecate this function
-    return cmdln_args_string_by_position_ex(&command_info, pos, max_len, str);
+    return cmdln_args_string_by_position_ex(&g_legacy_command_info, pos, max_len, str);
 }
 
 // finds the next command in current line of user input
@@ -852,8 +857,8 @@ cmdln_find_next_command_success:
         );
 
     cp->endptr--;
-    command_info.startptr = cp->startptr;
-    command_info.endptr = cp->endptr;
+    g_legacy_command_info.startptr = cp->startptr;
+    g_legacy_command_info.endptr = cp->endptr;
     return true;
 }
 

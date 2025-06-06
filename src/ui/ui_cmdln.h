@@ -49,7 +49,7 @@ typedef struct _command_pointer_t {
 
 
 
-void cmdln_init(command_line_history_t* out_cmdln);
+void cmdln_init_command_history(command_line_history_t* out_cmdln);
 void cmdln_init_command_info(command_line_history_t* command_line_history, command_info_t* out_cmdinfo);
 void cmdln_init_command_pointer(command_line_history_t* command_line_history, command_pointer_t* out_cmdinfo);
 

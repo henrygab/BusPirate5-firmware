@@ -27,13 +27,14 @@
 // const structs are init'd with 0s, we'll make them here and copy in the main loop
 static const struct command_result result_blank;
 
-SYNTAX_STATUS ui_process_syntax(void) {
+bool ui_process_syntax_ex(command_line_history_t* history) {
 
+    // BUGBUG -- This IGNORES failures in the preflight check ... so what's the point?
     if(modes[system_config.mode].protocol_preflight_sanity_check){
         modes[system_config.mode].protocol_preflight_sanity_check();
     }
 
-    SYNTAX_STATUS result = syntax_compile();
+    SYNTAX_STATUS result = syntax_compile_ex(history);
     if (result !=SSTATUS_OK) {
         printf("Syntax compile error\r\n");
         return result;
@@ -67,6 +68,9 @@ SYNTAX_STATUS ui_process_syntax(void) {
     fala_notify_hook();
 
     return result;
+}
+SYNTAX_STATUS ui_process_syntax(void) { // TODO: deprecate this function, use ui_process_syntax_ex() instead
+    return ui_process_syntax_ex(&cmdln);
 }
 
 bool ui_process_macro(void) {

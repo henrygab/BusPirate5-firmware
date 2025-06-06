@@ -11,14 +11,14 @@
 
 static const struct prompt_result empty_result;
 
-bool ui_parse_get_hex(struct prompt_result* result, uint32_t* value) {
+bool ui_parse_get_hex_ex(command_line_history_t * history, struct prompt_result* result, uint32_t* value) {
     char c;
 
     *result = empty_result;
     result->no_value = true;
     (*value) = 0;
 
-    while (cmdln_try_peek(0, &c)) // peek at next char
+    while (cmdln_try_peek_ex(history, 0, &c)) // peek at next char
     {
         if (((c >= '0') && (c <= '9'))) {
             (*value) <<= 4;
@@ -37,36 +37,40 @@ bool ui_parse_get_hex(struct prompt_result* result, uint32_t* value) {
 
     return result->success;
 }
-
-bool ui_parse_get_bin(struct prompt_result* result, uint32_t* value) {
+bool ui_parse_get_hex(struct prompt_result* result, uint32_t* value) {
+    return ui_parse_get_hex_ex(&cmdln, result, value);
+}
+bool ui_parse_get_bin_ex(command_line_history_t * history, struct prompt_result* result, uint32_t* value) {
     char c;
     *result = empty_result;
     result->no_value = true;
     (*value) = 0;
 
-    while (cmdln_try_peek(0, &c)) // peek at next char
+    while (cmdln_try_peek_ex(history, 0, &c)) // peek at next char
     {
         if ((c < '0') || (c > '1')) {
             return false;
         }
         (*value) <<= 1;
         (*value) += c - 0x30;
-        cmdln_try_discard(1); // discard
+        cmdln_try_discard_ex(history, 1); // discard
         result->success = true;
         result->no_value = false;
     }
 
     return result->success;
 }
-
-bool ui_parse_get_dec(struct prompt_result* result, uint32_t* value) {
+bool ui_parse_get_bin(struct prompt_result* result, uint32_t* value) {
+    return ui_parse_get_bin_ex(&cmdln, result, value);
+}
+bool ui_parse_get_dec_ex(command_line_history_t * history, struct prompt_result* result, uint32_t* value) {
     char c;
 
     *result = empty_result;
     result->no_value = true;
     (*value) = 0;
 
-    while (cmdln_try_peek(0, &c)) // peek at next char
+    while (cmdln_try_peek_ex(history, 0, &c)) // peek at next char
     {
         if ((c < '0') || (c > '9')) // if there is a char, and it is in range
         {
@@ -74,27 +78,25 @@ bool ui_parse_get_dec(struct prompt_result* result, uint32_t* value) {
         }
         (*value) *= 10;
         (*value) += (c - 0x30);
-        cmdln_try_discard(1); // discard
+        cmdln_try_discard_ex(history, 1); // discard
         result->success = true;
         result->no_value = false;
     }
 
     return result->success;
 }
-
-// decodes value from the cmdline
-// XXXXXX integer
-// 0xXXXX hexadecimal
-// 0bXXXX bin
-bool ui_parse_get_int(struct prompt_result* result, uint32_t* value) {
+bool ui_parse_get_dec(struct prompt_result* result, uint32_t* value) {
+    return ui_parse_get_dec_ex(&cmdln, result, value);
+}
+bool ui_parse_get_int_ex(command_line_history_t * history, struct prompt_result* result, uint32_t* value) {
     bool r1, r2;
     char p1, p2;
 
     *result = empty_result;
     *value = 0;
 
-    r1 = cmdln_try_peek(0, &p1);
-    r2 = cmdln_try_peek(1, &p2);
+    r1 = cmdln_try_peek_ex(history, 0, &p1);
+    r2 = cmdln_try_peek_ex(history, 1, &p2);
 
     if (!r1 || (p1 == 0x00)) // no data, end of data, or no value entered on prompt
     {
@@ -104,21 +106,31 @@ bool ui_parse_get_int(struct prompt_result* result, uint32_t* value) {
 
     if (r2 && (p2 | 0x20) == 'x') // HEX
     {
-        cmdln_try_discard(2); // remove 0x
-        ui_parse_get_hex(result, value);
+        cmdln_try_discard_ex(history, 2); // remove 0x
+        ui_parse_get_hex_ex(history, result, value);
         result->number_format = df_hex;  // whatever from ui_const
     } else if (r2 && (p2 | 0x20) == 'b') // BIN
     {
-        cmdln_try_discard(2); // remove 0b
-        ui_parse_get_bin(result, value);
+        cmdln_try_discard_ex(history, 2); // remove 0b
+        ui_parse_get_bin_ex(history, result, value);
         result->number_format = df_bin; // whatever from ui_const
     } else                              // DEC
     {
-        ui_parse_get_dec(result, value);
+        ui_parse_get_dec_ex(history, result, value);
         result->number_format = df_dec; // whatever from ui_const
     }
 
     return result->success;
+
+}
+
+
+// decodes value from the cmdline
+// XXXXXX integer
+// 0xXXXX hexadecimal
+// 0bXXXX bin
+bool ui_parse_get_int(struct prompt_result* result, uint32_t* value) {
+    return ui_parse_get_int_ex(&cmdln, result, value);
 }
 
 bool ui_parse_get_string(struct prompt_result* result, char* str, uint8_t* size) {
