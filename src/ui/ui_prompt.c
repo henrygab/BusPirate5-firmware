@@ -1,3 +1,6 @@
+#define BP_DEBUG_OVERRIDE_DEFAULT_CATEGORY BP_DEBUG_CAT_CMDLINE_PARSER
+#define BP_NO_LEGACY_CMDLINE_FUNCTIONS
+
 #include <stdbool.h>
 #include <stdio.h>
 #include "pico/stdlib.h"
@@ -105,13 +108,13 @@ bool ui_prompt_prompt_bio_pin(const struct ui_prompt* menu) {
 // used internally in ui_prompt
 // gets user input until <enter> or return false if system error
 bool ui_prompt_user_input(void) {
-    cmdln_next_buf_pos(); // flush all input
+    cmdln_next_buf_pos_ex(&cmdln); // flush all input
     do {
         if (system_config.error) {
             return false;
         }
     } while (ui_term_get_user_input() != 0xff);
-    ui_parse_consume_whitespace();
+    ui_parse_consume_whitespace_ex(&cmdln);
     return true;
 }
 
@@ -129,7 +132,7 @@ bool ui_prompt_bool(prompt_result* result, bool defval_show, bool defval, bool a
             return false;
         }
 
-        ui_parse_get_bool(result, user_value);
+        ui_parse_get_bool_ex(&cmdln, result, user_value);
 
         printf("\r\n");
 
@@ -175,7 +178,7 @@ bool ui_prompt_uint32(prompt_result* result, const struct ui_prompt* menu, uint3
             return false;
         }
 
-        ui_parse_get_uint32(result, value);
+        ui_parse_get_uint32_ex(&cmdln, result, value);
 
         if ((*menu).config->allow_exit && result->exit) {
             return false;
@@ -212,7 +215,7 @@ bool ui_prompt_float(
             return false;
         }
 
-        ui_parse_get_float(result, user_value);
+        ui_parse_get_float_ex(&cmdln, result, user_value);
 
         printf("\r\n");
 
@@ -243,7 +246,7 @@ bool ui_prompt_float_units(prompt_result* result, const char* menu, float* user_
             return false;
         }
 
-        ui_parse_get_float(result, user_value);
+        ui_parse_get_float_ex(&cmdln, result, user_value);
 
         if (result->exit) {
             return true;
@@ -252,7 +255,7 @@ bool ui_prompt_float_units(prompt_result* result, const char* menu, float* user_
         // get the trailing type
         char units[4] = { 0, 0, 0, 0 };
 
-        if (ui_parse_get_units(result, units, 4, user_units)) {
+        if (ui_parse_get_units_ex(&cmdln, result, units, 4, user_units)) {
             return true;
         }
 
@@ -320,7 +323,7 @@ bool ui_prompt_vt100_mode(prompt_result* result, uint32_t* value) {
         return false;
     }
 
-    if (!cmdln_try_remove(&c)) {
+    if (!cmdln_try_remove_ex(&cmdln, &c)) {
         return false;
     }
 
@@ -337,7 +340,7 @@ bool ui_prompt_vt100_mode(prompt_result* result, uint32_t* value) {
             break;
     }
 
-    cmdln_next_buf_pos();
+    cmdln_next_buf_pos_ex(&cmdln);
 
     return true;
 }
@@ -349,11 +352,11 @@ uint32_t ui_prompt_yes_no(void) {
         return 2;
     }
 
-    if (!cmdln_try_remove(&c)) {
+    if (!cmdln_try_remove_ex(&cmdln, &c)) {
         return 2;
     }
 
-    cmdln_next_buf_pos();
+    cmdln_next_buf_pos_ex(&cmdln);
 
     c |= 0x20; // to lowercase
 
