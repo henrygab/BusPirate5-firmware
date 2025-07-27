@@ -338,13 +338,13 @@ bool ui_parse_get_float(struct prompt_result* result, float* value) {
 }
 //bool ui_parse_get_float(struct prompt_result* result, float* value)
 
-bool ui_parse_get_uint32(struct prompt_result* result, uint32_t* value) {
-    bool r;
-    char c;
+bool ui_parse_get_uint32_ex(command_line_history_t * history, struct prompt_result* result, uint32_t* value) {
+    bool r = false;
+    char c = 0;
 
     *result = empty_result; // initialize result with empty result
 
-    r = cmdln_try_peek(0, &c);
+    r = cmdln_try_peek_ex(history, 0, &c);
     if (!r || c == 0x00) // user pressed enter only
     {
         result->no_value = true;
@@ -353,15 +353,17 @@ bool ui_parse_get_uint32(struct prompt_result* result, uint32_t* value) {
         result->exit = true;
     } else if ((c >= '0') && (c <= '9')) // 1-9 decimal
     {
-        return ui_parse_get_dec(result, value);
+        return ui_parse_get_dec_ex(history, result, value);
     } else // bad result (not number)
     {
         result->error = true;
     }
-    cmdln_try_discard(1); // discard
+    cmdln_try_discard_ex(history, 1); // discard
     return true;
 }
-// bool ui_parse_get_uint32(struct prompt_result* result, uint32_t* value)
+bool ui_parse_get_uint32(struct prompt_result* result, uint32_t* value) {
+    return ui_parse_get_uint32_ex(&cmdln, result, value);
+}
 
 bool ui_parse_get_units(struct prompt_result* result, char* units, uint8_t length, uint8_t* unit_type) {
     char c;
