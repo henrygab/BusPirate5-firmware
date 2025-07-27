@@ -62,11 +62,13 @@ void hard_assertion_failure(void) {
     ( (uint32_t) (((uint32_t)1u) << _E_DEBUG_VALUE) )    
 
 uint32_t         _DEBUG_ENABLED_CATEGORIES = // mask of enabled debug categories
-    _DEBUG_E_CAT_TO_MASK(E_DEBUG_CAT_CATCHALL)            |
-    _DEBUG_E_CAT_TO_MASK(E_DEBUG_CAT_EARLY_BOOT)          |
-    // _DEBUG_E_CAT_TO_MASK(E_DEBUG_CAT_ONBOARD_PIXELS)      |
-    _DEBUG_E_CAT_TO_MASK(E_DEBUG_CAT_ONBOARD_STORAGE)     |
-    _DEBUG_E_CAT_TO_MASK(E_DEBUG_CAT_TEMP)                |
+    _DEBUG_E_CAT_TO_MASK(E_DEBUG_CAT_CATCHALL        ) |
+    _DEBUG_E_CAT_TO_MASK(E_DEBUG_CAT_EARLY_BOOT      ) |
+    // _DEBUG_E_CAT_TO_MASK(E_DEBUG_CAT_ONBOARD_PIXELS  ) |
+    _DEBUG_E_CAT_TO_MASK(E_DEBUG_CAT_ONBOARD_STORAGE ) |
+    _DEBUG_E_CAT_TO_MASK(E_DEBUG_CAT_CMD_COMMENTS    ) |
+    _DEBUG_E_CAT_TO_MASK(E_DEBUG_CAT_CMDLINE_PARSER  ) |
+    _DEBUG_E_CAT_TO_MASK(E_DEBUG_CAT_TEMP            ) |
     0u;
 
 // If listed, will be initialized to the specified value.
@@ -78,6 +80,8 @@ bp_debug_level_t _DEBUG_LEVELS[32] = {
     [E_DEBUG_CAT_EARLY_BOOT     ] = BP_DEBUG_LEVEL_VERBOSE,
     [E_DEBUG_CAT_ONBOARD_PIXELS ] = BP_DEBUG_LEVEL_VERBOSE,
     [E_DEBUG_CAT_ONBOARD_STORAGE] = BP_DEBUG_LEVEL_VERBOSE,
+    [E_DEBUG_CAT_CMD_COMMENTS   ] = BP_DEBUG_LEVEL_DEBUG,
+    [E_DEBUG_CAT_CMDLINE_PARSER ] = BP_DEBUG_LEVEL_DEBUG,
     // add others here, in order of enumeration value
     [E_DEBUG_CAT_TEMP           ] = BP_DEBUG_LEVEL_DEBUG,
 }; // up to 32 categories, each with a debug level

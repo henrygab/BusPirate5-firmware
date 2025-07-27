@@ -20,6 +20,7 @@
 #include "commands/global/p_pullups.h"
 #include "commands/global/cmd_mcu.h"
 #include "commands/global/l_bitorder.h"
+#include "commands/global/cmd_comment.h"
 #include "commands/global/cmd_convert.h"
 #include "commands/global/pause.h"
 #include "commands/global/h_help.h"
@@ -53,7 +54,7 @@ const struct _global_command_struct commands[] = {
 { .command="rm",        .allow_hiz=true,  .func=&disk_rm_handler,                    .help_text=0x00 }, // rm T_CMDLN_RM
 { .command="cat",       .allow_hiz=true,  .func=&disk_cat_handler,                   .help_text=0x00 }, // cat T_CMDLN_CAT
 { .command="m",         .allow_hiz=true,  .func=&ui_mode_enable_args,                .help_text=0x00 }, // "m"  T_CMDLN_MODE //needs trailing int32
-{ .command="W",         .allow_hiz=false, .func=&psucmd_enable_handler,              .help_text=0x00 }, // "W"   T_CMDLN_PSU_EN  //TODO: more flexibility on help handling and also a general deescription
+{ .command="W",         .allow_hiz=false, .func=&psucmd_enable_handler,              .help_text=0x00 }, // "W"   T_CMDLN_PSU_EN  //TOD0: more flexability on help handling and also a general deescription
 { .command="reboot",    .allow_hiz=true,  .func=&cmd_mcu_reboot_handler,             .help_text=T_CMDLN_REBOOT }, // "reboot"
 { .command="$",         .allow_hiz=true,  .func=&cmd_mcu_jump_to_bootloader_handler, .help_text=0x00 }, // "$" T_CMDLN_BOOTLOAD
 { .command="=",         .allow_hiz=true,  .func=&cmd_convert_base_handler,           .help_text=T_CMDLN_INT_FORMAT }, // "="

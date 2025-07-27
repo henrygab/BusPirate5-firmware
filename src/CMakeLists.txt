@@ -65,6 +65,8 @@ set(buspirate_common
         commands/global/p_pullups.c
         commands/global/cmd_mcu.h
         commands/global/cmd_mcu.c
+        commands/global/cmd_comment.h
+        commands/global/cmd_comment.c
         commands/global/l_bitorder.h
         commands/global/l_bitorder.c
         commands/global/cmd_convert.h

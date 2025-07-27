@@ -85,7 +85,7 @@ const struct _syntax_compile_commands_t syntax_compile_commands[] = {
     {'v', SYN_ADC}
 };
 
-SYNTAX_STATUS syntax_compile(void) {
+SYNTAX_STATUS syntax_compile_ex(command_line_history_t * history) {
     uint32_t current_position = 0;
     uint32_t generated_in_cnt = 0;
     uint32_t i;
@@ -105,19 +105,19 @@ SYNTAX_STATUS syntax_compile(void) {
         pin_func[i - 1] = system_config.pin_func[i]; //=BP_PIN_IO;
     }
 
-    while (cmdln_try_peek(0, &c)) {
+    while (cmdln_try_peek_ex(history, 0, &c)) {
         current_position++;
 
         if (c <= ' ' || c > '~' || c =='>') {
             // out of ascii range, or > syntax indication character
-            cmdln_try_discard(1);
+            cmdln_try_discard_ex(history, 1);
             continue;
         }
 
         // if number parse it
         if (c >= '0' && c <= '9') {
             struct prompt_result result;
-            ui_parse_get_int(&result, &syntax_io.out[syntax_io.out_cnt].out_data);
+            ui_parse_get_int_ex(history, &result, &syntax_io.out[syntax_io.out_cnt].out_data);
             if (result.error) {
                 printf("Error parsing integer at position %d\r\n", current_position);
                 return SSTATUS_ERROR;
@@ -129,10 +129,10 @@ SYNTAX_STATUS syntax_compile(void) {
         
         //if string, parse it
         if (c == '"') {
-            cmdln_try_remove(&c); // remove "
+            cmdln_try_remove_ex(history, &c); // remove "
             // sanity check! is there a terminating "?
             i = 0;
-            while (cmdln_try_peek(i, &c)) {
+            while (cmdln_try_peek_ex(history, i, &c)) {
                 if (c == '"') {
                     if((syntax_io.out_cnt+i)>=SYN_MAX_LENGTH){
                         printf("Syntax exceeds available space (%d slots)\r\n", SYN_MAX_LENGTH);
@@ -147,7 +147,7 @@ SYNTAX_STATUS syntax_compile(void) {
 
 compile_get_string:
             while (i--) {
-                cmdln_try_remove(&c);
+                cmdln_try_remove_ex(history, &c);
                 syntax_io.out[syntax_io.out_cnt].command = SYN_WRITE;
                 syntax_io.out[syntax_io.out_cnt].out_data = c;
                 syntax_io.out[syntax_io.out_cnt].has_repeat = false;
@@ -157,7 +157,7 @@ compile_get_string:
                 syntax_io.out_cnt++;
                 generated_in_cnt++;
             }
-            cmdln_try_remove(&c); // consume the final "
+            cmdln_try_remove_ex(history, &c); // consume the final "
             if (generated_in_cnt >= SYN_MAX_LENGTH) {
                 printf("Syntax exceeds available space (%d slots)\r\n", SYN_MAX_LENGTH);
                 return SSTATUS_ERROR;
@@ -172,7 +172,7 @@ compile_get_string:
                 // parsing an int value from the command line sets the pointer to the next value
                 // if it's another command, we need to do that manually now to keep the pointer
                 // where the next parsing function expects it
-                cmdln_try_discard(1);
+                cmdln_try_discard_ex(history, 1);
                 goto compiler_get_attributes;
             }
         }
@@ -248,6 +248,11 @@ compiler_get_attributes:
     syntax_io.in_cnt = 0;
     return SSTATUS_OK;
 }
+SYNTAX_STATUS syntax_compile(void) {
+    return syntax_compile_ex(&cmdln);
+}
+    
+
 /*
 *
 *   Run/execute the syntax_io bytecode
