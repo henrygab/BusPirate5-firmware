@@ -7,7 +7,8 @@
 #include "ui/ui_prompt.h" //needed for prompt_result struct
 #include "ui/ui_parse.h"
 #include "ui/ui_const.h"
-#include "ui/ui_cmdln.h"
+#include "ui/ui_cmdln.h" // This defines `cmdln` global .. which should *NOT* be used here!
+
 
 static const struct prompt_result empty_result;
 
@@ -125,30 +126,22 @@ bool ui_parse_get_int_ex(command_line_history_t * history, struct prompt_result*
 }
 
 
-// decodes value from the cmdline
-// XXXXXX integer
-// 0xXXXX hexadecimal
-// 0bXXXX bin
-bool ui_parse_get_int(struct prompt_result* result, uint32_t* value) {
-    return ui_parse_get_int_ex(&cmdln, result, value);
-}
-
-bool ui_parse_get_string(struct prompt_result* result, char* str, uint8_t* size) {
-    char c;
+bool ui_parse_get_string_ex(command_line_history_t * history, struct prompt_result* result, char* str, uint8_t* size) {
+    char c = 0;
     uint8_t max_size = *size;
 
     *result = empty_result;
     result->no_value = true;
     *size = 0;
 
-    while (max_size-- && cmdln_try_peek(0, &c)) {
+    while (max_size-- && cmdln_try_peek_ex(history, 0, &c)) {
         if (c <= ' ') {
             break;
         } else if (c <= '~') {
             *str++ = c;
             (*size)++;
         }
-        cmdln_try_remove(&c);
+        cmdln_try_remove_ex(history, &c);
         result->success = true;
         result->no_value = false;
     }
@@ -158,14 +151,10 @@ bool ui_parse_get_string(struct prompt_result* result, char* str, uint8_t* size)
     return result->success;
 }
 
-// eats up the spaces and comma's from the cmdline
 void ui_parse_consume_whitespace_ex(command_line_history_t* history) {
     while ((history->read_offset != history->write_offset) && ((history->buf[history->read_offset] == ' ') || (history->buf[history->read_offset] == ','))) {
         history->read_offset = cmdln_pu(history->read_offset + 1);
     }
-}
-void ui_parse_consume_whitespace(void) {
-    ui_parse_consume_whitespace_ex(&cmdln);
 }
 
 bool ui_parse_get_macro_ex(command_line_history_t * history, struct prompt_result* result, uint32_t* value) {
@@ -183,31 +172,19 @@ bool ui_parse_get_macro_ex(command_line_history_t * history, struct prompt_resul
     }
     return result->success;
 }
-bool ui_parse_get_macro(struct prompt_result* result, uint32_t* value) {
-    return ui_parse_get_macro_ex(&cmdln, result, value);
-}
 
-// get the repeat from the commandline (if any) XX:repeat
 bool ui_parse_get_colon_ex(command_line_history_t * history, uint32_t* value) {
     prompt_result result;
     ui_parse_get_delimited_sequence_ex(history, &result, ':', value);
     return result.success;
 }
-bool ui_parse_get_colon(uint32_t* value) {
-    return ui_parse_get_colon_ex(&cmdln, value);
-}
 
-// get the number of bits from the commandline (if any) XXX.numbit
 bool ui_parse_get_dot_ex(command_line_history_t * history, uint32_t* value) {
     prompt_result result;
     ui_parse_get_delimited_sequence_ex(history, &result, '.', value);
     return result.success;
 }
-bool ui_parse_get_dot(uint32_t* value) {
-    return ui_parse_get_dot_ex(&cmdln, value);
-}
 
-// get trailing information for a command, for example :10 or .10
 bool ui_parse_get_delimited_sequence_ex(command_line_history_t * history, struct prompt_result* result, char delimiter, uint32_t* value) {
     char c;
     *result = empty_result;
@@ -232,12 +209,7 @@ bool ui_parse_get_delimited_sequence_ex(command_line_history_t * history, struct
     result->no_value = true;
     return false;
 }
-bool ui_parse_get_delimited_sequence(struct prompt_result* result, char delimiter, uint32_t* value) {
-    return ui_parse_get_delimited_sequence_ex(&cmdln, result, delimiter, value);
-}
 
-// some commands have trailing attributes like m 6, o 4 etc
-// get as many as specified or error....
 bool ui_parse_get_attributes_ex(command_line_history_t * history, struct prompt_result* result, uint32_t* attr, uint8_t len) {
     *result = empty_result;
     result->no_value = true;
@@ -251,9 +223,6 @@ bool ui_parse_get_attributes_ex(command_line_history_t * history, struct prompt_
     }
 
     return true;
-}
-bool ui_parse_get_attributes(struct prompt_result* result, uint32_t* attr, uint8_t len) {
-    return ui_parse_get_attributes_ex(&cmdln, result, attr, len);
 }
 
 bool ui_parse_get_bool_ex(command_line_history_t * history, struct prompt_result* result, bool* value) {
@@ -284,11 +253,7 @@ bool ui_parse_get_bool_ex(command_line_history_t * history, struct prompt_result
     cmdln_try_discard_ex(history, 1); // discard
     return true;
 }
-bool ui_parse_get_bool(struct prompt_result* result, bool* value) {
-    return ui_parse_get_bool_ex(&cmdln, result, value);
-}
 
-// get a float from user input
 bool ui_parse_get_float_ex(command_line_history_t * history, struct prompt_result* result, float* value) {
     uint32_t number = 0;
     uint32_t decimal = 0;
@@ -340,9 +305,6 @@ bool ui_parse_get_float_ex(command_line_history_t * history, struct prompt_resul
 
     return true;
 }
-bool ui_parse_get_float(struct prompt_result* result, float* value) {
-    return ui_parse_get_float_ex(&cmdln, result, value);
-}
 
 bool ui_parse_get_uint32_ex(command_line_history_t * history, struct prompt_result* result, uint32_t* value) {
     bool r = false;
@@ -366,9 +328,6 @@ bool ui_parse_get_uint32_ex(command_line_history_t * history, struct prompt_resu
     }
     cmdln_try_discard_ex(history, 1); // discard
     return true;
-}
-bool ui_parse_get_uint32(struct prompt_result* result, uint32_t* value) {
-    return ui_parse_get_uint32_ex(&cmdln, result, value);
 }
 
 bool ui_parse_get_units_ex(command_line_history_t * history, struct prompt_result* result, char* units, uint8_t length, uint8_t* unit_type) {
@@ -424,7 +383,4 @@ bool ui_parse_get_units_ex(command_line_history_t * history, struct prompt_resul
 
     result->success = true;
     return true;
-}
-bool ui_parse_get_units(struct prompt_result* result, char* units, uint8_t length, uint8_t* unit_type) {
-    return ui_parse_get_units_ex(&cmdln, result, units, length, unit_type);
 }

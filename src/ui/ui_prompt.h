@@ -24,6 +24,7 @@ typedef struct ui_prompt_config {
     bool (*menu_validate)(const struct ui_prompt* menu, uint32_t* value);
 } ui_prompt_config;
 
+// TODO: Document valid result data combinations, and what those combinations **_mean_**.
 typedef struct prompt_result {
     uint8_t number_format;
     bool success;
