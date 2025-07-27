@@ -159,10 +159,13 @@ bool ui_parse_get_string(struct prompt_result* result, char* str, uint8_t* size)
 }
 
 // eats up the spaces and comma's from the cmdline
-void ui_parse_consume_whitespace(void) {
-    while ((cmdln.read_offset != cmdln.write_offset) && ((cmdln.buf[cmdln.read_offset] == ' ') || (cmdln.buf[cmdln.read_offset] == ','))) {
-        cmdln.read_offset = cmdln_pu(cmdln.read_offset + 1);
+void ui_parse_consume_whitespace_ex(command_line_history_t* history) {
+    while ((history->read_offset != history->write_offset) && ((history->buf[history->read_offset] == ' ') || (history->buf[history->read_offset] == ','))) {
+        history->read_offset = cmdln_pu(history->read_offset + 1);
     }
+}
+void ui_parse_consume_whitespace(void) {
+    ui_parse_consume_whitespace_ex(&cmdln);
 }
 
 bool ui_parse_get_macro(struct prompt_result* result, uint32_t* value) {
@@ -179,6 +182,7 @@ bool ui_parse_get_macro(struct prompt_result* result, uint32_t* value) {
     }
     return result->success;
 }
+//bool ui_parse_get_macro(struct prompt_result* result, uint32_t* value)
 
 // get the repeat from the commandline (if any) XX:repeat
 bool ui_parse_get_colon(uint32_t* value) {
@@ -186,6 +190,7 @@ bool ui_parse_get_colon(uint32_t* value) {
     ui_parse_get_delimited_sequence(&result, ':', value);
     return result.success;
 }
+//bool ui_parse_get_colon(uint32_t* value)
 
 // get the number of bits from the commandline (if any) XXX.numbit
 bool ui_parse_get_dot(uint32_t* value) {
@@ -193,6 +198,7 @@ bool ui_parse_get_dot(uint32_t* value) {
     ui_parse_get_delimited_sequence(&result, '.', value);
     return result.success;
 }
+//bool ui_parse_get_dot(uint32_t* value)
 
 // get trailing information for a command, for example :10 or .10
 bool ui_parse_get_delimited_sequence(struct prompt_result* result, char delimiter, uint32_t* value) {
@@ -218,6 +224,7 @@ bool ui_parse_get_delimited_sequence(struct prompt_result* result, char delimite
     result->no_value = true;
     return false;
 }
+//bool ui_parse_get_delimited_sequence(struct prompt_result* result, char delimiter, uint32_t* value)
 
 // some commands have trailing attributes like m 6, o 4 etc
 // get as many as specified or error....
@@ -235,6 +242,7 @@ bool ui_parse_get_attributes(struct prompt_result* result, uint32_t* attr, uint8
 
     return true;
 }
+//bool ui_parse_get_attributes(struct prompt_result* result, uint32_t* attr, uint8_t len)
 
 bool ui_parse_get_bool(struct prompt_result* result, bool* value) {
 
@@ -264,6 +272,7 @@ bool ui_parse_get_bool(struct prompt_result* result, bool* value) {
     cmdln_try_discard(1); // discard
     return true;
 }
+//bool ui_parse_get_bool(struct prompt_result* result, bool* value)
 
 // get a float from user input
 bool ui_parse_get_float(struct prompt_result* result, float* value) {
@@ -317,6 +326,7 @@ bool ui_parse_get_float(struct prompt_result* result, float* value) {
 
     return true;
 }
+//bool ui_parse_get_float(struct prompt_result* result, float* value)
 
 bool ui_parse_get_uint32(struct prompt_result* result, uint32_t* value) {
     bool r;
@@ -341,6 +351,7 @@ bool ui_parse_get_uint32(struct prompt_result* result, uint32_t* value) {
     cmdln_try_discard(1); // discard
     return true;
 }
+// bool ui_parse_get_uint32(struct prompt_result* result, uint32_t* value)
 
 bool ui_parse_get_units(struct prompt_result* result, char* units, uint8_t length, uint8_t* unit_type) {
     char c;
@@ -396,3 +407,4 @@ bool ui_parse_get_units(struct prompt_result* result, char* units, uint8_t lengt
     result->success = true;
     return true;
 }
+// bool ui_parse_get_units(struct prompt_result* result, char* units, uint8_t length, uint8_t* unit_type)
