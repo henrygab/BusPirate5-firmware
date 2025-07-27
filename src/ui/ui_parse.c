@@ -204,20 +204,21 @@ bool ui_parse_get_dot(uint32_t* value) {
 //bool ui_parse_get_dot(uint32_t* value)
 
 // get trailing information for a command, for example :10 or .10
-bool ui_parse_get_delimited_sequence(struct prompt_result* result, char delimiter, uint32_t* value) {
+bool ui_parse_get_delimited_sequence_ex(command_line_history_t * history, struct prompt_result* result, char delimiter, uint32_t* value) {
     char c;
     *result = empty_result;
 
-    if (cmdln_try_peek(0, &c)) // advance one, did we reach the end?
+    if (cmdln_try_peek_ex(history, 0, &c)) // advance one, did we reach the end?
     {
         if (c == delimiter) // we have a change in bits \o/
         {
             // check that the next char is actually numeric before continue
-            //  prevents eating consecutive .... s
-            if (cmdln_try_peek(1, &c)) {
+            //  prevents eating consecutive ....
+            if (cmdln_try_peek_ex(history, 1, &c)) {
                 if (c >= '0' && c <= '9') {
-                    cmdln_try_discard(1); // discard delimiter
-                    ui_parse_get_int(result, value);
+                    cmdln_try_discard_ex(history, 1); // discard delimiter
+                    // BUGBUG -- ignores return value
+                    ui_parse_get_int_ex(history, result, value);
                     result->success = true;
                     return true;
                 }
@@ -227,7 +228,9 @@ bool ui_parse_get_delimited_sequence(struct prompt_result* result, char delimite
     result->no_value = true;
     return false;
 }
-//bool ui_parse_get_delimited_sequence(struct prompt_result* result, char delimiter, uint32_t* value)
+bool ui_parse_get_delimited_sequence(struct prompt_result* result, char delimiter, uint32_t* value) {
+    return ui_parse_get_delimited_sequence_ex(&cmdln, result, delimiter, value);
+}
 
 // some commands have trailing attributes like m 6, o 4 etc
 // get as many as specified or error....
