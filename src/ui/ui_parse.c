@@ -254,14 +254,14 @@ bool ui_parse_get_attributes(struct prompt_result* result, uint32_t* attr, uint8
 }
 //bool ui_parse_get_attributes(struct prompt_result* result, uint32_t* attr, uint8_t len)
 
-bool ui_parse_get_bool(struct prompt_result* result, bool* value) {
+bool ui_parse_get_bool_ex(command_line_history_t * history, struct prompt_result* result, bool* value) {
 
-    bool r;
-    char c;
+    bool r = false;
+    char c = 0;
 
     *result = empty_result; // initialize result with empty result
 
-    r = cmdln_try_peek(0, &c);
+    r = cmdln_try_peek_ex(history, 0, &c);
     if (!r || c == 0x00) // user pressed enter only
     {
         result->no_value = true;
@@ -279,10 +279,12 @@ bool ui_parse_get_bool(struct prompt_result* result, bool* value) {
     {
         result->error = true;
     }
-    cmdln_try_discard(1); // discard
+    cmdln_try_discard_ex(history, 1); // discard
     return true;
 }
-//bool ui_parse_get_bool(struct prompt_result* result, bool* value)
+bool ui_parse_get_bool(struct prompt_result* result, bool* value) {
+    return ui_parse_get_bool_ex(&cmdln, result, value);
+}
 
 // get a float from user input
 bool ui_parse_get_float_ex(command_line_history_t * history, struct prompt_result* result, float* value) {
