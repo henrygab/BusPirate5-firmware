@@ -168,13 +168,14 @@ void ui_parse_consume_whitespace(void) {
     ui_parse_consume_whitespace_ex(&cmdln);
 }
 
-bool ui_parse_get_macro(struct prompt_result* result, uint32_t* value) {
-    char c;
-    bool r;
+bool ui_parse_get_macro_ex(command_line_history_t * history, struct prompt_result* result, uint32_t* value) {
+    char c = 0;
+    bool r = false;
 
     // cmdln_try_discard(1); // advance 1 position '('
-    ui_parse_get_int(result, value); // get number
-    r = cmdln_try_remove(&c);        // advance 1 position ')'
+    // BUGBUG -- return value is ignored!
+    ui_parse_get_int_ex(history, result, value); // get number
+    r = cmdln_try_remove_ex(history, &c);        // advance 1 position ')'
     if (r && c == ')') {
         result->success = true;
     } else {
@@ -182,7 +183,9 @@ bool ui_parse_get_macro(struct prompt_result* result, uint32_t* value) {
     }
     return result->success;
 }
-//bool ui_parse_get_macro(struct prompt_result* result, uint32_t* value)
+bool ui_parse_get_macro(struct prompt_result* result, uint32_t* value) {
+    return ui_parse_get_macro_ex(&cmdln, result, value);
+}
 
 // get the repeat from the commandline (if any) XX:repeat
 bool ui_parse_get_colon(uint32_t* value) {
