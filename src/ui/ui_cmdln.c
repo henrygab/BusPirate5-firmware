@@ -1,4 +1,5 @@
 #define BP_DEBUG_OVERRIDE_DEFAULT_CATEGORY BP_DEBUG_CAT_CMDLINE_PARSER
+#define BP_NO_LEGACY_CMDLINE_FUNCTIONS
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -262,7 +263,7 @@ static bool cmdln_consume_white_space_ex_impl(command_info_t const * ci, uint32_
         // all remaining characters matched ... no more characters remain
         if (!(
             ci->endptr >= (ci->startptr + (*rptr)) &&  // BUGBUG -- NOT pointers, and did NOT do modulo operation, so this will fail when start offset is near end of circular buffer
-            cmdln_try_peek(ci->startptr + (*rptr), &c)
+            cmdln_try_peek_ex(ci->history,  ci->startptr + (*rptr), &c)
             )) {
             return false;
         }
@@ -761,7 +762,7 @@ bool cmdln_find_next_command(command_info_t* cp) {
 
     PRINT_NEVER("cmdln_find_next_command: startptr=%d\r\n", cp->startptr);
 
-    if (!cmdln_try_peek(cp->endptr, &c)) {
+    if (!cmdln_try_peek_ex(cp->history, cp->endptr, &c)) {
         PRINT_NEVER("cmdln_find_next_command: No command found, endptr=%d\r\n", cp->endptr);
         cp->delimiter = false; // 0 = end of command input
         return false;
@@ -784,7 +785,7 @@ bool cmdln_find_next_command(command_info_t* cp) {
 
     while (true) { // TODO: should limit loop to maximum input buffer length, to catch infinite loop bug that otherwise would be frustratingly hard to debug.
 
-        bool got_pos1 = cmdln_try_peek(cp->endptr, &c);
+        bool got_pos1 = cmdln_try_peek_ex(cp->history, cp->endptr, &c);
         
         // consume white space and detect if the line is a comment
         if(got_pos1 && only_saw_leading_whitespace) {
@@ -796,7 +797,7 @@ bool cmdln_find_next_command(command_info_t* cp) {
             // If first non-space character is `#`, then the rest of the line is a comment
             if (c == '#') { // first non-space character is `#`, so rest of the line is a comment
                 // loop until end of command line input
-                while (cmdln_try_peek(cp->endptr, &d)) {
+                while (cmdln_try_peek_ex(cp->history, cp->endptr, &d)) {
                     cp->endptr++;
                 }
                 cp->command[0] = '#';
@@ -809,7 +810,7 @@ bool cmdln_find_next_command(command_info_t* cp) {
             }
         }
         
-        bool got_pos2 = cmdln_try_peek(cp->endptr + 1, &d);
+        bool got_pos2 = cmdln_try_peek_ex(cp->history, cp->endptr + 1, &d);
         if (!got_pos1) {
             PRINT_NEVER("cmdln_find_next_command: Found last/only command with end offset: %d\r\n", cp->endptr);
             cp->delimiter = false; // 0 = end of command input
@@ -864,10 +865,12 @@ bool cmdln_info_ex(command_line_history_t * history) {
         cmdln_available_chars(history->read_offset, history->write_offset)
     );
 
+    // create a tracking structure for purposes of parsing this command line
+    command_info_t cp;    
+    cmdln_init_command_info(history, &cp);
+
     // loop through and display all commands in this command line
     uint32_t i = 0;
-    command_info_t cp;
-    cmdln_init_command_info(history, &cp);
     while (cmdln_find_next_command(&cp)) {
         if (cp.delimiter == 0) {
             PRINT_DEBUG("cmdln_info:        Command %s <end of commands>\n", cp.command);
@@ -890,9 +893,9 @@ bool cmdln_info_ex(command_line_history_t * history) {
             char vfs[20] = {0};
             uint32_t vi = 0;
             char vs[6] = {0};
-            bool bf = cmdln_args_float_by_position(pos, &vf);
-            bool bi = cmdln_args_uint32_by_position(pos, &vi);
-            bool bs = cmdln_args_string_by_position(pos, 6, &vs[0]);
+            bool bf = cmdln_args_float_by_position_ex(&cp, pos, &vf);
+            bool bi = cmdln_args_uint32_by_position_ex(&cp, pos, &vi);
+            bool bs = cmdln_args_string_by_position_ex(&cp, pos, 6, &vs[0]);
             if (bf) {
                 // RTT does not output float....
                 int written_chars = snprintf(&vfs[0], 20, "%f", vf);
