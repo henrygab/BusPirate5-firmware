@@ -285,15 +285,15 @@ bool ui_parse_get_bool(struct prompt_result* result, bool* value) {
 //bool ui_parse_get_bool(struct prompt_result* result, bool* value)
 
 // get a float from user input
-bool ui_parse_get_float(struct prompt_result* result, float* value) {
+bool ui_parse_get_float_ex(command_line_history_t * history, struct prompt_result* result, float* value) {
     uint32_t number = 0;
     uint32_t decimal = 0;
     int j = 0;
-    bool r;
-    char c;
+    bool r = false;
+    char c = 0;
     *result = empty_result; // initialize result with empty result
 
-    r = cmdln_try_peek(0, &c);
+    r = cmdln_try_peek_ex(history, 0, &c);
     if (!r || c == 0x00) // user pressed enter only
     {
         result->no_value = true;
@@ -304,13 +304,13 @@ bool ui_parse_get_float(struct prompt_result* result, float* value) {
     {
         if ((c >= '0') && (c <= '9')) // there is a number before the . or ,
         {
-            ui_parse_get_dec(result, &number);
+            ui_parse_get_dec_ex(history, result, &number);
         }
 
-        r = cmdln_try_peek(0, &c);
+        r = cmdln_try_peek_ex(history, 0, &c);
         if (r && (c == '.' || c == ',')) {
-            cmdln_try_discard(1);         // discard seperator
-            while (cmdln_try_peek(0, &c)) // peek at next char
+            cmdln_try_discard_ex(history, 1);         // discard seperator
+            while (cmdln_try_peek_ex(history, 0, &c)) // peek at next char
             {
                 if ((c < '0') || (c > '9')) // if there is a char, and it is in range
                 {
@@ -319,7 +319,7 @@ bool ui_parse_get_float(struct prompt_result* result, float* value) {
 
                 decimal *= 10;
                 decimal += (c - 0x30);
-                cmdln_try_discard(1); // discard
+                cmdln_try_discard_ex(history, 1); // discard
                 j++;                  // track digits so we can find the proper divider later...
             }
         }
@@ -336,7 +336,9 @@ bool ui_parse_get_float(struct prompt_result* result, float* value) {
 
     return true;
 }
-//bool ui_parse_get_float(struct prompt_result* result, float* value)
+bool ui_parse_get_float(struct prompt_result* result, float* value) {
+    return ui_parse_get_float_ex(&cmdln, result, value);
+}
 
 bool ui_parse_get_uint32_ex(command_line_history_t * history, struct prompt_result* result, uint32_t* value) {
     bool r = false;
