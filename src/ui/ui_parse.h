@@ -12,6 +12,7 @@ bool ui_parse_get_string_ex(command_line_history_t * history, struct prompt_resu
 // BUGBUG -- rename this to reflect it also accepts eXit option!
 // get float with eXit option
 bool ui_parse_get_float_ex(command_line_history_t * history, struct prompt_result* result, float* value);
+bool ui_parse_get_hex_ex(command_line_history_t * history, struct prompt_result* result, uint32_t* value);
 bool ui_parse_get_delimited_sequence_ex(command_line_history_t * history, struct prompt_result* result, char delimiter, uint32_t* value);
 bool ui_parse_get_units_ex(command_line_history_t * history, struct prompt_result* result, char* units, uint8_t length, uint8_t* unit_type);
 bool ui_parse_get_macro_ex(command_line_history_t * history, struct prompt_result* result, uint32_t* value);
@@ -21,7 +22,7 @@ bool ui_parse_get_colon_ex(command_line_history_t * history, uint32_t* value);
 bool ui_parse_get_dot_ex(command_line_history_t * history, uint32_t* value);
 void ui_parse_consume_whitespace_ex(command_line_history_t * history);
 
-#if !defined(BP_UI_PARSE_NO_LEGACY_FUNCTIONS)
+#if !defined(BP_NO_LEGACY_CMDLINE_FUNCTIONS)
 
 // These are the old UI parsing functions, which presumed
 // a single command line history buffer / current command line.
@@ -40,6 +41,9 @@ inline bool ui_parse_get_string(struct prompt_result* result, char* str, uint8_t
 }
 inline bool ui_parse_get_float(struct prompt_result* result, float* value) {
     return ui_parse_get_float_ex(&cmdln, result, value);
+}
+inline bool ui_parse_get_hex(struct prompt_result* result, uint32_t* value) {
+    return ui_parse_get_hex_ex(&cmdln, result, value);
 }
 inline bool ui_parse_get_delimited_sequence(struct prompt_result* result, char delimiter, uint32_t* value) {
     return ui_parse_get_delimited_sequence_ex(&cmdln, result, delimiter, value);

@@ -7,7 +7,18 @@
 #include "ui/ui_prompt.h" //needed for prompt_result struct
 #include "ui/ui_parse.h"
 #include "ui/ui_const.h"
-#include "ui/ui_cmdln.h" // This defines `cmdln` global .. which should *NOT* be used here!
+#include "ui/ui_cmdln.h"
+
+// remove definition of `cmdln` global ..
+// to detect inadvertent use, as these functions
+// should **_NOT_** touch global state anymore
+#undef cmdln
+
+// TODO: UI_CMDBUFFSIZE is globally defined, and therefore
+//       ANY command_line_history_t must have identical buffer
+//       size.  When memory pressure hits, revisit this.
+//       See UI_CMDBUFFSIZE
+//       See cmdln_pu() ... which rolls-over the buffer pointer
 
 
 static const struct prompt_result empty_result;
@@ -31,15 +42,12 @@ bool ui_parse_get_hex_ex(command_line_history_t * history, struct prompt_result*
         } else {
             return false;
         }
-        cmdln_try_discard(1); // discard
+        cmdln_try_discard_ex(history, 1); // discard
         result->success = true;
         result->no_value = false;
     }
 
     return result->success;
-}
-bool ui_parse_get_hex(struct prompt_result* result, uint32_t* value) {
-    return ui_parse_get_hex_ex(&cmdln, result, value);
 }
 bool ui_parse_get_bin_ex(command_line_history_t * history, struct prompt_result* result, uint32_t* value) {
     char c;

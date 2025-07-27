@@ -109,6 +109,11 @@ uint32_t cmdln_pu(uint32_t i) {
     // If not, remove that restriction and simply (optimizer should result in equivalent code):
     return i % UI_CMDBUFFSIZE;
 }
+// Note: although this function is currently agnostic about which history buffer is in use, 
+//       this is only because all history buffers are currently required to be the exact same
+//       size ... which may change in the future.   Consider making this take in the underlying
+//       structure to get the total size, and to validate rptr and wptr are in range....
+// TODO: Change parameter names to reflect they are buffer offsets, not pointers!
 static uint32_t cmdln_available_chars(uint32_t rptr, uint32_t wptr) {
     // This is a circular buffer.
     static_assert( (2*UI_CMDBUFFSIZE) < UINT32_MAX, "UI_CMDBUFFSIZE too large for this shortcut" );
@@ -561,9 +566,6 @@ bool cmdln_args_find_flag_ex(command_info_t* ci, char flag) {
     }
     return true;
 }
-bool cmdln_args_find_flag(char flag) { // BUGBUG -- deprecate this function
-    return cmdln_args_find_flag_ex(&g_legacy_command_info, flag);
-}
 
 
 // check if a flag is present and get the integer value
@@ -589,9 +591,7 @@ bool cmdln_args_find_flag_uint32_ex(command_info_t* ci, char flag, command_var_t
 
     return true;
 }
-bool cmdln_args_find_flag_uint32(char flag, command_var_t* arg, uint32_t* value) { // BUGBUG -- deprecate this function
-    return cmdln_args_find_flag_uint32_ex(&g_legacy_command_info, flag, arg, value);
-}
+
 
 
 // check if a flag is present and get the integer value
@@ -616,9 +616,6 @@ bool cmdln_args_find_flag_string_ex(command_info_t* ci, char flag, command_var_t
 
     return true;
 }
-bool cmdln_args_find_flag_string(char flag, command_var_t* arg, uint32_t max_len, char* str) { // BUGBUG -- deprecate this function
-    return cmdln_args_find_flag_string_ex(&g_legacy_command_info, flag, arg, max_len, str);
-}   
 
 bool cmdln_args_float_by_position_ex(command_info_t* ci, uint32_t pos, float* value) {
 
@@ -675,9 +672,6 @@ bool cmdln_args_float_by_position_ex(command_info_t* ci, uint32_t pos, float* va
     }
     return false;
 }
-bool cmdln_args_float_by_position(uint32_t pos, float* value) { // BUGBUG -- deprecate this function
-    return cmdln_args_float_by_position_ex(&g_legacy_command_info, pos, value);
-}
 
 bool cmdln_args_uint32_by_position_ex(command_info_t* ci, uint32_t pos, uint32_t* value) {
 
@@ -707,9 +701,6 @@ bool cmdln_args_uint32_by_position_ex(command_info_t* ci, uint32_t pos, uint32_t
         }
     }
     return false;
-}
-bool cmdln_args_uint32_by_position(uint32_t pos, uint32_t* value) { // BUGBUG -- deprecate this function
-    return cmdln_args_uint32_by_position_ex(&g_legacy_command_info, pos, value);
 }
 
 
@@ -749,9 +740,7 @@ bool cmdln_args_string_by_position_ex(command_info_t* ci, uint32_t pos, uint32_t
     }
     return false;
 }
-bool cmdln_args_string_by_position(uint32_t pos, uint32_t max_len, char* str) { // BUGBUG -- deprecate this function
-    return cmdln_args_string_by_position_ex(&g_legacy_command_info, pos, max_len, str);
-}
+
 
 // finds the next command in current line of user input
 // could be the comment indicator `#` ... in which case entire string ending in 0x00 is considered the comment
