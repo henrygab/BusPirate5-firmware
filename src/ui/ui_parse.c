@@ -188,20 +188,24 @@ bool ui_parse_get_macro(struct prompt_result* result, uint32_t* value) {
 }
 
 // get the repeat from the commandline (if any) XX:repeat
-bool ui_parse_get_colon(uint32_t* value) {
+bool ui_parse_get_colon_ex(command_line_history_t * history, uint32_t* value) {
     prompt_result result;
-    ui_parse_get_delimited_sequence(&result, ':', value);
+    ui_parse_get_delimited_sequence_ex(history, &result, ':', value);
     return result.success;
 }
-//bool ui_parse_get_colon(uint32_t* value)
+bool ui_parse_get_colon(uint32_t* value) {
+    return ui_parse_get_colon_ex(&cmdln, value);
+}
 
 // get the number of bits from the commandline (if any) XXX.numbit
-bool ui_parse_get_dot(uint32_t* value) {
+bool ui_parse_get_dot_ex(command_line_history_t * history, uint32_t* value) {
     prompt_result result;
-    ui_parse_get_delimited_sequence(&result, '.', value);
+    ui_parse_get_delimited_sequence_ex(history, &result, '.', value);
     return result.success;
 }
-//bool ui_parse_get_dot(uint32_t* value)
+bool ui_parse_get_dot(uint32_t* value) {
+    return ui_parse_get_dot_ex(&cmdln, value);
+}
 
 // get trailing information for a command, for example :10 or .10
 bool ui_parse_get_delimited_sequence_ex(command_line_history_t * history, struct prompt_result* result, char delimiter, uint32_t* value) {
