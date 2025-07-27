@@ -238,13 +238,13 @@ bool ui_parse_get_delimited_sequence(struct prompt_result* result, char delimite
 
 // some commands have trailing attributes like m 6, o 4 etc
 // get as many as specified or error....
-bool ui_parse_get_attributes(struct prompt_result* result, uint32_t* attr, uint8_t len) {
+bool ui_parse_get_attributes_ex(command_line_history_t * history, struct prompt_result* result, uint32_t* attr, uint8_t len) {
     *result = empty_result;
     result->no_value = true;
 
     for (uint8_t i = 0; i < len; i++) {
-        ui_parse_consume_whitespace(); // eat whitechars
-        ui_parse_get_uint32(result, &attr[i]);
+        ui_parse_consume_whitespace_ex(history); // eat whitechars
+        ui_parse_get_uint32_ex(history, result, &attr[i]);
         if (result->error || result->no_value) {
             return false;
         }
@@ -252,7 +252,9 @@ bool ui_parse_get_attributes(struct prompt_result* result, uint32_t* attr, uint8
 
     return true;
 }
-//bool ui_parse_get_attributes(struct prompt_result* result, uint32_t* attr, uint8_t len)
+bool ui_parse_get_attributes(struct prompt_result* result, uint32_t* attr, uint8_t len) {
+    return ui_parse_get_attributes_ex(&cmdln, result, attr, len);
+}
 
 bool ui_parse_get_bool_ex(command_line_history_t * history, struct prompt_result* result, bool* value) {
 
