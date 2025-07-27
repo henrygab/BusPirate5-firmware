@@ -371,7 +371,7 @@ bool ui_parse_get_uint32(struct prompt_result* result, uint32_t* value) {
     return ui_parse_get_uint32_ex(&cmdln, result, value);
 }
 
-bool ui_parse_get_units(struct prompt_result* result, char* units, uint8_t length, uint8_t* unit_type) {
+bool ui_parse_get_units_ex(command_line_history_t * history, struct prompt_result* result, char* units, uint8_t length, uint8_t* unit_type) {
     char c;
     uint8_t i = 0;
     *result = empty_result;
@@ -425,4 +425,6 @@ bool ui_parse_get_units(struct prompt_result* result, char* units, uint8_t lengt
     result->success = true;
     return true;
 }
-// bool ui_parse_get_units(struct prompt_result* result, char* units, uint8_t length, uint8_t* unit_type)
+bool ui_parse_get_units(struct prompt_result* result, char* units, uint8_t length, uint8_t* unit_type) {
+    return ui_parse_get_units_ex(&cmdln, result, units, length, unit_type);
+}
