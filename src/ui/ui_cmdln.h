@@ -84,7 +84,9 @@ typedef struct command_var_struct {
 
 #pragma region    // Updated ..._ex() functions to exist and use parameter -- Phase 1
 
+// try to add a byte, return false if buffer full
 bool cmdln_try_add_ex(command_line_history_t * command_line_history, char* c);
+// try to get a byte, return false if buffer empty
 bool cmdln_try_remove_ex(command_line_history_t * command_line_history, char* c);
 // try to peek 0+n bytes (no offsets updated)
 // returns false if at the end of the buffer
@@ -93,8 +95,13 @@ bool cmdln_try_remove_ex(command_line_history_t * command_line_history, char* c)
 //     e.g., bool got_char = peek(0, &c) && peek(1, &c);
 // to avoid missing the end of the buffer
 bool cmdln_try_peek_ex(command_line_history_t const * command_line_history, uint32_t i, char* c);
+// try to discard n bytes (advance the read offset)
+// return false if end of buffer is reached
+// (should be used with try_peek to confirm before discarding...)
 bool cmdln_try_discard_ex(command_line_history_t* command_history_buffer, uint32_t i);
-
+// this moves the read offset to the write offset,
+// allowing the next command line to be entered after the previous.
+// this allows the history scroll through the circular buffer
 bool cmdln_next_buf_pos_ex(command_line_history_t* command_history_buffer); // TODO: Rename this API to more clearly indicate its purpose
 
 // Debug function ... dump parsing of current line of input to debugger
@@ -118,54 +125,71 @@ bool cmdln_try_peek_pointer(command_pointer_t* ci, uint32_t i, char* c);
 
 #pragma region    // TO BE DEPRECATED AND/OR REMOVED -- Phase 2
 
-#if !defined(BP_NO_LEGACY_CMDLINE_FUNCTIONS)
+#if defined(BP_NO_LEGACY_CMDLINE_FUNCTIONS)
+    // nothing ... compile error is using them
+#else
+    // These are the old UI parsing functions, which presumed
+    // a single command line history buffer / current command line.
+    // Callers of these functions need to be updated to have the
+    // command line history buffer passed in as a parameter, using
+    // the ..._ex() version of the function.
+    
+    //#define BP_WARN_LEGACY_CMDLINE_FUNCTIONS
+    #if defined(BP_WARN_LEGACY_CMDLINE_FUNCTIONS)
+        #define BP_DEPRECATED(msg) [[deprecated(msg)]]
+    #else
+        #define BP_DEPRECATED(msg)
+    #endif
 
-// These should all be inline functions that call the ..._ex() version
-extern command_info_t g_legacy_command_info;
+    // These should all be inline functions that call the ..._ex() version
+    extern command_info_t g_legacy_command_info;
 
-// try to add a byte to the command line buffer, return false if buffer full
-inline bool cmdln_try_add(char* c) {
-    return cmdln_try_add_ex(&cmdln, c);
-}
-// try to get a byte, return false if buffer empty
-inline bool cmdln_try_remove(char* c) {
-    return cmdln_try_remove_ex(&cmdln, c);
-}
-inline bool cmdln_try_peek(uint32_t i, char* c) {
-    return cmdln_try_peek_ex(&cmdln, i, c);
-}
-// try to discard n bytes (advance the read offset)
-// return false if end of buffer is reached
-// (should be used with try_peek to confirm before discarding...)
-inline bool cmdln_try_discard(uint32_t i) {
-    return cmdln_try_discard_ex(&cmdln, i);
-}
-// this moves the read offset to the write offset,
-// allowing the next command line to be entered after the previous.
-// this allows the history scroll through the circular buffer
-inline bool cmdln_next_buf_pos() {
-    return cmdln_next_buf_pos_ex(&cmdln);
-} 
-inline bool cmdln_args_find_flag(char flag) {
-    return cmdln_args_find_flag_ex(&g_legacy_command_info, flag);
-}
+    BP_DEPRECATED("use cmdln_try_add_ex() instead")
+    inline bool cmdln_try_add(char* c) {
+        return cmdln_try_add_ex(&cmdln, c);
+    }
+    BP_DEPRECATED("use cmdln_try_remove_ex() instead")
+    inline bool cmdln_try_remove(char* c) {
+        return cmdln_try_remove_ex(&cmdln, c);
+    }
+    BP_DEPRECATED("use cmdln_try_peek_ex() instead")
+    inline bool cmdln_try_peek(uint32_t i, char* c) {
+        return cmdln_try_peek_ex(&cmdln, i, c);
+    }
+    BP_DEPRECATED("use cmdln_try_discard_ex() instead")
+    inline bool cmdln_try_discard(uint32_t i) {
+        return cmdln_try_discard_ex(&cmdln, i);
+    }
+    BP_DEPRECATED("use cmdln_next_buf_pos_ex() instead")
+    inline bool cmdln_next_buf_pos() {
+        return cmdln_next_buf_pos_ex(&cmdln);
+    } 
+    BP_DEPRECATED("use cmdln_args_find_flag_ex() instead")
+    inline bool cmdln_args_find_flag(char flag) {
+        return cmdln_args_find_flag_ex(&g_legacy_command_info, flag);
+    }
+    BP_DEPRECATED("use cmdln_args_find_flag_uint32_ex() instead")
+    inline bool cmdln_args_find_flag_uint32(char flag, command_var_t* arg, uint32_t* value) { // BUGBUG -- deprecate this function
+        return cmdln_args_find_flag_uint32_ex(&g_legacy_command_info, flag, arg, value);
+    }
+    BP_DEPRECATED("use cmdln_args_find_flag_string_ex() instead")
+    inline bool cmdln_args_find_flag_string(char flag, command_var_t* arg, uint32_t max_len, char* str) { // BUGBUG -- deprecate this function
+        return cmdln_args_find_flag_string_ex(&g_legacy_command_info, flag, arg, max_len, str);
+    }
+    BP_DEPRECATED("use cmdln_args_float_by_position_ex() instead")
+    inline bool cmdln_args_float_by_position(uint32_t pos, float* value) { // BUGBUG -- deprecate this function
+        return cmdln_args_float_by_position_ex(&g_legacy_command_info, pos, value);
+    }
+    BP_DEPRECATED("use cmdln_args_uint32_by_position_ex() instead")
+    inline bool cmdln_args_uint32_by_position(uint32_t pos, uint32_t* value) { // BUGBUG -- deprecate this function
+        return cmdln_args_uint32_by_position_ex(&g_legacy_command_info, pos, value);
+    }
+    BP_DEPRECATED("use cmdln_args_string_by_position_ex() instead")
+    inline bool cmdln_args_string_by_position(uint32_t pos, uint32_t max_len, char* str) { // BUGBUG -- deprecate this function
+        return cmdln_args_string_by_position_ex(&g_legacy_command_info, pos, max_len, str);
+    }
 
-inline bool cmdln_args_find_flag_uint32(char flag, command_var_t* arg, uint32_t* value) { // BUGBUG -- deprecate this function
-    return cmdln_args_find_flag_uint32_ex(&g_legacy_command_info, flag, arg, value);
-}
-inline bool cmdln_args_find_flag_string(char flag, command_var_t* arg, uint32_t max_len, char* str) { // BUGBUG -- deprecate this function
-    return cmdln_args_find_flag_string_ex(&g_legacy_command_info, flag, arg, max_len, str);
-}
-inline bool cmdln_args_float_by_position(uint32_t pos, float* value) { // BUGBUG -- deprecate this function
-    return cmdln_args_float_by_position_ex(&g_legacy_command_info, pos, value);
-}
-inline bool cmdln_args_uint32_by_position(uint32_t pos, uint32_t* value) { // BUGBUG -- deprecate this function
-    return cmdln_args_uint32_by_position_ex(&g_legacy_command_info, pos, value);
-}
-inline bool cmdln_args_string_by_position(uint32_t pos, uint32_t max_len, char* str) { // BUGBUG -- deprecate this function
-    return cmdln_args_string_by_position_ex(&g_legacy_command_info, pos, max_len, str);
-}
-#endif // !defined(BP_NO_LEGACY_CMDLINE_FUNCTIONS)
+#endif // BP_NO_LEGACY_CMDLINE_FUNCTIONS
 
 #pragma endregion // TO BE DEPRECATED AND/OR REMOVED -- Phase 2
 
