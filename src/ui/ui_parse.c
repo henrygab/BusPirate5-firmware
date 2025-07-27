@@ -1,3 +1,6 @@
+#define BP_DEBUG_OVERRIDE_DEFAULT_CATEGORY BP_DEBUG_CAT_CMDLINE_PARSER
+#define BP_NO_LEGACY_CMDLINE_FUNCTIONS
+
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include <stdint.h>
@@ -10,8 +13,8 @@
 #include "ui/ui_cmdln.h"
 
 // remove definition of `cmdln` global ..
-// to detect inadvertent use, as these functions
-// should **_NOT_** touch global state anymore
+// to detect inadvertent use in this file,
+// as these functions should **_NOT_** touch global state
 #undef cmdln
 
 // TODO: UI_CMDBUFFSIZE is globally defined, and therefore
@@ -344,18 +347,18 @@ bool ui_parse_get_units_ex(command_line_history_t * history, struct prompt_resul
     *result = empty_result;
 
     // get the trailing type
-    ui_parse_consume_whitespace();
+    ui_parse_consume_whitespace_ex(history);
 
     for (i = 0; i < length; i++) {
         units[i] = 0x00;
     }
 
     i = 0;
-    while (cmdln_try_peek(0, &c)) {
+    while (cmdln_try_peek_ex(history, 0, &c)) {
         if ((i < length) && c != 0x00 && c != ' ') {
             units[i] = (c | 0x20); // to lower case
             i++;
-            cmdln_try_discard(1);
+            cmdln_try_discard_ex(history, 1);
         } else {
             break;
         }

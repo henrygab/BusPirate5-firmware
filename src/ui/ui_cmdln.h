@@ -12,6 +12,8 @@ typedef struct _command_line_history_t {
     uint32_t cursor_offset;   // Offset into command_line_history_t.buf where the cursor is currently positioned
     char buf[UI_CMDBUFFSIZE]; // Global circular buffer used to store command line input and history
 } command_line_history_t;
+
+// Global used for main command line input from COM / UART terminal
 extern command_line_history_t cmdln;
 
 // This structure is used to track a single "command" and all options associated with that command.
@@ -168,7 +170,7 @@ inline bool cmdln_args_string_by_position(uint32_t pos, uint32_t max_len, char* 
 #pragma endregion // TO BE DEPRECATED AND/OR REMOVED -- Phase 2
 
 
-// TODO: Remove this once rotate operation implemented so command line always starts at offset zero
+// TODO: Remove this, once rotate operation implemented (sets command line to always starts at offset zero)
 uint32_t cmdln_pu(uint32_t i);
 
 
