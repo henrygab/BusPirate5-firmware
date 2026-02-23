@@ -246,7 +246,7 @@ void image_handler(struct command_result* res) {
         return;
     }
 
-    // use cmdln_args_string_by_position to get the image file name
+    // get the image file name
     char file[13];
     if (bp_cmd_get_positional_string(&image_def, 1, file, sizeof(file))) {
         printf("Opening file %s\r\n", file);

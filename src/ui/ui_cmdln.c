@@ -1,10 +1,9 @@
 /**
  * @file ui_cmdln.c
  * @brief Command line argument parsing implementation.
- * @details Provides argument parsing using linenoise linear buffer:
+ * @details Provides command dispatch infrastructure using linenoise linear buffer:
  *          - Command chaining with delimiters (; || &&)
- *          - Argument parsing (flags, positions, types)
- *          - Multiple number formats (hex, decimal, binary)
+ *          - Command name extraction by position
  */
 
 #include <stdbool.h>
@@ -13,15 +12,10 @@
 #include "pico/stdlib.h"
 #include <stdint.h>
 #include "pirate.h"
-#include "system_config.h"
-#include "ui/ui_const.h"
-#include "ui/ui_prompt.h"
 #include "ui/ui_cmdln.h"
 #include "lib/bp_linenoise/ln_cmdreader.h"
 
 struct _command_info_t command_info; // the current command and position in the buffer
-
-static const struct prompt_result empty_result;
 
 // consume white space (0x20, space)
 //  non_white_space = true, consume non-white space characters (not space)
@@ -36,7 +30,6 @@ static bool cmdln_consume_white_space(uint32_t* rptr, bool non_white_space) {
         }
         if ((!non_white_space && c == ' ')      // consume white space
             || (non_white_space && c != ' ')) { // consume non-whitespace
-            // printf("Whitespace at %d\r\n", cp->startptr+rptr);
             (*rptr)++;
         } else {
             break;
@@ -45,7 +38,7 @@ static bool cmdln_consume_white_space(uint32_t* rptr, bool non_white_space) {
     return true;
 }
 
-// internal function to take copy string from start position to next space or end of buffer
+// internal function to copy string from start position to next space or end of buffer
 // notice, we do not pass rptr by reference, so it is not updated
 static bool cmdln_args_get_string(uint32_t rptr, uint32_t max_len, char* string) {
     char c;
@@ -64,112 +57,6 @@ static bool cmdln_args_get_string(uint32_t rptr, uint32_t max_len, char* string)
         string[i] = c;
         rptr++;
     }
-}
-
-// parse a hex value from the first digit
-// notice, we do not pass rptr by reference, so it is not updated
-static bool cmdln_args_get_hex(uint32_t* rptr, struct prompt_result* result, uint32_t* value) {
-    char c;
-
-    //*result=empty_result;
-    result->no_value = true;
-    (*value) = 0;
-
-    while (command_info.endptr >= command_info.startptr + (*rptr) &&
-           cmdln_try_peek(command_info.startptr + (*rptr), &c)) { // peek at next char
-        if (((c >= '0') && (c <= '9'))) {
-            (*value) <<= 4;
-            (*value) += (c - 0x30);
-        } else if (((c | 0x20) >= 'a') && ((c | 0x20) <= 'f')) {
-            (*value) <<= 4;
-            c |= 0x20;              // to lowercase
-            (*value) += (c - 0x57); // 0x61 ('a') -0xa
-        } else {
-            break;
-        }
-        (*rptr)++;
-        result->success = true;
-        result->no_value = false;
-    }
-    return result->success;
-}
-
-// parse a bin value from the first digit
-// notice, we do not pass rptr by reference, so it is not updated
-static bool cmdln_args_get_bin(uint32_t* rptr, struct prompt_result* result, uint32_t* value) {
-    char c;
-    //*result=empty_result;
-    result->no_value = true;
-    (*value) = 0;
-
-    while (command_info.endptr >= command_info.startptr + (*rptr) &&
-           cmdln_try_peek(command_info.startptr + (*rptr), &c)) {
-        if ((c < '0') || (c > '1')) {
-            break;
-        }
-        (*value) <<= 1;
-        (*value) += c - 0x30;
-        (*rptr)++;
-        result->success = true;
-        result->no_value = false;
-    }
-
-    return result->success;
-}
-
-// parse a decimal value from the first digit
-// notice, we do not pass rptr by reference, so it is not updated
-static bool cmdln_args_get_dec(uint32_t* rptr, struct prompt_result* result, uint32_t* value) {
-    char c;
-    //*result=empty_result;
-    result->no_value = true;
-    (*value) = 0;
-
-    while (command_info.endptr >= command_info.startptr + (*rptr) &&
-           cmdln_try_peek(command_info.startptr + (*rptr), &c)) // peek at next char
-    {
-        if ((c < '0') || (c > '9')) // if there is a char, and it is in range
-        {
-            break;
-        }
-        (*value) *= 10;
-        (*value) += (c - 0x30);
-        (*rptr)++;
-        result->success = true;
-        result->no_value = false;
-    }
-    return result->success;
-}
-
-// decodes value from the cmdline
-// XXXXXX integer
-// 0xXXXX hexadecimal
-// 0bXXXX bin
-bool cmdln_args_get_int(uint32_t* rptr, struct prompt_result* result, uint32_t* value) {
-    bool r1, r2;
-    char p1, p2;
-
-    *result = empty_result;
-    r1 = cmdln_try_peek(command_info.startptr + (*rptr), &p1);
-    r2 = cmdln_try_peek(command_info.startptr + (*rptr) + 1, &p2);
-    if (!r1 || (p1 == 0x00)) { // no data, end of data, or no value entered on prompt
-        result->no_value = true;
-        return false;
-    }
-
-    if (r2 && (p2 | 0x20) == 'x') { // HEX
-        (*rptr) += 2;
-        cmdln_args_get_hex(rptr, result, value);
-        result->number_format = df_hex;    // whatever from ui_const
-    } else if (r2 && (p2 | 0x20) == 'b') { // BIN
-        (*rptr) += 2;
-        cmdln_args_get_bin(rptr, result, value);
-        result->number_format = df_bin; // whatever from ui_const
-    } else {                            // DEC
-        cmdln_args_get_dec(rptr, result, value);
-        result->number_format = df_dec; // whatever from ui_const
-    }
-    return result->success;
 }
 
 bool cmdln_args_string_by_position(uint32_t pos, uint32_t max_len, char* str) {
@@ -196,7 +83,6 @@ bool cmdln_args_string_by_position(uint32_t pos, uint32_t max_len, char* str) {
             if (c=='-') {
                 return false;
             }
-            struct prompt_result result;
             if (cmdln_args_get_string(rptr, max_len, str)) {
                 return true;
             } else {
