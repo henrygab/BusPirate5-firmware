@@ -361,7 +361,7 @@ bool selftest_button(void) {
     }
 
     busy_wait_ms(DEBOUNCE_DELAY_MS);
-    printf("PUSH BUTTON (SPACE TO SKIP): ");
+    printf("\r\nPUSH BUTTON (SPACE TO SKIP): ");
     // then wait for button to be released
     while (true){
         if(!button_get(0)){
@@ -546,7 +546,7 @@ void cmd_selftest(void) {
     if (fails) {
         printf("\r\nERRORS: %d\r\nFAIL! :(\r\n", fails);
     } else {
-        printf("\r\n\r\nPASS :)\r\n");
+        printf("\r\nPASS :)\r\n");
     }
 
     psu_status.enabled = false;

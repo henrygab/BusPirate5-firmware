@@ -272,7 +272,7 @@ void ui_config_main_menu(struct command_result* res) {
     // if TF flash card is present, saves configuration settings
     // TODO: present as an option to save or not
     if (storage_save_config()) {
-        printf("\r\n\r\n%s%s:%s %s\r\n",
+        printf("\r\n%s%s:%s %s\r\n",
                ui_term_color_info(),
                GET_T(T_CONFIG_FILE),
                ui_term_color_reset(),

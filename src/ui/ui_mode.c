@@ -254,7 +254,7 @@ void ui_mode_int_display_format(struct command_result* res) {
 
     system_config.display_format = (uint8_t)fmt;
 
-    printf("\r\n%s%s:%s %s",
+    printf("%s%s:%s %s",
            ui_term_color_info(),
            GET_T(T_MODE_MODE),
            ui_term_color_reset(),

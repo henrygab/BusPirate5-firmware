@@ -100,7 +100,7 @@ void ui_display_enable_args(struct command_result* res) {
         // gpio_set(BP_MODE_LED_PORT, BP_MODE_LED_PIN);
     }
 
-    printf("\r\n%s%s:%s %s",
+    printf("%s%s:%s %s",
            ui_term_color_info(),
            GET_T(T_MODE_DISPLAY),
            ui_term_color_reset(),
