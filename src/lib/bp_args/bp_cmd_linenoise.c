@@ -34,11 +34,11 @@
 
 /*
  * Upper bound on the number of defs we collect per callback invocation.
- * Global commands + largest mode command set.  If a mode has more than
- * this many migrated commands some will simply be silently skipped —
- * a safe, low-cost tradeoff vs. malloc on an RP2040.
+ * Global commands (~50) + largest mode command set (~15).
+ * If a mode has more than this many migrated commands some will simply
+ * be silently skipped — a safe, low-cost tradeoff vs. malloc on an RP2040.
  */
-#define MAX_COLLECTED_DEFS 48
+#define MAX_COLLECTED_DEFS 80
 
 /* ── helpers ────────────────────────────────────────────────────────── */
 

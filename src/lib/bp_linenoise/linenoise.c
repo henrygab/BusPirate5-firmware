@@ -1676,6 +1676,11 @@ char *linenoiseEditFeed(struct linenoiseState *l) {
             }
         }
         break;
+    case TAB:
+        /* Tab should be consumed by completion above. If it falls through
+         * (e.g. no completion callback set in simple_mode), ignore it
+         * rather than inserting a literal tab into the buffer. */
+        break;
     default:
         /* Handle UTF-8 multi-byte sequences. When we receive the first byte
          * of a multi-byte UTF-8 character, read the remaining bytes to
