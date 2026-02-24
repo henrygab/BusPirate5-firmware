@@ -6,6 +6,9 @@
 
 #define MAX_COMMAND_LENGTH 10
 
+/* Forward declare bp_command_def_t so we don't force-include bp_cmd.h everywhere */
+struct bp_command_def;
+
 /**
  * @brief Command execution result structure.
  */
@@ -20,22 +23,37 @@ typedef struct command_result {
 } command_result;
 
 /**
+ * @brief Help menu category for global commands.
+ */
+enum cmd_category {
+    CMD_CAT_IO = 0,        /**< Pin I/O, power, measurement */
+    CMD_CAT_CONFIGURE,     /**< Terminal, display, mode config */
+    CMD_CAT_SYSTEM,        /**< Info, reboot, selftest */
+    CMD_CAT_FILES,         /**< Storage and file operations */
+    CMD_CAT_SCRIPT,        /**< Scripting and macros */
+    CMD_CAT_TOOLS,         /**< Utilities and converters */
+    CMD_CAT_MODE,          /**< Mode selection */
+    CMD_CAT_HIDDEN,        /**< Aliases/internal — not shown in help */
+    CMD_CAT_COUNT          /**< Number of categories (sentinel) */
+};
+
+/**
  * @brief Global command structure definition.
  */
 struct _global_command_struct {
-    char command[MAX_COMMAND_LENGTH]; /**< Command line string */
-    bool allow_hiz;                   /**< Allow execution in HiZ mode */
+    const char *command; /**< Command line string */
     void (*func)(struct command_result* res); /**< Function to execute */
-    uint32_t help_text;               /**< Translation string for help, 0x00 = self-managed */
+    const struct bp_command_def *def;  /**< Unified command definition (NULL = legacy) */
+    bool allow_hiz;                   /**< Allow execution in HiZ mode */
+    uint8_t category;                 /**< Help menu category (enum cmd_category) */
 };
 
 /**
  * @brief Mode-specific command structure definition.
  */
 struct _mode_command_struct {
-    char command[MAX_COMMAND_LENGTH]; /**< Command line string */
     void (*func)(struct command_result* res); /**< Function to execute */
-    uint32_t description_text;        /**< Help and command list description */
+    const struct bp_command_def *def;  /**< Unified command definition */
     bool supress_fala_capture;        /**< Disable follow-along logic analyzer */
 };
 

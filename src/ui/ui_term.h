@@ -117,22 +117,10 @@ void ui_term_progress_bar_update(uint32_t current, uint32_t total, ui_term_progr
 void ui_term_progress_bar_cleanup(ui_term_progress_bar_t* pb);
 
 /**
- * @brief Get user input character.
- * @return Input character
+ * @brief Wait for a specific char from the terminal (or any if NUL).
+ * @param c  Character to wait for, or '\\0' for any character
+ * @return The character received
  */
-uint32_t ui_term_get_user_input(void);
-
-/**
- * @name Command-line editing functions
- * @{
- */
-bool ui_term_cmdln_char_insert(char* c);
-bool ui_term_cmdln_char_backspace(void);
-bool ui_term_cmdln_char_delete(void);
-void ui_term_cmdln_fkey(char* c);
-void ui_term_cmdln_arrow_keys(char* c);
-int ui_term_cmdln_history(int ptr);
 char ui_term_cmdln_wait_char(char c);
-/** @} */
 
 #endif

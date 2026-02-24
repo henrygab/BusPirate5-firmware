@@ -77,3 +77,44 @@ void ui_help_error(uint32_t error);
  * @param mode      Mode name string
  */
 void ui_help_mode_commands_exec(const struct _mode_command_struct* commands, uint32_t count, const char* mode);
+
+/**
+ * @brief Auto-generate global command help grouped by category.
+ * @details Walks commands[] array, prints each category heading followed
+ *          by commands in that category with their descriptions.
+ *          Hidden commands (CMD_CAT_HIDDEN) are skipped.
+ */
+void ui_help_global_commands(void);
+
+/**
+ * @brief Reset shared help pager row counter.
+ * @details Call before a sequence of help display functions
+ *          to ensure continuous paging across sections.
+ */
+void ui_help_pager_reset(void);
+
+/**
+ * @brief Disable paging for help output.
+ * @details Sets pager to never pause, useful for scripts or redirected output.
+ */
+void ui_help_pager_disable(void);
+
+/**
+ * @brief Display a numeric mode setting.
+ * @details Prints a coloured "label: value units" line for use in
+ *          settings display and saved-session summaries.
+ * @param label  Setting name (use GET_T for translation)
+ * @param value  Current numeric value
+ * @param units  Units string (e.g. GET_T(T_KHZ)), or 0 for none
+ */
+void ui_help_setting_int(const char* label, uint32_t value, const char* units);
+
+/**
+ * @brief Display a string/choice mode setting.
+ * @details Prints a coloured "label: string units" line for use in
+ *          settings display and saved-session summaries.
+ * @param label   Setting name (use GET_T for translation)
+ * @param string  Current choice/value string
+ * @param units   Units string, or 0 for none
+ */
+void ui_help_setting_string(const char* label, const char* string, const char* units);

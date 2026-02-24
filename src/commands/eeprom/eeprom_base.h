@@ -7,6 +7,9 @@
 #define EEPROM_DEBUG 0
 #define EEPROM_ADDRESS_PAGE_SIZE 256 // size of the EEPROM address page in bytes
 
+struct bp_command_def;
+typedef struct bp_command_def bp_command_def_t;
+
 struct eeprom_hal_t;
 
 struct eeprom_device_t {
@@ -89,7 +92,8 @@ bool eeprom_get_address(struct eeprom_info *eeprom, uint32_t address, uint8_t *b
  * @param buf_size  Buffer size in bytes
  * @return          true on success
  */
-bool eeprom_dump(struct eeprom_info *eeprom, uint8_t *buf, uint32_t buf_size);
+struct bp_command_def;
+bool eeprom_dump(const struct bp_command_def *def, struct eeprom_info *eeprom, uint8_t *buf, uint32_t buf_size);
 
 /**
  * @brief Write data to EEPROM.
@@ -173,6 +177,8 @@ bool eeprom_action_verify(struct eeprom_info *eeprom, uint8_t *buf, uint32_t buf
 
 /**
  * @brief Confirm destructive action with user.
- * @return true if user confirms, false if aborted
+ * @details Checks for -y flag on the command line via the command definition.
+ * @param def  Command definition (used to check -y flag)
+ * @return true if user confirms (or -y present), false if aborted
  */
-bool eeprom_confirm_action(void);
+bool eeprom_confirm_action(const bp_command_def_t *def);

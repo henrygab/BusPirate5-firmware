@@ -29,26 +29,67 @@
 #include "system_monitor.h"
 #include "commands/global/w_psu.h"
 #include "display/scope.h"
-#include "ui/ui_cmdln.h"
+#include "lib/bp_args/bp_cmd.h"
 #include "pirate/psu.h"
 #include "pirate/amux.h"
 #include "ui/ui_help.h"
 
 const char* const psucmd_usage[] = {
-    "w|W\t<v> <i> [-u <%%>]",
+    "w|W\t[volts] [current] [-u <%%>]",
     "Disable:%s w",
     "Enable, with menu:%s W",
-    "Enable 5v, 50mA fuse, 10%% default undervoltage limit:%s W 5 50",
-    "Enable 3.3v, 300mA default fuse, 10%% default undervoltage limit:%s W 3.3",
+    "Enable 5v, 50mA fuse, 10%% undervoltage limit:%s W 5 50",
+    "Enable 3.3v, 300mA default fuse, 10%% undervoltage limit:%s W 3.3",
     "Enable 3.3v, 100mA fuse, 20%% undervoltage limit:%s W 3.3 100 -u 20",
     "Enable 3.3v, no fuse, no undervoltage limit:%s W 3.3 0 -u 100",
 };
 
-const struct ui_help_options psucmd_options[] = {
-    { 1, "", T_HELP_GCMD_W }, // command help
-    { 0, "w", T_HELP_GCMD_W_DISABLE }, { 0, "W", T_HELP_GCMD_W_ENABLE },
-    { 0, "<v>", T_HELP_GCMD_W_VOLTS }, { 0, "<i>", T_HELP_GCMD_W_CURRENT_LIMIT },
-    { 0, "-u <%>", T_HELP_GCMD_W_UNDERVOLTAGE }
+static const bp_val_constraint_t voltage_range = {
+    .type = BP_VAL_FLOAT,
+    .f = { .min = 0.8f, .max = 5.0f, .def = 3.3f },
+    .prompt = T_HELP_GCMD_W_VOLTS,
+};
+
+static const bp_val_constraint_t current_range = {
+    .type = BP_VAL_FLOAT,
+    .f = { .min = 0.0f, .max = 500.0f, .def = 300.0f },
+    .prompt = T_HELP_GCMD_W_CURRENT_LIMIT,
+};
+
+static const bp_val_constraint_t undervoltage_range = {
+    .type = BP_VAL_UINT32,
+    .u = { .min = 1, .max = 100, .def = 10 },
+    .prompt = 0,
+};
+
+static const bp_command_opt_t psucmd_opts[] = {
+    { "undervoltage", 'u', BP_ARG_REQUIRED, "%", T_HELP_GCMD_W_UNDERVOLTAGE, &undervoltage_range },
+    { 0 }
+};
+
+static const bp_command_positional_t psucmd_enable_positionals[] = {
+    { "volts", NULL, T_HELP_GCMD_W_VOLTS, false, &voltage_range },
+    { "current", "mA",   T_HELP_GCMD_W_CURRENT_LIMIT, false, &current_range },
+    { 0 }
+};
+
+const bp_command_def_t psucmd_enable_def = {
+    .name         = "W",
+    .description  = T_CMDLN_PSU_EN,
+    .actions      = NULL,
+    .action_count = 0,
+    .opts         = psucmd_opts,
+    .positionals      = psucmd_enable_positionals,
+    .positional_count = 2,
+    .usage        = psucmd_usage,
+    .usage_count  = count_of(psucmd_usage),
+};
+
+const bp_command_def_t psucmd_disable_def = {
+    .name = "w",
+    .description = T_CMDLN_PSU_DIS,
+    .usage = psucmd_usage,
+    .usage_count = count_of(psucmd_usage)
 };
 
 // current limit fuse tripped
@@ -85,8 +126,7 @@ void psucmd_enable_handler(struct command_result* res) {
     bool current_limit_override = false;
 
     // check help
-    if (ui_help_show(
-            res->help_flag, psucmd_usage, count_of(psucmd_usage), &psucmd_options[0], count_of(psucmd_options))) {
+    if (bp_cmd_help_check(&psucmd_enable_def, res->help_flag)) {
         return;
     }
 
@@ -97,41 +137,32 @@ void psucmd_enable_handler(struct command_result* res) {
         return;
     }
 
-    bool has_volts = cmdln_args_float_by_position(1, &volts);
-    bool has_current = cmdln_args_float_by_position(2, &current);
-    if (has_volts && !has_current) {
-        // default current limit when no argument given
-        current = 300.0f;
+    // undervoltage flag: parse + validate, default if absent
+    uint32_t undervoltage_percent;
+    bp_cmd_status_t s = bp_cmd_flag(&psucmd_enable_def, 'u', &undervoltage_percent);
+    if (s == BP_CMD_INVALID) {
+        res->error = true;
+        return;
     }
 
-    // user selected to disable PSU when the voltage sags below X % 
-    command_var_t args;
-    uint32_t undervoltage_percent = 10;
-    bool has_undervoltage_alarm = cmdln_args_find_flag_uint32('u', &args, &undervoltage_percent);
-
-    //if(has_undervoltage_alarm) {
-        if(undervoltage_percent < 1 || undervoltage_percent > 100) {
-            printf("%sInvalid undervoltage alarm value: 1-100%%%s\r\n", ui_term_color_info(), ui_term_color_reset());
-            res->error = true;
-            return;
-        }
-    //}
-
-    if (!has_volts || volts < 0.8f || volts > 5.0f || (has_current && (current < 0.0f || current > 500.0f))) {
-        prompt_result result;
-
-        // prompt voltage (float)
-        printf("%sPower supply\r\nVolts (0.80V-5.00V)%s", ui_term_color_info(), ui_term_color_reset());
-        ui_prompt_float(&result, 0.8f, 5.0f, 3.3f, true, &volts, false);
-        if (result.exit) {
+    // Get voltage from command line
+    s = bp_cmd_positional(&psucmd_enable_def, 1, &volts);
+    if (s == BP_CMD_MISSING || s == BP_CMD_INVALID) {
+        // not on command line — prompt interactively
+        if (bp_cmd_prompt(&voltage_range, &volts) != BP_CMD_OK) {
             res->error = true;
             return;
         }
 
-        // prompt current (float)
-        printf("%sMaximum current (1mA-500mA), 0 for unlimited%s", ui_term_color_info(), ui_term_color_reset());
-        ui_prompt_float(&result, 0.0f, 500.0f, 300.0f, true, &current, false);
-        if (result.exit) {
+        // interactive mode: also prompt for current
+        if (bp_cmd_prompt(&current_range, &current) != BP_CMD_OK) {
+            res->error = true;
+            return;
+        }
+    } else {
+        // voltage was on command line — try current from command line too
+        // return default if missing, prints error if invalid
+        if (bp_cmd_positional(&psucmd_enable_def, 2, &current) == BP_CMD_INVALID) {
             res->error = true;
             return;
         }
@@ -248,8 +279,7 @@ void psucmd_disable(void) {
 
 void psucmd_disable_handler(struct command_result* res) {
     // check help
-    if (ui_help_show(
-            res->help_flag, psucmd_usage, count_of(psucmd_usage), &psucmd_options[0], count_of(psucmd_options))) {
+    if (bp_cmd_help_check(&psucmd_disable_def, res->help_flag)) {
         return;
     }
 

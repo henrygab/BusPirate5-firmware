@@ -6,10 +6,9 @@
 //#include "ui/ui_term.h"
 #include "command_struct.h"
 #include "ui/ui_help.h"
-#include "ui/ui_cmdln.h" //for cmdln_action_t
-#include "ui/ui_prompt.h"
 //#include "binmode/fala.h"
 #include "fatfs/ff.h"       // File system related
+#include "lib/bp_args/bp_cmd.h"
 #include "ui/ui_hex.h" // Hex display related
 #include "ui/ui_progress_indicator.h" // Progress indicator related
 //#include "commands/i2c/eeprom.h"
@@ -17,23 +16,8 @@
 //#include "pirate/hwspi.h" // SPI related functions
 #include "eeprom_base.h"
 
-bool eeprom_confirm_action(void){
-    if(cmdln_args_find_flag('y')) {
-        return true; // override with -y
-    }
-    cmdln_next_buf_pos();
-    printf("This action may modify the EEPROM contents. Do you want to continue?\r\ny/n> \x03");
-    uint32_t confirm;
-    do {
-        confirm = ui_prompt_yes_no();
-    } while (confirm > 1);
-
-    if(confirm != 1) {
-        printf("\r\nAborted by user\r\n");
-        return false;
-    }
-    return true;
-
+bool eeprom_confirm_action(const bp_command_def_t *def){
+    return bp_cmd_confirm(def, "This action may modify the EEPROM contents. Do you want to continue?");
 }
 
 void eeprom_display_devices(const struct eeprom_device_t *eeprom_devices, uint8_t count) {
@@ -103,11 +87,11 @@ bool eeprom_get_address(struct eeprom_info *eeprom, uint32_t address, uint8_t *b
 //-----------------Universal Functions-------------------------//
 
 //function to display hex editor like dump of the EEPROM contents
-bool eeprom_dump(struct eeprom_info *eeprom, uint8_t *buf, uint32_t buf_size){
+bool eeprom_dump(const bp_command_def_t *def, struct eeprom_info *eeprom, uint8_t *buf, uint32_t buf_size){
     // align the start address to 16 bytes, and calculate the end address
     struct hex_config_t hex_config;
     hex_config.max_size_bytes= eeprom->device->size_bytes; // maximum size of the device in bytes
-    ui_hex_get_args_config(&hex_config);
+    ui_hex_get_args_config(def, &hex_config);
     ui_hex_align_config(&hex_config);
     ui_hex_header_config(&hex_config);
 

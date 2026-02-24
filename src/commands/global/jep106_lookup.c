@@ -7,37 +7,49 @@
 #include "command_struct.h"
 #include "bytecode.h"
 #include "ui/ui_help.h"
-#include "ui/ui_cmdln.h"
+#include "lib/bp_args/bp_cmd.h"
 #include "lib/jep106/jep106.h"
 
 static const char* const usage[] = {
-    "jep106 <bank number> <vendor id>",
+    "jep106 <bank> <vendor>",
     "Lookup JEP106 ID (Micron):%s jep106 0x00 0x2c",
     "Lookup JEP106 ID (Sinker):%s jep106 0x0a 0xab"
 };
 
-static const struct ui_help_options options[] = {
-    { 1, "", T_HELP_GLOBAL_JEP106_LOOKUP }, 
-    { 0, "-h", T_HELP_HELP }               // help flag
+static const bp_command_positional_t jep106_positionals[] = {
+    { "bank",   "bank number", T_HELP_GCMD_JEP106_BANK, true },
+    { "id",     "vendor id",   T_HELP_GCMD_JEP106_ID, true },
+    { 0 }
 };
 
+const bp_command_def_t jep106_def = {
+    .name         = "jep106",
+    .description  = T_HELP_GLOBAL_JEP106_LOOKUP,
+    .actions      = NULL,
+    .action_count = 0,
+    .opts         = NULL,
+    .positionals      = jep106_positionals,
+    .positional_count = 2,
+    .usage        = usage,
+    .usage_count  = count_of(usage),
+};
 
 void jep106_handler(struct command_result* res) {
-    if (ui_help_show(res->help_flag, usage, count_of(usage), &options[0], count_of(options))) {
+    if (bp_cmd_help_check(&jep106_def, res->help_flag)) {
         return;
     }
 
     uint32_t bank;
-    if(!cmdln_args_uint32_by_position(1, &bank)){
+    if(!bp_cmd_get_positional_uint32(&jep106_def, 1, &bank)){
         printf("Missing bank number argument\r\n\r\n");
-        ui_help_show(true, usage, count_of(usage), &options[0], count_of(options));
+        bp_cmd_help_show(&jep106_def);
         return;
     }
     
     uint32_t id;
-    if(!cmdln_args_uint32_by_position(2, &id)){
+    if(!bp_cmd_get_positional_uint32(&jep106_def, 2, &id)){
         printf("Missing vendor id argument\r\n\r\n");
-        ui_help_show(true, usage, count_of(usage), &options[0], count_of(options));
+        bp_cmd_help_show(&jep106_def);
         return;
     }
 

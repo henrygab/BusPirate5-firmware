@@ -32,8 +32,6 @@ set(buspirate_common
         system_monitor.c
 
         #flatcc test
-        commands/global/flat.h 
-        commands/global/flat.c 
         bpio_builder.h
         bpio_reader.h
         bpio_verifier.h
@@ -298,8 +296,8 @@ set(buspirate_common
         commands/spi/flash.h
         commands/spi/spiflash.h
         commands/spi/spiflash.c
-        commands/spi/sniff.c
-        commands/spi/sniff.h
+        #commands/spi/sniff.c
+        #commands/spi/sniff.h
         lib/sfud/inc/sfud.h
         lib/sfud/inc/sfud.c
         lib/sfud/inc/sfud_cfg.h
@@ -374,6 +372,12 @@ set(buspirate_common
         ui/ui_flags.h
         ui/ui_parse.c
         ui/ui_parse.h
+        lib/bp_number/bp_number.c
+        lib/bp_number/bp_number.h
+        lib/bp_args/bp_cmd.c
+        lib/bp_args/bp_cmd.h
+        lib/bp_args/bp_cmd_linenoise.c
+        lib/bp_args/bp_cmd_linenoise.h
         ui/ui_prompt.h
         ui/ui_prompt.c
         ui/ui_mode.c
@@ -382,7 +386,6 @@ set(buspirate_common
         ui/ui_display.h
         ui/ui_info.h
         ui/ui_info.c
-        ui/ui_format.c
         ui/ui_format.c
         ui/ui_init.c
         ui/ui_init.h
@@ -394,6 +397,8 @@ set(buspirate_common
         ui/ui_help.h
         ui/ui_term.c
         ui/ui_term.h
+        ui/ui_term_linenoise.c
+        ui/ui_term_linenoise.h
         ui/ui_statusbar.c
         ui/ui_statusbar.h
         ui/ui_hex.c
@@ -414,7 +419,10 @@ set(buspirate_common
 
         # syntax and commands
         syntax.h
-        syntax.c
+        syntax_internal.h
+        syntax_compile.c
+        syntax_run.c
+        syntax_post.c
         syntax_struct.h
         command_struct.h
         bytecode.h
@@ -512,7 +520,6 @@ set(buspirate_common
         font/hunter-23pt-24h24w.h
         display/background.h
         display/background_image_v4.h
-        display/robot16.h
         
         # USB - SPSC queues for inter-core communication
         spsc_queue.h
@@ -520,19 +527,32 @@ set(buspirate_common
         usb_tx.h
         usb_rx.c
         usb_rx.h
+
+        # Line editing library (linenoise with BP_EMBEDDED support)
+        lib/bp_linenoise/linenoise.h
+        lib/bp_linenoise/linenoise.c
+        lib/bp_linenoise/ln_cmdreader.h
+        lib/bp_linenoise/ln_cmdreader.c
+
+        # Expression evaluator library
+        lib/bp_expr/bp_expr.h
+        lib/bp_expr/bp_expr.c        
+
         msc_disk.c
         msc_disk.h
         usb_descriptors.c
 
 	# USBPD 
-        mode/usbpd.c            
-        mode/usbpd.h
+        #mode/usbpd.c            
+        #mode/usbpd.h
 
         # I2S
         mode/i2s.c
         mode/i2s.h
         commands/i2s/sine.h 
         commands/i2s/sine.c
+        commands/i2s/wav.h
+        commands/i2s/wav.c
 )
 set(buspirate_nandflash
         #nand flash management and dhara
@@ -738,6 +758,7 @@ foreach(revision ${revisions})
         target_compile_definitions(${revision} PUBLIC PICO_USE_STACK_GUARDS=1)
         target_compile_definitions(${revision} PUBLIC PICO_STACK_SIZE=4096)        
         target_compile_definitions(${revision} PRIVATE PICO_MALLOC_PANIC=0)
+        target_compile_definitions(${revision} PUBLIC BP_EMBEDDED=1)
 
         # Add to your foreach(revision ${revisions}) loop after target_link_libraries
         target_link_options(${revision} PRIVATE 

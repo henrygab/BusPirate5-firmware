@@ -16,6 +16,20 @@
 #include "ui/ui_statusbar.h"
 #include "ui/ui_flags.h"
 #include "pirate/rgb.h" // for LED effect enum
+#include "ui/ui_help.h"
+#include "lib/bp_args/bp_cmd.h"
+
+static const char* const config_usage[] = {
+    "c",
+    "Open interactive configuration menu:%s c",
+};
+
+const bp_command_def_t ui_config_def = {
+    .name         = "c",
+    .description  = T_CMDLN_CONFIG_MENU,
+    .usage        = config_usage,
+    .usage_count  = count_of(config_usage),
+};
 
 bool ui_config_menu(const struct ui_prompt* menu);
 
@@ -244,6 +258,9 @@ bool ui_config_menu(const struct ui_prompt* menu) {
 }
 
 void ui_config_main_menu(struct command_result* res) {
+    if (bp_cmd_help_check(&ui_config_def, res->help_flag)) {
+        return;
+    }
     while (1) {
         uint32_t temp;
         prompt_result result;
@@ -272,7 +289,7 @@ void ui_config_main_menu(struct command_result* res) {
     // if TF flash card is present, saves configuration settings
     // TODO: present as an option to save or not
     if (storage_save_config()) {
-        printf("\r\n\r\n%s%s:%s %s\r\n",
+        printf("\r\n%s%s:%s %s\r\n",
                ui_term_color_info(),
                GET_T(T_CONFIG_FILE),
                ui_term_color_reset(),
