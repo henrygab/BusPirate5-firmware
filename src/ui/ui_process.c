@@ -134,16 +134,7 @@ bool ui_process_commands(void) {
                 command_type = GLOBAL;
                 // global help handler (optional, set config in commands.c)
                 if (bp_cmd_has_help_flag()) {
-                    if (commands[user_cmd_id].description_text != 0x00 && !commands[user_cmd_id].def) {
-                        // Legacy one-liner help for unmigrated commands
-                        printf("%s%s%s\r\n",
-                               ui_term_color_info(),
-                               GET_T(commands[user_cmd_id].description_text),
-                               ui_term_color_reset());
-                        return false;
-                    } else { // let app know we requested help
-                        result.help_flag = true;
-                    }
+                    result.help_flag = true;
                 }
 
                 if (command_type == GLOBAL && system_config.mode == HIZ && !commands[user_cmd_id].allow_hiz &&

@@ -86,12 +86,10 @@ void ui_help_global_commands(void) {
 
             pager_check();
 
-            // Resolve description: def->description > description_text > fallback
+            // Resolve description from def
             const char *desc;
             if (commands[i].def && commands[i].def->description) {
                 desc = GET_T(commands[i].def->description);
-            } else if (commands[i].description_text) {
-                desc = GET_T(commands[i].description_text);
             } else {
                 desc = "No description. Try -h";
             }

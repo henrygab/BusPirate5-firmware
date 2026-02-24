@@ -44,8 +44,6 @@ struct _global_command_struct {
     const char *command; /**< Command line string */
     void (*func)(struct command_result* res); /**< Function to execute */
     const struct bp_command_def *def;  /**< Unified command definition (NULL = legacy) */
-    //deprecate after full migration to bp_command_def_t: use description in def instead
-    uint32_t description_text;        /**< Help and command list description */
     bool allow_hiz;                   /**< Allow execution in HiZ mode */
     uint8_t category;                 /**< Help menu category (enum cmd_category) */
 };
