@@ -580,7 +580,6 @@ static void core0_infinite_loop(void) {
                 }
 
                 if (ln_result == 0xff) {  // Enter - line complete
-                    printf("\r\n");
                     bp_state = BP_SM_PROCESS_COMMAND;
                     button_irq_disable(0); 
                     break;

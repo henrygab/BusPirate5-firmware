@@ -58,16 +58,26 @@ static void pager_check(void) {
 }
 
 void ui_help_global_commands(void) {
+    bool first_heading = true;
 
     for (uint8_t cat = 0; cat < CMD_CAT_HIDDEN; cat++) {
         // Print category heading
         if (category_headings[cat]) {
             pager_check();
-            printf("\r\n%s%s%s\r\n",
-                   ui_term_color_info(),
-                   GET_T(category_headings[cat]),
-                   ui_term_color_reset());
-            pager_row += 2; // blank line + heading
+            if (first_heading) {
+                printf("%s%s%s\r\n",
+                       ui_term_color_info(),
+                       GET_T(category_headings[cat]),
+                       ui_term_color_reset());
+                pager_row += 1; // heading only (no blank line before first)
+                first_heading = false;
+            } else {
+                printf("\r\n%s%s%s\r\n",
+                       ui_term_color_info(),
+                       GET_T(category_headings[cat]),
+                       ui_term_color_reset());
+                pager_row += 2; // blank line + heading
+            }
         }
 
         // Walk commands[], print every entry matching this category

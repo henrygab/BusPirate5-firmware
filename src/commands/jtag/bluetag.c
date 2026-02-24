@@ -72,7 +72,7 @@ void bluetag_handler(struct command_result* res) {
 
     //print version
     if(bp_cmd_find_flag(&bluetag_def, 'v')){
-        printf("\r\nCurrent version: %s\r\n\r\n", version);
+        printf("Current version: %s\r\n", version);
         return;
     }
 
@@ -83,17 +83,17 @@ void bluetag_handler(struct command_result* res) {
         //disable pin pulsing
         bool disable_pulse=bp_cmd_find_flag(&bluetag_def, 'd');
         if(disable_pulse){
-            printf("\r\nDisabled pin pulsing\r\n\r\n");
+            printf("Disabled pin pulsing\r\n");
         }
 
         //number of channels
         uint32_t channels=0;
         bool c_flag = bp_cmd_get_uint32(&bluetag_def, 'c', &channels);
         if(!c_flag){
-            printf("\r\nSpecify the number of channels with the -c flag, -h for help\r\n");
+            printf("Specify the number of channels with the -c flag, -h for help\r\n");
             return;
         }else{
-            printf("\r\nNumber of channels set to: %d\r\n\r\n", channels);
+            printf("Number of channels set to: %d\r\n", channels);
         }
 
         // lets do jtag!

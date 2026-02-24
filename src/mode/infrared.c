@@ -166,8 +166,6 @@ void irtoy_test(struct command_result* res) {
     } else {
         printf("\r\nOK :)\r\n");
     }
-
-    printf("\r\n");
 }
 
 // command configuration

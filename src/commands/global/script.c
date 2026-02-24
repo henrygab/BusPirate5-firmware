@@ -140,7 +140,6 @@ bool script_exec(char* location, bool pause_for_input, bool show_comments, bool 
                 }
             }
 
-            printf("\r\n");
             bool error = ui_process_commands();
             if (error && exit_on_error) {
                 return true;

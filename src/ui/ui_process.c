@@ -86,6 +86,7 @@ bool ui_process_macro(void) {
 
 //returns error = true or false
 bool ui_process_commands(void) {
+    printf("\r\n");  // End the input line — dispatch owns pre/post framing
     struct _command_info_t cp;
     cp.nextptr = 0;
 

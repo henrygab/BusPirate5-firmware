@@ -101,7 +101,7 @@ const bp_command_def_t mode_def = {
  * @return true if user picked a mode, false if exited
  */
 static bool mode_interactive_prompt(uint32_t *mode) {
-    printf("\r\n%s%s%s\r\n", ui_term_color_info(),
+    printf("%s%s%s\r\n", ui_term_color_info(),
            GET_T(T_MODE_MODE_SELECTION), ui_term_color_reset());
 
     for (uint32_t i = 0; i < MAXPROTO; i++) {
@@ -240,7 +240,7 @@ void ui_mode_int_display_format(struct command_result* res) {
 
     if (s == BP_CMD_MISSING) {
         // Show current setting before the interactive menu
-        printf("\r\n %sCurrent setting: %s%s",
+        printf("%sCurrent setting: %s%s\r\n",
                ui_term_color_info(),
                ui_const_display_formats[system_config.display_format],
                ui_term_color_reset());
