@@ -322,7 +322,7 @@ uint32_t freq_measure(int32_t pin, int refresh) {
     }
     // this pin or adjacent pin is PWM
     if (system_config.pwm_active & (0b11 << ((uint8_t)(pin % 2 ? pin - 1 : pin)))) {
-        printf("IO%d is unavailable beacuse IO%d or IO%d is in use as a frequency generator (PWM)!\r\nIn the future we "
+        printf("IO%d is unavailable because IO%d or IO%d is in use as a frequency generator (PWM)!\r\nIn the future we "
                "will fix this using the RP2040 PIO\r\n",
                pin,
                pin - 1,

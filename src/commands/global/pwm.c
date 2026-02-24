@@ -221,7 +221,7 @@ void pwm_configure_disable(struct command_result* res) {
         pin = log2(system_config.pwm_active);
     } else // multiple pwm active, show menu for user to choose which to disable
     {
-        printf("%s%s%s", ui_term_color_info(), "Disable frequency generation", ui_term_color_reset());
+        printf("%s%s%s\r\n", ui_term_color_info(), "Disable frequency generation", ui_term_color_reset());
 
         // print active pins
         for (uint32_t i = 0; i < count_of(bio2bufiopin); i++) {
@@ -255,7 +255,7 @@ void pwm_configure_disable(struct command_result* res) {
     system_bio_update_purpose_and_label(false, (uint8_t)pin, 0, 0);
     system_set_active(false, (uint8_t)pin, &system_config.pwm_active);
 
-    printf("\r\n%s%s:%s %s on IO%s%d%s",
+    printf("%s%s:%s %s on IO%s%d%s",
            ui_term_color_notice(),
            GET_T(T_MODE_PWM_GENERATE_FREQUENCY),
            ui_term_color_reset(),
