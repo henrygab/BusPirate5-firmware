@@ -58,8 +58,8 @@ const struct _global_command_struct commands[] = {
 { .command="@",         .allow_hiz=true,  .func=&auxio_input_handler,                .def=&auxio_input_def, .description_text=T_CMDLN_AUX_IN,       .category=CMD_CAT_IO },
 { .command="f",         .allow_hiz=true,  .func=&freq_single,                        .def=&freq_single_def, .description_text=T_CMDLN_FREQ_ONE,     .category=CMD_CAT_IO },
 { .command="F",         .allow_hiz=true,  .func=&freq_cont,                          .def=&freq_cont_def, .description_text=T_CMDLN_FREQ_CONT,    .category=CMD_CAT_IO },
-{ .command="G",         .allow_hiz=false, .func=&pwm_configure_enable,               .description_text=T_CMDLN_PWM_CONFIG,   .category=CMD_CAT_IO },
-{ .command="g",         .allow_hiz=false, .func=&pwm_configure_disable,              .description_text=T_CMDLN_PWM_DIS,      .category=CMD_CAT_IO },
+{ .command="G",         .allow_hiz=false, .func=&pwm_configure_enable,               .def=&pwm_enable_def, .description_text=T_CMDLN_PWM_CONFIG,   .category=CMD_CAT_IO },
+{ .command="g",         .allow_hiz=false, .func=&pwm_configure_disable,              .def=&pwm_disable_def, .description_text=T_CMDLN_PWM_DIS,      .category=CMD_CAT_IO },
 { .command="v",         .allow_hiz=true,  .func=&adc_measure_single,                 .def=&adc_single_def, .description_text=T_CMDLN_ADC_ONE,      .category=CMD_CAT_IO },
 { .command="V",         .allow_hiz=true,  .func=&adc_measure_cont,                   .def=&adc_cont_def, .description_text=T_CMDLN_ADC_CONT,     .category=CMD_CAT_IO },
 // Configure: terminal, display, mode config

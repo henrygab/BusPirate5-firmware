@@ -66,7 +66,7 @@ static const bp_command_positional_t pwm_positionals[] = {
 
 const bp_command_def_t pwm_enable_def = {
     .name = "G",
-    .description = 0,
+    .description = T_CMDLN_PWM_CONFIG,
     .positionals = pwm_positionals,
     .positional_count = 1,
     .usage = pwm_enable_usage,
@@ -75,7 +75,7 @@ const bp_command_def_t pwm_enable_def = {
 
 const bp_command_def_t pwm_disable_def = {
     .name = "g",
-    .description = 0,
+    .description = T_CMDLN_PWM_DIS,
     .positionals = pwm_positionals,
     .positional_count = 1,
     .usage = pwm_disable_usage,
